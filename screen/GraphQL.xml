@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-2.0.xsd" include-child-content="true">
+
+    <transition name="v1" read-only="true">
+        <parameter name="query"/>
+        <actions>
+            <log message="${query}"/>
+            <script><![CDATA[
+
+                import graphql.GraphQL
+                import graphql.language.SourceLocation
+                import graphql.schema.GraphQLFieldDefinition
+                import graphql.schema.GraphQLNonNull
+                import graphql.schema.GraphQLObjectType
+                import graphql.schema.GraphQLSchema
+                import graphql.validation.ValidationErrorType
+
+                import static graphql.Scalars.GraphQLString
+                import static graphql.schema.GraphQLArgument.newArgument
+                import static graphql.schema.GraphQLFieldDefinition.newFieldDefinition
+                import static graphql.schema.GraphQLObjectType.newObject
+                import static graphql.schema.GraphQLSchema.newSchema
+
+
+                GraphQLFieldDefinition.Builder fieldDefinition = newFieldDefinition()
+                        .name("hello")
+                        .type(GraphQLString)
+                        .staticValue("world")
+                GraphQLSchema schema = newSchema().query(newObject()
+                                .name("RootQueryType")
+                                .field(fieldDefinition.build())
+                                .build()
+                        ).build()
+
+                Map<String, Object> result = new GraphQL(schema).execute("${query}").getData();
+
+                ec.web.sendJsonResponse(result)
+            ]]></script>
+
+        </actions>
+        <default-response type="none"/>
+    </transition>
+
+    <widgets>
+    </widgets>
+</screen>

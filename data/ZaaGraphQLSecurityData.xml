@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<entity-facade-xml type="seed">
+    <moqui.screen.SubscreensItem screenLocation="component://webroot/screen/webroot.xml"
+        subscreenName="graphql" subscreenLocation="component://moqui-graphql/screen/GraphQL.xml"/>
+
+    <artifactGroups artifactGroupId="GRAPHQL_API" description="GraphQL API">
+        <artifacts artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y" artifactName="component://moqui-graphql/screen/GraphQL.xml"/>
+        <artifacts artifactTypeEnumId="AT_SERVICE" artifactName="graphql\..*" nameIsPattern="Y" inheritAuthz="Y"/>
+
+        <authz artifactAuthzId="GRAPHQL_API_ADMIN" userGroupId="ADMIN" authzTypeEnumId="AUTHZT_ALWAYS" authzActionEnumId="AUTHZA_ALL"/>
+    </artifactGroups>
+</entity-facade-xml>
