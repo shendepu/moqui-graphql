@@ -7,13 +7,91 @@
             <log message="${query}"/>
             <script><![CDATA[
                 import graphql.GraphQL
+                long startTime = System.currentTimeMillis()
                 GraphQL graphql = ec.getTool("GraphQL", GraphQL.class)
-                ec.logger.info("${graphql}")
                 Map<String, Object> result = graphql.execute("${query}").getData()
 
                 ec.web.sendJsonResponse(result)
+                ec.logger.info("Run graphql query in ${System.currentTimeMillis() - startTime}ms")
             ]]></script>
 
+        </actions>
+        <default-response type="none"/>
+    </transition>
+
+    <transition name="test" read-only="true">
+        <parameter name="query"/>
+        <parameter name="variables"/>
+        <actions>
+            <log message="${query}"/>
+            <log message="${variables}"/>
+            <script><![CDATA[
+
+                import graphql.GraphQL
+                import graphql.ExecutionResult
+                import graphql.schema.GraphQLType
+                import graphql.schema.GraphQLObjectType
+                import graphql.schema.GraphQLSchema
+                import graphql.schema.GraphQLFieldDefinition
+                import graphql.Scalars
+
+
+                import static graphql.schema.GraphQLSchema.newSchema
+                import static graphql.schema.GraphQLFieldDefinition.newFieldDefinition
+                import static graphql.Scalars.GraphQLString
+                import static graphql.Scalars.GraphQLBigInteger
+
+                import graphql.schema.DataFetcher
+                import graphql.schema.DataFetchingEnvironment
+                import graphql.schema.GraphQLArgument
+
+                import java.math.BigInteger
+
+                GraphQLObjectType queryType = GraphQLObjectType.newObject()
+                    .name("QueryType")
+                    .field(newFieldDefinition()
+                        .name("bigInteger")
+                        .type(GraphQLBigInteger)
+                        .dataFetcher(new DataFetcher() {
+                            @Override
+                            public Object get(DataFetchingEnvironment environment) {
+                                System.out.println(environment.source)
+                                System.out.println(environment.context)
+                                System.out.println(environment.arguments)
+                                System.out.println(environment.fields)
+                                System.out.println(environment.graphQLSchema)
+                                System.out.println(environment.parentType)
+                                return environment.arguments.value
+                            }
+                        })
+                        .argument(GraphQLArgument.newArgument()
+                            .name('value')
+                            .type(GraphQLBigInteger)
+                            .defaultValue(5)
+                            .build())
+                        .build())
+                    .build()
+
+                Set<GraphQLType> typeDictionary = new HashSet<GraphQLType>() {{
+                    add(GraphQLString)
+                    add(GraphQLBigInteger)
+                }}
+
+                System.out.println('typeDictionary')
+                System.out.println(typeDictionary)
+                GraphQLSchema schema = GraphQLSchema.newSchema()
+                                .query(queryType)
+                                .build(typeDictionary)
+
+                Map<String, Object> result = new LinkedHashMap<>()
+                ExecutionResult executionResult = new GraphQL(schema).execute("${query}", (Object) null, variables)
+                if (executionResult.getErrors().size() > 0) {
+                    result.put("errors", executionResult.getErrors())
+                }
+                result.put("data", executionResult.getData())
+
+                ec.web.sendJsonResponse(result)
+            ]]></script>
         </actions>
         <default-response type="none"/>
     </transition>
