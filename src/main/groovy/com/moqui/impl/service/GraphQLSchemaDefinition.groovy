@@ -40,32 +40,40 @@ public class GraphQLSchemaDefinition {
     protected final static Logger logger = LoggerFactory.getLogger(GraphQLSchemaDefinition.class)
 
     @SuppressWarnings("GrFinalVariableAccess")
-    public final ServiceFacade sf
+    protected final ServiceFacade sf
     @SuppressWarnings("GrFinalVariableAccess")
-    public final ExecutionContextFactoryImpl ecfi
+    protected final ExecutionContextFactoryImpl ecfi
     @SuppressWarnings("GrFinalVariableAccess")
-    public final MNode schemaNode
+    protected final MNode schemaNode
 
     @SuppressWarnings("GrFinalVariableAccess")
     public final String schemaName
     @SuppressWarnings("GrFinalVariableAccess")
-    public final String queryType
+    protected final String queryType
     @SuppressWarnings("GrFinalVariableAccess")
-    public final String mutationType
+    protected final String mutationType
 
-    public final Map<String, GraphQLType> graphQLTypeMap = new LinkedHashMap<>()
-    public final Map<String, GraphQLType> graphQLTypeReferenceMap = new LinkedHashMap<>()
-    public final Set<GraphQLType> inputTypes = new HashSet<GraphQLType>()
+    protected final Map<String, GraphQLType> graphQLTypeMap = new LinkedHashMap<>()
+    protected final Map<String, GraphQLType> graphQLTypeReferenceMap = new LinkedHashMap<>()
+    protected final Set<GraphQLType> inputTypes = new HashSet<GraphQLType>()
 
-    public final ArrayList<String> inputTypeList = new ArrayList<>()
+    protected final ArrayList<String> inputTypeList = new ArrayList<>()
 
-    public ArrayList<GraphQLTypeNode> allTypeNodeList = new ArrayList<>()
-    public LinkedList<GraphQLTypeNode> allTypeNodeSortedList = new LinkedList<>()
+    protected ArrayList<GraphQLTypeNode> allTypeNodeList = new ArrayList<>()
+    protected LinkedList<GraphQLTypeNode> allTypeNodeSortedList = new LinkedList<>()
 
-    public ArrayList<UnionTypeNode> unionTypeNodeList = new ArrayList<>()
-    public ArrayList<EnumTypeNode> enumTypeNodeList = new ArrayList<>()
-    public ArrayList<InterfaceTypeNode> interfaceTypeNodeList = new ArrayList<>()
-    public ArrayList<ObjectTypeNode> objectTypeNodeList = new ArrayList<>()
+    protected ArrayList<UnionTypeNode> unionTypeNodeList = new ArrayList<>()
+    protected ArrayList<EnumTypeNode> enumTypeNodeList = new ArrayList<>()
+    protected ArrayList<InterfaceTypeNode> interfaceTypeNodeList = new ArrayList<>()
+    protected ArrayList<ObjectTypeNode> objectTypeNodeList = new ArrayList<>()
+
+    public static final Map<String, GraphQLType> graphQLScalarTypes = [
+            "Int"       : Scalars.GraphQLInt, "Long": Scalars.GraphQLLong,
+            "Float"     : Scalars.GraphQLFloat, "String": Scalars.GraphQLString,
+            "Boolean"   : Scalars.GraphQLBoolean, "ID": Scalars.GraphQLID,
+            "BigInteger": Scalars.GraphQLBigInteger, "BigDecimal": Scalars.GraphQLBigDecimal,
+            "Byte"      : Scalars.GraphQLByte, "Short": Scalars.GraphQLShort,
+            "Char"      : Scalars.GraphQLChar]
 
     public GraphQLSchemaDefinition(ServiceFacade sf, MNode schemaNode) {
         this.sf = sf
@@ -73,8 +81,8 @@ public class GraphQLSchemaDefinition {
         this.schemaNode = schemaNode
 
         this.schemaName = schemaNode.attribute("name")
-        this.queryType = schemaNode.attribute("queryType")
-        this.mutationType = schemaNode.attribute("mutationType")
+        this.queryType = schemaNode.attribute("query")
+        this.mutationType = schemaNode.attribute("mutation")
 
         for (MNode childNode in schemaNode.children) {
             switch (childNode.name) {
@@ -97,11 +105,11 @@ public class GraphQLSchemaDefinition {
         }
     }
 
-    public GraphQLTypeNode getTypeNode(String name) {
+    private GraphQLTypeNode getTypeNode(String name) {
         return allTypeNodeList.find({ it.name == name })
     }
 
-    public populateSortedTypes() {
+    private populateSortedTypes() {
         allTypeNodeSortedList.clear()
 
         GraphQLTypeNode queryTypeNode = getTypeNode(queryType)
@@ -123,9 +131,13 @@ public class GraphQLSchemaDefinition {
         createTreeNodeRecursive(rootNode)
         traverseByLevelOrder(rootNode)
 
+        logger.info("==== allTypeNodeSortedList ====")
+        for (GraphQLTypeNode node in allTypeNodeSortedList) {
+            logger.info("[${node.name} - ${node.type}]")
+        }
     }
 
-    void traverseByLevelOrder(TreeNode<GraphQLTypeNode> startNode) {
+    private void traverseByLevelOrder(TreeNode<GraphQLTypeNode> startNode) {
         Queue<TreeNode<GraphQLTypeNode>> queue = new LinkedList<>()
         queue.add(startNode)
         while(!queue.isEmpty()) {
@@ -133,7 +145,7 @@ public class GraphQLSchemaDefinition {
             if (tempNode.data) {
                 logger.info("Traversing node [${tempNode.data.name}]")
                 if (!allTypeNodeSortedList.contains(tempNode.data)) {
-                    allTypeNodeSortedList.push(tempNode.data)
+                    allTypeNodeSortedList.addFirst(tempNode.data)
                 }
             }
             for (TreeNode<GraphQLTypeNode> childNode in tempNode.children) {
@@ -142,9 +154,12 @@ public class GraphQLSchemaDefinition {
         }
     }
 
-    void createTreeNodeRecursive(TreeNode<GraphQLTypeNode> node) {
+    private void createTreeNodeRecursive(TreeNode<GraphQLTypeNode> node) {
         if (node.data) {
             for (String type in node.data.getDependentTypes()) {
+                // If type is GraphQL Scalar types, skip.
+                if (graphQLScalarTypes.containsKey(type)) continue
+
                 GraphQLTypeNode typeNode = getTypeNode(type)
                 if (typeNode != null) {
                     TreeNode<GraphQLTypeNode> typeTreeNode = new TreeNode<>(typeNode)
@@ -161,13 +176,12 @@ public class GraphQLSchemaDefinition {
         }
     }
 
-    GraphQLSchema getSchema() {
-        Map<String, GraphQLType> graphQLTypeMap = new LinkedHashMap<>()
-
+    public GraphQLSchema getSchema() {
         populateSortedTypes()
 
         graphQLTypeMap.clear()
         addGraphQLScalarTypes()
+
 
         for (GraphQLTypeNode typeNode in allTypeNodeSortedList) {
             switch (typeNode.type) {
@@ -191,35 +205,38 @@ public class GraphQLSchemaDefinition {
         if (schemaQueryType == null)
             throw new IllegalArgumentException("GraphQL query type [${this.queryType}] for schema [${this.schemaName}] not found")
 
-        GraphQLSchema.Builder schema = GraphQLSchema.newSchema()
-                .query(schemaQueryType)
+        GraphQLSchema.Builder schemaBuilder = GraphQLSchema.newSchema().query((GraphQLObjectType)schemaQueryType)
 
         if (this.mutationType) {
-            GraphQLType schemaMuntationType = graphQLTypeMap.get(this.mutationType)
+            GraphQLType schemaMutationType = graphQLTypeMap.get(this.mutationType)
             if (schemaQueryType == null)
                 throw new IllegalArgumentException("GraphQL mutation type [${this.mutationType}] for schema [${this.schemaName}] not found")
-            schema = schema.mutation(schemaMuntationType)
+            schemaBuilder = schemaBuilder.mutation((GraphQLObjectType) schemaMutationType)
         }
 
         inputTypes.clear()
         addSchemaInputTypes()
 
-        return schema.build(inputTypes)
+        GraphQLSchema schema = schemaBuilder.build(inputTypes)
+
+        for (String referenceTypeName in graphQLTypeReferenceMap.keySet()) {
+            GraphQLType type = schema.allTypesAsList.find({ it.name = referenceTypeName})
+            if (type != null) {
+                logger.info("Replacing GraphQLTypeReference [${referenceTypeName}]")
+                graphQLTypeMap.put(referenceTypeName, type)
+            } else {
+                logger.error("GraphQLTypeReference for [${referenceTypeName}] not found in schema")
+            }
+        }
+
+        return schema
     }
 
-    void addSchemaInputTypes() {
+    private void addSchemaInputTypes() {
         // Add default GraphQLScalarType
-        inputTypes.add(Scalars.GraphQLInt)
-        inputTypes.add(Scalars.GraphQLLong)
-        inputTypes.add(Scalars.GraphQLFloat)
-        inputTypes.add(Scalars.GraphQLString)
-        inputTypes.add(Scalars.GraphQLBoolean)
-        inputTypes.add(Scalars.GraphQLID)
-        inputTypes.add(Scalars.GraphQLBigInteger)
-        inputTypes.add(Scalars.GraphQLBigDecimal)
-        inputTypes.add(Scalars.GraphQLByte)
-        inputTypes.add(Scalars.GraphQLShort)
-        inputTypes.add(Scalars.GraphQLChar)
+        for (GraphQLType scalarType in graphQLScalarTypes.values()) {
+            inputTypes.add(scalarType)
+        }
 
         // Add explicitly defined input types
         for (String inputTypeName in inputTypeList) {
@@ -230,21 +247,13 @@ public class GraphQLSchemaDefinition {
         }
     }
 
-    void addGraphQLScalarTypes() {
-        graphQLTypeMap.put("Int", Scalars.GraphQLInt)
-        graphQLTypeMap.put("Long", Scalars.GraphQLLong)
-        graphQLTypeMap.put("Float", Scalars.GraphQLFloat)
-        graphQLTypeMap.put("String", Scalars.GraphQLString)
-        graphQLTypeMap.put("Boolean", Scalars.GraphQLBoolean)
-        graphQLTypeMap.put("ID", Scalars.GraphQLID)
-        graphQLTypeMap.put("BigInteger", Scalars.GraphQLBigInteger)
-        graphQLTypeMap.put("BigDecimal", Scalars.GraphQLBigDecimal)
-        graphQLTypeMap.put("Byte", Scalars.GraphQLByte)
-        graphQLTypeMap.put("Short", Scalars.GraphQLShort)
-        graphQLTypeMap.put("Char", Scalars.GraphQLChar)
+    private void addGraphQLScalarTypes() {
+        for (String name in graphQLScalarTypes.keySet()) {
+            graphQLTypeMap.put(name, graphQLScalarTypes.get(name))
+        }
     }
 
-    void addGraphQLUnionType(UnionTypeNode node) {
+    private void addGraphQLUnionType(UnionTypeNode node) {
         GraphQLUnionType.Builder unionType = GraphQLUnionType.newUnionType()
                 .name(node.name)
                 .description(node.description)
@@ -266,7 +275,7 @@ public class GraphQLSchemaDefinition {
         graphQLTypeMap.put(node.name, unionType.build())
     }
 
-    void addGraphQLEnumType(EnumTypeNode node) {
+    private void addGraphQLEnumType(EnumTypeNode node) {
         GraphQLEnumType.Builder enumType = GraphQLEnumType.newEnum().name(node.name)
                 .description(node.description)
 
@@ -277,7 +286,7 @@ public class GraphQLSchemaDefinition {
         graphQLTypeMap.put(node.name, enumType.build())
     }
 
-    void addGraphQLInterfaceType(InterfaceTypeNode node) {
+    private void addGraphQLInterfaceType(InterfaceTypeNode node) {
         GraphQLInterfaceType.Builder interfaceType = GraphQLInterfaceType.newInterface()
                 .name(node.name)
                 .description(node.description)
@@ -291,7 +300,7 @@ public class GraphQLSchemaDefinition {
         graphQLTypeMap.put(node.name, interfaceType.build())
     }
 
-    void addGraphQLObjectType(ObjectTypeNode node) {
+    private void addGraphQLObjectType(ObjectTypeNode node) {
         GraphQLObjectType.Builder objectType = GraphQLObjectType.newObject()
                 .name(node.name)
                 .description(node.description)
@@ -311,7 +320,7 @@ public class GraphQLSchemaDefinition {
         graphQLTypeMap.put(node.name, objectType.build())
     }
 
-    GraphQLFieldDefinition buildField(FieldNode node) {
+    private GraphQLFieldDefinition buildField(FieldNode node) {
         GraphQLFieldDefinition.Builder fieldDef = GraphQLFieldDefinition.newFieldDefinition()
                 .name(node.name)
                 .description(node.description)
@@ -364,7 +373,7 @@ public class GraphQLSchemaDefinition {
         return fieldDef.build()
     }
 
-    GraphQLArgument buildArgument(ArgumentNode node) {
+    private GraphQLArgument buildArgument(ArgumentNode node) {
         GraphQLArgument.Builder argument = GraphQLArgument.newArgument()
                 .name(node.name)
                 .description(node.description)

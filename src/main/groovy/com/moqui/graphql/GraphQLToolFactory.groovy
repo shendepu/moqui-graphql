@@ -22,12 +22,12 @@ import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
 @CompileStatic
-class GraphQLToolFactory implements ToolFactory<GraphQL> {
+class GraphQLToolFactory implements ToolFactory<MGraphQL> {
     protected final static Logger logger = LoggerFactory.getLogger(GraphQLToolFactory.class)
     final static String TOOL_NAME = "GraphQL"
 
     protected ExecutionContextFactory ecf = null
-    protected GraphQL graphql = null
+    protected MGraphQL graphql = null
 
     /** Default empty constructor */
     GraphQLToolFactory() { }
@@ -38,8 +38,7 @@ class GraphQLToolFactory implements ToolFactory<GraphQL> {
     @Override
     void init(ExecutionContextFactory ecf) {
         this.ecf = ecf
-        MGraphQL mg = new MGraphQL(ecf)
-        graphql = new GraphQL(mg.schema)
+        this.graphql = new MGraphQL(ecf)
         logger.info("GraphQLToolFactory Initialized")
     }
 
@@ -47,7 +46,7 @@ class GraphQLToolFactory implements ToolFactory<GraphQL> {
     void preFacadeInit(ExecutionContextFactory ecf) {}
 
     @Override
-    GraphQL getInstance(Object... parameters) {
+    MGraphQL getInstance(Object... parameters) {
         if (graphql == null) throw new IllegalStateException("GraphQLToolFactory not initialized")
         return graphql
     }

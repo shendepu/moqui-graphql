@@ -2,16 +2,19 @@
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-2.0.xsd" include-child-content="true">
 
     <transition name="v1" read-only="true">
+        <path-parameter name="schemaName"/>
         <parameter name="query"/>
         <actions>
+            <log message="${schemaName}"/>
             <log message="${query}"/>
             <script><![CDATA[
-                import graphql.GraphQL
+                import com.moqui.graphql.MGraphQL
+                import com.moqui.graphql.MGraphQL.GraphQLResult
                 long startTime = System.currentTimeMillis()
-                GraphQL graphql = ec.getTool("GraphQL", GraphQL.class)
-                Map<String, Object> result = graphql.execute("${query}").getData()
+                MGraphQL graphql = ec.getTool("GraphQL", MGraphQL.class)
+                GraphQLResult result = graphql.execute(schemaName, "${query}")
 
-                ec.web.sendJsonResponse(result)
+                ec.web.sendJsonResponse(result.responseObj)
                 ec.logger.info("Run graphql query in ${System.currentTimeMillis() - startTime}ms")
             ]]></script>
 
