@@ -3,4 +3,8 @@
     <tools>
         <tool-factory class="org.moqui.graphql.GraphQLToolFactory" init-priority="20" disabled="false"/>
     </tools>
+    <cache-list>
+        <cache name="service.graphql.schema.definition" value-type="com.moqui.impl.service.GraphQLSchemaDefinition" expire-time-idle="10"/>
+        <cache name="service.graphql.graphql" value-type="graphql.GraphQL" expire-time-idle="10"/>
+    </cache-list>
 </moqui-conf>
