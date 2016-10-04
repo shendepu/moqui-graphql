@@ -29,7 +29,9 @@ import graphql.schema.GraphQLSchema
 import graphql.schema.GraphQLType
 import graphql.schema.GraphQLTypeReference
 import graphql.schema.GraphQLUnionType
+import org.moqui.context.ExecutionContext
 import org.moqui.impl.context.ExecutionContextFactoryImpl
+import org.moqui.impl.context.UserFacadeImpl
 import org.moqui.impl.service.ServiceFacadeImpl
 import org.moqui.service.ServiceFacade
 import org.moqui.util.MNode
@@ -90,10 +92,10 @@ public class GraphQLSchemaDefinition {
                     inputTypeList.add(childNode.attribute("name"))
                     break
                 case "interface-type":
-                    allTypeNodeList.add(new InterfaceTypeNode(childNode))
+                    allTypeNodeList.add(new InterfaceTypeNode(childNode, this.ecfi.getExecutionContext()))
                     break
                 case "object-type":
-                    allTypeNodeList.add(new ObjectTypeNode(childNode))
+                    allTypeNodeList.add(new ObjectTypeNode(childNode, this.ecfi.getExecutionContext()))
                     break
                 case "union-type":
                     allTypeNodeList.add(new UnionTypeNode(childNode))
@@ -320,29 +322,29 @@ public class GraphQLSchemaDefinition {
         graphQLTypeMap.put(node.name, objectType.build())
     }
 
-    private GraphQLFieldDefinition buildField(FieldNode node) {
+    private GraphQLFieldDefinition buildField(FieldNode fieldNode) {
         GraphQLFieldDefinition.Builder fieldDef = GraphQLFieldDefinition.newFieldDefinition()
-                .name(node.name)
-                .description(node.description)
-                .deprecate(node.depreciationReason)
+                .name(fieldNode.name)
+                .description(fieldNode.description)
+                .deprecate(fieldNode.depreciationReason)
 
-        GraphQLType fieldRawType = graphQLTypeMap.get(node.type)
+        GraphQLType fieldRawType = graphQLTypeMap.get(fieldNode.type)
         if (fieldRawType == null ) {
-            fieldRawType = new GraphQLTypeReference(node.type)
-            graphQLTypeMap.put(node.name, fieldRawType)
-            graphQLTypeReferenceMap.put(node.name, fieldRawType)
+            fieldRawType = new GraphQLTypeReference(fieldNode.type)
+            graphQLTypeMap.put(fieldNode.name, fieldRawType)
+            graphQLTypeReferenceMap.put(fieldNode.name, fieldRawType)
         }
 
         // build type for field which could be one of: type, type!, [type], [type!], [type!]!
         GraphQLType fieldType
-        if (node.isList == "true") {
-            if (node.listItemNonNull == "true") {
+        if (fieldNode.isList == "true") {
+            if (fieldNode.listItemNonNull == "true") {
                 fieldType = new GraphQLList(new GraphQLNonNull(fieldRawType))
             } else {
                 fieldType = new GraphQLList(fieldRawType)
             }
         }
-        if (node.nonNull == "true") {
+        if (fieldNode.nonNull == "true") {
             if (fieldType == null) {
                 fieldType = new GraphQLNonNull(fieldRawType)
             } else {
@@ -352,22 +354,42 @@ public class GraphQLSchemaDefinition {
         if (fieldType == null) fieldType = fieldRawType
 
         if (!(fieldType instanceof GraphQLOutputType))
-            throw new IllegalArgumentException("GraphQL type [${node.type}] for field [${node.name}] is not derived from GraphQLOutputType")
+            throw new IllegalArgumentException("GraphQL type [${fieldNode.type}] for field [${fieldNode.name}] is not derived from GraphQLOutputType")
 
         fieldDef = fieldDef.type((GraphQLOutputType) fieldType)
 
         // build arguments for field
-        for (ArgumentNode argNode in node.argumentList) {
+        for (ArgumentNode argNode in fieldNode.argumentList) {
             fieldDef.argument(buildArgument(argNode))
         }
 
-        if (node.dataFetcher != null) {
+        if (fieldNode.dataFetcher != null) {
+            logger.info("Initializing data fetcher for field [${fieldNode.name}]")
             fieldDef.dataFetcher(new DataFetcher() {
                 @Override
                 public Object get(DataFetchingEnvironment environment) {
-                    return node.dataFetcher.get(environment)
+                    return fieldNode.dataFetcher.get(environment)
                 }
             })
+        } else {
+            // Set a default data fetcher for field
+            if (!graphQLScalarTypes.containsKey(fieldNode.type)) {
+                if (fieldNode.isList) {
+                    fieldDef.dataFetcher(new DataFetcher() {
+                        @Override
+                        public Object get(DataFetchingEnvironment environment) {
+                            return new ArrayList<Object>()
+                        }
+                    })
+                } else {
+                    fieldDef.dataFetcher(new DataFetcher() {
+                        @Override
+                        Object get(DataFetchingEnvironment environment) {
+                            return new HashMap<String, Object>()
+                        }
+                    })
+                }
+            }
         }
 
         return fieldDef.build()
@@ -477,11 +499,15 @@ public class GraphQLSchemaDefinition {
 
 
     static class InterfaceTypeNode extends GraphQLTypeNode {
+        @SuppressWarnings("GrFinalVariableAccess")
+        final ExecutionContext ec
+
         String typeResolver
         ArrayList<FieldNode> fieldList = new ArrayList<>()
         ArrayList<String> typeList = new ArrayList<>()
 
-        InterfaceTypeNode(MNode node) {
+        InterfaceTypeNode(MNode node, ExecutionContext ec) {
+            this.ec = ec
             this.name = node.attribute("name")
             this.type = "interface"
             this.typeResolver = node.attribute("type-resolver")
@@ -491,7 +517,7 @@ public class GraphQLSchemaDefinition {
                         this.description = childNode.text
                         break
                     case "field":
-                        fieldList.add(new FieldNode(childNode))
+                        fieldList.add(new FieldNode(childNode, ec))
                         typeList.add(childNode.attribute("type"))
                         break
                 }
@@ -505,12 +531,16 @@ public class GraphQLSchemaDefinition {
     }
 
     static class ObjectTypeNode extends GraphQLTypeNode {
+        @SuppressWarnings("GrFinalVariableAccess")
+        final ExecutionContext ec
+
         String typeResolver
         ArrayList<String> interfaceList = new ArrayList<>()
         ArrayList<FieldNode> fieldList = new ArrayList<>()
         ArrayList<String> typeList = new ArrayList<>()
 
-        ObjectTypeNode(MNode node) {
+        ObjectTypeNode(MNode node, ExecutionContext ec) {
+            this.ec = ec
             this.name = node.attribute("name")
             this.type = "object"
             this.typeResolver = node.attribute("type-resolver")
@@ -523,7 +553,7 @@ public class GraphQLSchemaDefinition {
                         interfaceList.add(childNode.attribute("name"))
                         break
                     case "field":
-                        fieldList.add(new FieldNode(childNode))
+                        fieldList.add(new FieldNode(childNode, ec))
                         typeList.add(childNode.attribute("type"))
                         break
                 }
@@ -553,21 +583,25 @@ public class GraphQLSchemaDefinition {
     }
 
     static class FieldNode {
+        ExecutionContext ec
         String name, type, description, depreciationReason
         String nonNull, isList, listItemNonNull
+        String requireAuthentication
 
         DataFetcherHandler dataFetcher
 
         List<ArgumentNode> argumentList = new ArrayList<>()
         List<FieldNode> fieldList = new ArrayList<>()
 
-        FieldNode(MNode node) {
+        FieldNode(MNode node, ExecutionContext ec) {
+            this.ec = ec
             this.name = node.attribute("name")
             this.type = node.attribute("type")
             this.description = node.attribute("description")
             this.nonNull = node.attribute("non-null")
             this.isList = node.attribute("is-list")
             this.listItemNonNull = node.attribute("list-item-non-null")
+            this.requireAuthentication = node.attribute("require-authentication") ?: "true"
 
             for (MNode childNode in node.children) {
                 switch (childNode.name) {
@@ -581,10 +615,10 @@ public class GraphQLSchemaDefinition {
                         this.argumentList.add(new ArgumentNode(childNode))
                         break
                     case "data-fetcher":
-                        this.dataFetcher = new DataFetcherService(childNode)
+                        this.dataFetcher = new DataFetcherService(childNode, this, ec)
                         break
                     case "field":
-                        this.fieldList.add(new FieldNode(childNode))
+                        this.fieldList.add(new FieldNode(childNode, ec))
                         break
                 }
             }
@@ -592,14 +626,23 @@ public class GraphQLSchemaDefinition {
     }
 
     static abstract class DataFetcherHandler {
-        Object get(DataFetchingEnvironment environment) { }
+
+        Object get(DataFetchingEnvironment environment) { return null }
     }
 
     static class DataFetcherService extends DataFetcherHandler {
-        String service
-        String preDataFetcher, postDataFetcher
+        @SuppressWarnings("GrFinalVariableAccess")
+        final ExecutionContext ec
 
-        DataFetcherService(MNode node) {
+        String serviceName
+        String preDataFetcher, postDataFetcher
+        String listName
+        String requireAuthentication
+
+        DataFetcherService(MNode node, FieldNode fieldNode, ExecutionContext ec) {
+            this.ec = ec
+            this.requireAuthentication = node.attribute("require-authentication") ?: fieldNode.requireAuthentication ?: "true"
+
             ArrayList<MNode> preDataFetcherNodes = node.children("pre-data-fetcher")
             if (preDataFetcherNodes.size() > 0) {
                 this.preDataFetcher = preDataFetcherNodes[0].attribute("service")
@@ -611,7 +654,34 @@ public class GraphQLSchemaDefinition {
             }
 
             MNode serviceNode = node.children("service")[0]
-            this.service = serviceNode.attribute("service")
+            this.serviceName = serviceNode.attribute("name")
+            this.listName = serviceNode.attribute("list-name")
+        }
+
+        @Override
+        Object get(DataFetchingEnvironment environment) {
+            logger.info("---- running data fetcher ...")
+            boolean loggedInAnonymous = false
+            if ("anonymous-all".equals(requireAuthentication)) {
+                ec.artifactExecution.setAnonymousAuthorizedAll()
+                loggedInAnonymous = ec.getUser().loginAnonymousIfNoUser()
+            } else if ("anonymous-view".equals(requireAuthentication)) {
+                ec.artifactExecution.setAnonymousAuthorizedView()
+                loggedInAnonymous = ec.getUser().loginAnonymousIfNoUser()
+            }
+
+            try {
+                Map result = ec.getService().sync().name(serviceName)
+                        .parameter("environment", environment)
+                        .parameters(ec.context).call()
+                if (listName) {
+                    return result.get(listName)
+                }
+                return result
+            } finally {
+                if (loggedInAnonymous) ((UserFacadeImpl) ec.getUser()).logoutAnonymousOnly()
+            }
+
         }
     }
 

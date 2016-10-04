@@ -105,6 +105,10 @@ along with this software (see the LICENSE.md file). If not, see
     <xs:element name="service">
         <xs:complexType>
             <xs:attribute name="name" type="xs:string" use="required"/>
+            <xs:attribute name="list-name" type="xs:string">
+                <xs:annotation><xs:documentation>If the field is a list, set this attribute to get variable
+                    in service call result map.</xs:documentation></xs:annotation>
+            </xs:attribute>
         </xs:complexType>
     </xs:element>
 
@@ -128,6 +132,7 @@ along with this software (see the LICENSE.md file). If not, see
                 </xs:choice>
                 <xs:element minOccurs="0" maxOccurs="1" ref="post-data-fetcher"/>
             </xs:sequence>
+            <xs:attribute name="require-authentication" type="authc-options" default="true"/>
         </xs:complexType>
     </xs:element>
 
@@ -149,6 +154,7 @@ along with this software (see the LICENSE.md file). If not, see
             <xs:attribute name="non-null" type="xs:boolean" default="false"/>
             <xs:attribute name="is-list" type="xs:boolean" default="false"/>
             <xs:attribute name="list-item-non-null" type="xs:boolean" default="false"/>
+            <xs:attribute name="require-authentication" type="authc-options" default="true"/>
         </xs:complexType>
     </xs:element>
 
