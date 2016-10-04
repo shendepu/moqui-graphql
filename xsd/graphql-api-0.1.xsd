@@ -75,25 +75,32 @@ along with this software (see the LICENSE.md file). If not, see
         </xs:complexType>
     </xs:element>
 
-    <xs:element name="type" substitutionGroup="graphql-type">
+    <xs:element name="interface-type" substitutionGroup="graphql-type">
         <xs:complexType>
             <xs:sequence>
                 <xs:element minOccurs="0" maxOccurs="1" name="description" type="xs:string"/>
                 <xs:element minOccurs="0" maxOccurs="unbounded" ref="field"/>
             </xs:sequence>
             <xs:attribute name="name" type="name-upper" use="required"/>
-            <xs:attribute name="type" default="object">
-                <xs:simpleType>
-                    <xs:restriction>
-                        <xs:enumeration value="object"/>
-                        <xs:enumeration value="interface"/>
-                    </xs:restriction>
-                </xs:simpleType>
-            </xs:attribute>
             <xs:attribute name="type-resolver" type="xs:string"/>
         </xs:complexType>
     </xs:element>
 
+    <xs:element name="object-type" substitutionGroup="graphql-type">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element minOccurs="0" maxOccurs="1" name="description" type="xs:string"/>
+                <xs:element minOccurs="0" maxOccurs="unbounded" name="interface">
+                    <xs:complexType>
+                        <xs:attribute name="name" type="xs:string" use="required"/>
+                    </xs:complexType>
+                </xs:element>
+                <xs:element minOccurs="0" maxOccurs="unbounded" ref="field"/>
+            </xs:sequence>
+            <xs:attribute name="name" type="name-upper" use="required"/>
+            <xs:attribute name="type-resolver" type="xs:string"/>
+        </xs:complexType>
+    </xs:element>
 
     <xs:element name="service">
         <xs:complexType>
@@ -141,6 +148,7 @@ along with this software (see the LICENSE.md file). If not, see
             </xs:attribute>
             <xs:attribute name="non-null" type="xs:boolean" default="false"/>
             <xs:attribute name="is-list" type="xs:boolean" default="false"/>
+            <xs:attribute name="list-item-non-null" type="xs:boolean" default="false"/>
         </xs:complexType>
     </xs:element>
 
