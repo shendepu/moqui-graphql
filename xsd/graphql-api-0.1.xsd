@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="UTF-8"?><!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+
+<!-- NOTE: files using this schema are found in the service directory in a component when named *.rest.xml -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified">
+    <xs:include schemaLocation="http://moqui.org/xsd/common-types-2.0.xsd"/>
+
+    <xs:simpleType name="name-all-upper"><xs:restriction base="xs:string">
+        <xs:pattern value="[A-Z][_A-Z0-9]*"/></xs:restriction></xs:simpleType>
+
+    <xs:simpleType name="graphql-scalar-type">
+        <xs:restriction base="xs:token">
+            <xs:enumeration value="Int"/>
+            <xs:enumeration value="Long"/>
+            <xs:enumeration value="Float"/>
+            <xs:enumeration value="String"/>
+            <xs:enumeration value="Boolean"/>
+            <xs:enumeration value="ID"/>
+            <xs:enumeration value="BigInteger"/>
+            <xs:enumeration value="BigDecimal"/>
+            <xs:enumeration value="Byte"/>
+            <xs:enumeration value="Short"/>
+            <xs:enumeration value="Char"/>
+        </xs:restriction>
+    </xs:simpleType>
+
+    <xs:element name="graphql-type" abstract="true"/>
+
+    <xs:element name="scalar-type" substitutionGroup="graphql-type">
+        <xs:complexType>
+            <xs:attribute name="name" type="graphql-scalar-type"/>
+        </xs:complexType>
+    </xs:element>
+    
+    <xs:element name="enum-value">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element minOccurs="0" maxOccurs="1" name="description" type="xs:string"/>
+                <xs:element minOccurs="0" maxOccurs="1" name="depreciation-reason" type="xs:string"/>
+            </xs:sequence>
+            <xs:attribute name="name" type="name-all-upper" use="required"/>
+            <xs:attribute name="value"/>
+        </xs:complexType>
+    </xs:element>
+    
+    <xs:element name="enum-type" substitutionGroup="graphql-type">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element minOccurs="0" maxOccurs="1" name="description" type="xs:string"/>
+                <xs:element minOccurs="1" maxOccurs="unbounded" ref="enum-value"/>
+            </xs:sequence>
+            <xs:attribute name="name" type="name-upper" use="required"/>
+        </xs:complexType>
+    </xs:element>
+    
+    <xs:element name="union-type" substitutionGroup="graphql-type">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element minOccurs="0" maxOccurs="1" name="description" type="xs:string"/>
+                <xs:element minOccurs="1" maxOccurs="unbounded" name="type" type="xs:string"/>
+            </xs:sequence>
+            <xs:attribute name="name" type="name-upper" use="required"/>
+            <xs:attribute name="type-resolver" type="xs:string"/>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:element name="type" substitutionGroup="graphql-type">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element minOccurs="0" maxOccurs="1" name="description" type="xs:string"/>
+                <xs:element minOccurs="0" maxOccurs="unbounded" ref="field"/>
+            </xs:sequence>
+            <xs:attribute name="name" type="name-upper" use="required"/>
+            <xs:attribute name="type" default="object">
+                <xs:simpleType>
+                    <xs:restriction>
+                        <xs:enumeration value="object"/>
+                        <xs:enumeration value="interface"/>
+                    </xs:restriction>
+                </xs:simpleType>
+            </xs:attribute>
+            <xs:attribute name="type-resolver" type="xs:string"/>
+        </xs:complexType>
+    </xs:element>
+
+
+    <xs:element name="service">
+        <xs:complexType>
+            <xs:attribute name="name" type="xs:string" use="required"/>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:element name="pre-data-fetcher">
+        <xs:complexType>
+            <xs:attribute name="service" type="xs:string" use="required"/>
+        </xs:complexType>
+    </xs:element>
+    <xs:element name="post-data-fetcher">
+        <xs:complexType>
+            <xs:attribute name="service" type="xs:string" use="required"/>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:element name="data-fetcher">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element minOccurs="0" maxOccurs="1" ref="pre-data-fetcher"/>
+                <xs:choice minOccurs="1" maxOccurs="1">
+                    <xs:element ref="service"/>
+                </xs:choice>
+                <xs:element minOccurs="0" maxOccurs="1" ref="post-data-fetcher"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:element name="field">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element minOccurs="0" maxOccurs="1" name="description" type="xs:string"/>
+                <xs:element minOccurs="0" maxOccurs="1" name="depreciation-reason" type="xs:string"/>
+                <xs:element minOccurs="0" maxOccurs="unbounded" ref="argument"/>
+                <xs:element minOccurs="0" maxOccurs="1" ref="data-fetcher"/>
+                <xs:element minOccurs="0" maxOccurs="unbounded" ref="field"/>
+            </xs:sequence>
+            <xs:attribute name="name" type="name-parameter" use="required"/>
+            <xs:attribute name="type" use="required">
+                <xs:simpleType>
+                    <xs:union memberTypes="graphql-scalar-type name-upper"/>
+                </xs:simpleType>
+            </xs:attribute>
+            <xs:attribute name="non-null" type="xs:boolean" default="false"/>
+            <xs:attribute name="is-list" type="xs:boolean" default="false"/>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:element name="argument">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element minOccurs="0" maxOccurs="1" name="description" type="xs:string"/>
+            </xs:sequence>
+            <xs:attribute name="name" type="name-parameter" use="required"/>
+            <xs:attribute name="type" type="xs:string" use="required"/>
+            <xs:attribute name="required" type="xs:boolean" default="false"/>
+            <xs:attribute name="default-value" type="xs:string"/>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:element name="input-type">
+        <xs:complexType>
+            <xs:attribute name="name" use="required">
+                <xs:simpleType>
+                    <xs:union memberTypes="graphql-scalar-type name-upper"/>
+                </xs:simpleType>
+            </xs:attribute>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:element name="schema">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element minOccurs="0" maxOccurs="unbounded" ref="graphql-type"/>
+                <xs:element minOccurs="0" maxOccurs="unbounded" ref="input-type"/>
+            </xs:sequence>
+            <xs:attribute name="name" type="xs:string" use="required"/>
+            <xs:attribute name="query" type="xs:string">
+                <xs:annotation><xs:documentation>Define query type of GraphQL Schema</xs:documentation></xs:annotation>
+            </xs:attribute>
+            <xs:attribute name="mutation" type="xs:string">
+                <xs:annotation><xs:documentation>Define mutation type of GraphQL Schema</xs:documentation></xs:annotation>
+            </xs:attribute>
+        </xs:complexType>
+
+    </xs:element>
+</xs:schema>
