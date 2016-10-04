@@ -5,19 +5,15 @@
         <path-parameter name="schemaName"/>
         <parameter name="query"/>
         <actions>
-            <log message="${schemaName}"/>
-            <log message="${query}"/>
             <script><![CDATA[
-                import com.moqui.graphql.MGraphQL
-                import com.moqui.graphql.MGraphQL.GraphQLResult
-                long startTime = System.currentTimeMillis()
-                MGraphQL graphql = ec.getTool("GraphQL", MGraphQL.class)
-                GraphQLResult result = graphql.execute(schemaName, "${query}")
+                import com.moqui.graphql.GraphQLApi
+                import com.moqui.graphql.GraphQLApi.GraphQLResult
+
+                GraphQLApi graphQLApi = ec.getTool("GraphQL", GraphQLApi.class)
+                GraphQLResult result = graphQLApi.execute(schemaName, "${query}")
 
                 ec.web.sendJsonResponse(result.responseObj)
-                ec.logger.info("Run graphql query in ${System.currentTimeMillis() - startTime}ms")
             ]]></script>
-
         </actions>
         <default-response type="none"/>
     </transition>

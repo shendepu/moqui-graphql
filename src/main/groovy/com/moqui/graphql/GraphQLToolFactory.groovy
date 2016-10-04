@@ -13,8 +13,7 @@
  */
 package org.moqui.graphql
 
-import com.moqui.graphql.MGraphQL
-import graphql.GraphQL
+import com.moqui.graphql.GraphQLApi
 import groovy.transform.CompileStatic
 import org.moqui.context.ExecutionContextFactory
 import org.moqui.context.ToolFactory
@@ -22,12 +21,12 @@ import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
 @CompileStatic
-class GraphQLToolFactory implements ToolFactory<MGraphQL> {
+class GraphQLToolFactory implements ToolFactory<GraphQLApi> {
     protected final static Logger logger = LoggerFactory.getLogger(GraphQLToolFactory.class)
     final static String TOOL_NAME = "GraphQL"
 
     protected ExecutionContextFactory ecf = null
-    protected MGraphQL graphql = null
+    protected GraphQLApi graphQLApi = null
 
     /** Default empty constructor */
     GraphQLToolFactory() { }
@@ -38,7 +37,7 @@ class GraphQLToolFactory implements ToolFactory<MGraphQL> {
     @Override
     void init(ExecutionContextFactory ecf) {
         this.ecf = ecf
-        this.graphql = new MGraphQL(ecf)
+        this.graphQLApi = new GraphQLApi(ecf)
         logger.info("GraphQLToolFactory Initialized")
     }
 
@@ -46,9 +45,9 @@ class GraphQLToolFactory implements ToolFactory<MGraphQL> {
     void preFacadeInit(ExecutionContextFactory ecf) {}
 
     @Override
-    MGraphQL getInstance(Object... parameters) {
-        if (graphql == null) throw new IllegalStateException("GraphQLToolFactory not initialized")
-        return graphql
+    GraphQLApi getInstance(Object... parameters) {
+        if (graphQLApi == null) throw new IllegalStateException("GraphQLToolFactory not initialized")
+        return graphQLApi
     }
 
     @Override

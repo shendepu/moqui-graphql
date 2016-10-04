@@ -25,14 +25,13 @@ import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
 import graphql.schema.GraphQLObjectType
-import graphql.schema.GraphQLSchema
 
 import static graphql.schema.GraphQLFieldDefinition.newFieldDefinition
 import static graphql.Scalars.GraphQLString
 
 @CompileStatic
-class MGraphQL {
-    protected final static Logger logger = LoggerFactory.getLogger(MGraphQL.class)
+class GraphQLApi {
+    protected final static Logger logger = LoggerFactory.getLogger(GraphQLApi.class)
 
     @SuppressWarnings("GrFinalVariableAccess")
     protected final ExecutionContextFactory ecf
@@ -55,7 +54,7 @@ class MGraphQL {
     static GraphQLObjectType mutationType = GraphQLObjectType.newObject().name("RootMutationType").build()
 
 
-    MGraphQL(ExecutionContextFactory ecf) {
+    GraphQLApi(ExecutionContextFactory ecf) {
         this.ecf = ecf
         schemaDefCache = ecf.getCache().getLocalCache(graphQLSchemaDefCacheName)
         graphQLCache = ecf.getCache().getLocalCache(graphQLCacheName)
