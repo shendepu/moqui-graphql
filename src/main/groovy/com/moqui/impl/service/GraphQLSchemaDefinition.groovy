@@ -108,7 +108,7 @@ public class GraphQLSchemaDefinition {
     }
 
     private GraphQLTypeNode getTypeNode(String name) {
-        return allTypeNodeList.find({ it.name == name })
+        return allTypeNodeList.find({ name.equals(it.name) })
     }
 
     private populateSortedTypes() {
@@ -337,14 +337,14 @@ public class GraphQLSchemaDefinition {
 
         // build type for field which could be one of: type, type!, [type], [type!], [type!]!
         GraphQLType fieldType
-        if (fieldNode.isList == "true") {
-            if (fieldNode.listItemNonNull == "true") {
+        if ("true".equals(fieldNode.isList)) {
+            if ("true".equals(fieldNode.listItemNonNull)) {
                 fieldType = new GraphQLList(new GraphQLNonNull(fieldRawType))
             } else {
                 fieldType = new GraphQLList(fieldRawType)
             }
         }
-        if (fieldNode.nonNull == "true") {
+        if ("true".equals(fieldNode.nonNull)) {
             if (fieldType == null) {
                 fieldType = new GraphQLNonNull(fieldRawType)
             } else {
@@ -575,7 +575,7 @@ public class GraphQLSchemaDefinition {
             this.defaultValue = node.attribute("default-value")
 
             for (MNode childNode in node.children) {
-                if (childNode.name == "description") {
+                if ("description".equals(childNode.name)) {
                     this.description = node.attribute("description")
                 }
             }

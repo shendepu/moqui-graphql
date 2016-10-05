@@ -104,7 +104,7 @@ class GraphQLApi {
                     logger.info("Loading ${rr.fileName}")
                     // Parse .graphql.xml, add schema to cache
                     MNode schemaNode = MNode.parse(rr)
-                    if (schemaName == null || schemaName == schemaNode.attribute("name")) {
+                    if (schemaName == null || schemaName.equals(schemaNode.attribute("name"))) {
                         GraphQLSchemaDefinition schemaDef = new GraphQLSchemaDefinition(this.ecf.getService(), schemaNode)
                         schemaDefCache.put(schemaDef.schemaName, schemaDef)
                         graphQLCache.put(schemaDef.schemaName, new GraphQL(schemaDef.getSchema()))
