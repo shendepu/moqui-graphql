@@ -13,7 +13,6 @@
  */
 package com.moqui.impl.service
 
-import graphql.Scalars
 import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment
 import graphql.schema.GraphQLArgument
@@ -70,12 +69,12 @@ public class GraphQLSchemaDefinition {
     protected ArrayList<ObjectTypeNode> objectTypeNodeList = new ArrayList<>()
 
     public static final Map<String, GraphQLType> graphQLScalarTypes = [
-            "Int"       : Scalars.GraphQLInt, "Long": Scalars.GraphQLLong,
-            "Float"     : Scalars.GraphQLFloat, "String": Scalars.GraphQLString,
-            "Boolean"   : Scalars.GraphQLBoolean, "ID": Scalars.GraphQLID,
-            "BigInteger": Scalars.GraphQLBigInteger, "BigDecimal": Scalars.GraphQLBigDecimal,
-            "Byte"      : Scalars.GraphQLByte, "Short": Scalars.GraphQLShort,
-            "Char"      : Scalars.GraphQLChar]
+            "Int"       : graphql.Scalars.GraphQLInt, "Long": graphql.Scalars.GraphQLLong,
+            "Float"     : graphql.Scalars.GraphQLFloat, "String": graphql.Scalars.GraphQLString,
+            "Boolean"   : graphql.Scalars.GraphQLBoolean, "ID": graphql.Scalars.GraphQLID,
+            "BigInteger": graphql.Scalars.GraphQLBigInteger, "BigDecimal": graphql.Scalars.GraphQLBigDecimal,
+            "Byte"      : graphql.Scalars.GraphQLByte, "Short": graphql.Scalars.GraphQLShort,
+            "Char"      : graphql.Scalars.GraphQLChar, "Timestamp": com.moqui.graphql.Scalars.GraphQLTimestamp]
 
     public GraphQLSchemaDefinition(ServiceFacade sf, MNode schemaNode) {
         this.sf = sf
