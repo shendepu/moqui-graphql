@@ -112,6 +112,8 @@ along with this software (see the LICENSE.md file). If not, see
         </xs:complexType>
     </xs:element>
 
+    <xs:element name="empty-fetcher"/>
+
     <xs:element name="pre-data-fetcher">
         <xs:complexType>
             <xs:attribute name="service" type="xs:string" use="required"/>
@@ -142,7 +144,10 @@ along with this software (see the LICENSE.md file). If not, see
                 <xs:element minOccurs="0" maxOccurs="1" name="description" type="xs:string"/>
                 <xs:element minOccurs="0" maxOccurs="1" name="depreciation-reason" type="xs:string"/>
                 <xs:element minOccurs="0" maxOccurs="unbounded" ref="argument"/>
-                <xs:element minOccurs="0" maxOccurs="1" ref="data-fetcher"/>
+                <xs:choice minOccurs="0" maxOccurs="1">
+                    <xs:element ref="data-fetcher"/>
+                    <xs:element ref="empty-fetcher"/>
+                </xs:choice>
                 <xs:element minOccurs="0" maxOccurs="unbounded" ref="field"/>
             </xs:sequence>
             <xs:attribute name="name" type="name-parameter" use="required"/>

@@ -363,32 +363,12 @@ public class GraphQLSchemaDefinition {
         }
 
         if (fieldNode.dataFetcher != null) {
-            logger.info("Initializing data fetcher for field [${fieldNode.name}]")
             fieldDef.dataFetcher(new DataFetcher() {
                 @Override
                 public Object get(DataFetchingEnvironment environment) {
                     return fieldNode.dataFetcher.get(environment)
                 }
             })
-        } else {
-            // Set a default data fetcher for field
-            if (!graphQLScalarTypes.containsKey(fieldNode.type)) {
-                if (fieldNode.isList) {
-                    fieldDef.dataFetcher(new DataFetcher() {
-                        @Override
-                        public Object get(DataFetchingEnvironment environment) {
-                            return new ArrayList<Object>()
-                        }
-                    })
-                } else {
-                    fieldDef.dataFetcher(new DataFetcher() {
-                        @Override
-                        Object get(DataFetchingEnvironment environment) {
-                            return new HashMap<String, Object>()
-                        }
-                    })
-                }
-            }
         }
 
         return fieldDef.build()
@@ -616,6 +596,9 @@ public class GraphQLSchemaDefinition {
                     case "data-fetcher":
                         this.dataFetcher = new DataFetcherService(childNode, this, ec)
                         break
+                    case "empty-fetcher":
+                        this.dataFetcher = new EmptyDataFetcher(childNode, this)
+                        break
                     case "field":
                         this.fieldList.add(new FieldNode(childNode, ec))
                         break
@@ -681,6 +664,26 @@ public class GraphQLSchemaDefinition {
                 if (loggedInAnonymous) ((UserFacadeImpl) ec.getUser()).logoutAnonymousOnly()
             }
 
+        }
+    }
+
+    static class EmptyDataFetcher extends DataFetcherHandler {
+        @SuppressWarnings("GrFinalVariableAccess")
+        final FieldNode fieldNode
+
+        EmptyDataFetcher (MNode node, FieldNode fieldNode) {
+            this.fieldNode = fieldNode
+        }
+
+        @Override
+        Object get(DataFetchingEnvironment environment) {
+            if (!graphQLScalarTypes.containsKey(fieldNode.type)) {
+                if ("true".equals(fieldNode.isList)) {
+                    return new ArrayList<Object>()
+                }
+                return new HashMap<String, Object>()
+            }
+            return null
         }
     }
 
