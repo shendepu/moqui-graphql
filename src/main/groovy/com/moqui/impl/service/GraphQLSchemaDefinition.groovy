@@ -13,6 +13,7 @@
  */
 package com.moqui.impl.service
 
+import com.moqui.impl.util.GraphQLSchemaUtil
 import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment
 import graphql.schema.GraphQLArgument
@@ -60,6 +61,7 @@ public class GraphQLSchemaDefinition {
 
     protected final ArrayList<String> inputTypeList = new ArrayList<>()
 
+    protected Map<String, GraphQLTypeNode> allTypeNodeMap = new HashMap<>()
     protected ArrayList<GraphQLTypeNode> allTypeNodeList = new ArrayList<>()
     protected LinkedList<GraphQLTypeNode> allTypeNodeSortedList = new LinkedList<>()
 
@@ -85,29 +87,36 @@ public class GraphQLSchemaDefinition {
         this.queryType = schemaNode.attribute("query")
         this.mutationType = schemaNode.attribute("mutation")
 
+        GraphQLSchemaUtil.createObjectTypeNodeForAllEntities(this.ecfi.getExecutionContext(), allTypeNodeMap)
+
         for (MNode childNode in schemaNode.children) {
             switch (childNode.name) {
                 case "input-type":
                     inputTypeList.add(childNode.attribute("name"))
                     break
                 case "interface":
-                    allTypeNodeList.add(new InterfaceTypeNode(childNode, this.ecfi.getExecutionContext()))
+//                    allTypeNodeList.add(new InterfaceTypeNode(childNode, this.ecfi.getExecutionContext()))
+                    allTypeNodeMap.put(childNode.attribute("name"), new InterfaceTypeNode(childNode, this.ecfi.getExecutionContext()))
                     break
                 case "object":
-                    allTypeNodeList.add(new ObjectTypeNode(childNode, this.ecfi.getExecutionContext()))
+//                    allTypeNodeList.add(new ObjectTypeNode(childNode, this.ecfi.getExecutionContext()))
+                    allTypeNodeMap.put(childNode.attribute("name"), new ObjectTypeNode(childNode, this.ecfi.getExecutionContext()))
                     break
                 case "union":
-                    allTypeNodeList.add(new UnionTypeNode(childNode))
+//                    allTypeNodeList.add(new UnionTypeNode(childNode))
+                    allTypeNodeMap.put(childNode.attribute("name"), new UnionTypeNode(childNode))
                     break
                 case "enum":
-                    allTypeNodeList.add(new EnumTypeNode(childNode))
+//                    allTypeNodeList.add(new EnumTypeNode(childNode))
+                    allTypeNodeMap.put(childNode.attribute("name"), new EnumTypeNode(childNode))
                     break
             }
         }
     }
 
     private GraphQLTypeNode getTypeNode(String name) {
-        return allTypeNodeList.find({ name.equals(it.name) })
+        return allTypeNodeMap.get(name)
+//        return allTypeNodeList.find({ name.equals(it.name) })
     }
 
     private populateSortedTypes() {
@@ -483,7 +492,7 @@ public class GraphQLSchemaDefinition {
 
         String typeResolver
         ArrayList<FieldNode> fieldList = new ArrayList<>()
-        ArrayList<String> typeList = new ArrayList<>()
+//        ArrayList<String> typeList = new ArrayList<>()
 
         InterfaceTypeNode(MNode node, ExecutionContext ec) {
             this.ec = ec
@@ -497,7 +506,7 @@ public class GraphQLSchemaDefinition {
                         break
                     case "field":
                         fieldList.add(new FieldNode(childNode, ec))
-                        typeList.add(childNode.attribute("type"))
+//                        typeList.add(childNode.attribute("type"))
                         break
                 }
             }
@@ -505,7 +514,8 @@ public class GraphQLSchemaDefinition {
 
         @Override
         ArrayList<String> getDependentTypes() {
-            return typeList
+//            return typeList
+            return fieldList.type
         }
     }
 
@@ -516,7 +526,7 @@ public class GraphQLSchemaDefinition {
         String typeResolver
         ArrayList<String> interfaceList = new ArrayList<>()
         ArrayList<FieldNode> fieldList = new ArrayList<>()
-        ArrayList<String> typeList = new ArrayList<>()
+//        ArrayList<String> typeList = new ArrayList<>()
 
         ObjectTypeNode(MNode node, ExecutionContext ec) {
             this.ec = ec
@@ -533,15 +543,26 @@ public class GraphQLSchemaDefinition {
                         break
                     case "field":
                         fieldList.add(new FieldNode(childNode, ec))
-                        typeList.add(childNode.attribute("type"))
+//                        typeList.add(childNode.attribute("type"))
                         break
                 }
             }
         }
 
+        ObjectTypeNode(ExecutionContext ec, String name, ArrayList<String> interfaceList,
+                       ArrayList<FieldNode> fieldList, String typeResolver) {
+            this.ec = ec
+            this.name = name
+            this.type = "object"
+            this.typeResolver = typeResolver
+            this.interfaceList = interfaceList
+            this.fieldList = fieldList
+        }
+
         @Override
         ArrayList<String> getDependentTypes() {
-            return typeList
+//            return typeList
+            return fieldList.type
         }
     }
 
@@ -558,6 +579,17 @@ public class GraphQLSchemaDefinition {
                     this.description = node.attribute("description")
                 }
             }
+        }
+
+        ArgumentNode(String name, String type) {
+            ArgumentNode(name, type, "", "")
+        }
+
+        ArgumentNode(String name, String type, String defaultValue, String description) {
+            this.name = name
+            this.type = type
+            this.defaultValue = defaultValue
+            this.description = description
         }
     }
 
@@ -604,6 +636,28 @@ public class GraphQLSchemaDefinition {
                         break
                 }
             }
+        }
+
+        FieldNode(ExecutionContext ec, String name, String type) {
+            this(ec, name, type, new HashMap<>(), null, new ArrayList<>(), new ArrayList<>())
+        }
+
+        FieldNode(ExecutionContext ec, String name, String type, Map<String, String> fieldPropertyMap,
+                  DataFetcherHandler dataFetcher, List<ArgumentNode> argumentList, List<FieldNode> fieldList) {
+            this.ec = ec
+            this.name = name
+            this.type = type
+            this.dataFetcher = dataFetcher
+            this.argumentList.addAll(argumentList)
+            this.fieldList.addAll(fieldList)
+
+            this.nonNull = fieldPropertyMap.get("nonNull")
+            this.isList = fieldPropertyMap.get("isList")
+            this.listItemNonNull = fieldPropertyMap.get("listItemNonNull")
+            this.requireAuthentication = fieldPropertyMap.get("requireAuthentication") ?: "true"
+
+            this.description = fieldPropertyMap.get("description")
+            this.depreciationReason = fieldPropertyMap.get("depreciationReason")
         }
     }
 
