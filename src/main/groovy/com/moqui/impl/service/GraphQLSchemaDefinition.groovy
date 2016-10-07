@@ -56,7 +56,7 @@ public class GraphQLSchemaDefinition {
     protected final String mutationType
 
     protected final Map<String, GraphQLType> graphQLTypeMap = new LinkedHashMap<>()
-    protected final Map<String, GraphQLType> graphQLTypeReferenceMap = new LinkedHashMap<>()
+    protected final Set<String> graphQLTypeReferences = new HashSet<>()
     protected final Set<GraphQLType> inputTypes = new HashSet<GraphQLType>()
 
     protected final ArrayList<String> inputTypeList = new ArrayList<>()
@@ -138,7 +138,9 @@ public class GraphQLSchemaDefinition {
         if (mutationTypeNode) {
             rootNode.children.add(new TreeNode<GraphQLTypeNode>(mutationTypeNode))
         }
-        createTreeNodeRecursive(rootNode)
+
+
+        createTreeNodeRecursive(rootNode, [queryType, mutationType])
         traverseByLevelOrder(rootNode)
 
         logger.info("==== allTypeNodeSortedList ====")
@@ -164,24 +166,28 @@ public class GraphQLSchemaDefinition {
         }
     }
 
-    private void createTreeNodeRecursive(TreeNode<GraphQLTypeNode> node) {
+    private void createTreeNodeRecursive(TreeNode<GraphQLTypeNode> node, List<String> objectTypeNames) {
         if (node.data) {
             for (String type in node.data.getDependentTypes()) {
                 // If type is GraphQL Scalar types, skip.
                 if (graphQLScalarTypes.containsKey(type)) continue
+                // If type is GraphQLObjectType which already added in Tree, skip.
+                if (objectTypeNames.contains(type)) continue
 
                 GraphQLTypeNode typeNode = getTypeNode(type)
                 if (typeNode != null) {
                     TreeNode<GraphQLTypeNode> typeTreeNode = new TreeNode<>(typeNode)
                     node.children.add(typeTreeNode)
-                    createTreeNodeRecursive(typeTreeNode)
+                    objectTypeNames.push(type)
+                    logger.info("Adding tree node for GraphQLTypeNode [${typeNode.name}]")
+                    createTreeNodeRecursive(typeTreeNode, objectTypeNames)
                 } else {
                     logger.error("No GraphQL Type [${type}] defined")
                 }
             }
         } else {
             for (TreeNode<GraphQLTypeNode> childTreeNode in node.children) {
-                createTreeNodeRecursive(childTreeNode)
+                createTreeNodeRecursive(childTreeNode, objectTypeNames)
             }
         }
     }
@@ -229,8 +235,8 @@ public class GraphQLSchemaDefinition {
 
         GraphQLSchema schema = schemaBuilder.build(inputTypes)
 
-        for (String referenceTypeName in graphQLTypeReferenceMap.keySet()) {
-            GraphQLType type = schema.allTypesAsList.find({ it.name = referenceTypeName})
+        for (String referenceTypeName in graphQLTypeReferences) {
+            GraphQLType type = schema.allTypesAsList.find({ it.name == referenceTypeName })
             if (type != null) {
                 logger.info("Replacing GraphQLTypeReference [${referenceTypeName}]")
                 graphQLTypeMap.put(referenceTypeName, type)
@@ -340,7 +346,7 @@ public class GraphQLSchemaDefinition {
         if (fieldRawType == null ) {
             fieldRawType = new GraphQLTypeReference(fieldNode.type)
             graphQLTypeMap.put(fieldNode.name, fieldRawType)
-            graphQLTypeReferenceMap.put(fieldNode.name, fieldRawType)
+            graphQLTypeReferences.add(fieldNode.type)
         }
 
         // build type for field which could be one of: type, type!, [type], [type!], [type!]!
@@ -549,10 +555,11 @@ public class GraphQLSchemaDefinition {
             }
         }
 
-        ObjectTypeNode(ExecutionContext ec, String name, ArrayList<String> interfaceList,
+        ObjectTypeNode(ExecutionContext ec, String name, String description, ArrayList<String> interfaceList,
                        ArrayList<FieldNode> fieldList, String typeResolver) {
             this.ec = ec
             this.name = name
+            this.description = description
             this.type = "object"
             this.typeResolver = typeResolver
             this.interfaceList = interfaceList
@@ -641,6 +648,11 @@ public class GraphQLSchemaDefinition {
         FieldNode(ExecutionContext ec, String name, String type) {
             this(ec, name, type, new HashMap<>(), null, new ArrayList<>(), new ArrayList<>())
         }
+
+        FieldNode(ExecutionContext ec, String name, String type, Map<String, String> fieldPropertyMap) {
+            this(ec, name, type, fieldPropertyMap, null, new ArrayList<>(), new ArrayList<>())
+        }
+
 
         FieldNode(ExecutionContext ec, String name, String type, Map<String, String> fieldPropertyMap,
                   DataFetcherHandler dataFetcher, List<ArgumentNode> argumentList, List<FieldNode> fieldList) {

@@ -17,9 +17,13 @@ import org.moqui.impl.context.ExecutionContextImpl
 import org.moqui.impl.entity.FieldInfo
 import org.moqui.context.ExecutionContext
 import org.moqui.impl.entity.EntityDefinition
+import org.moqui.util.MNode
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
+import static org.moqui.impl.entity.EntityDefinition.MasterDefinition
+import static org.moqui.impl.entity.EntityDefinition.MasterDetail
+import static org.moqui.impl.entity.EntityJavaUtil.RelationshipInfo
 
 import static com.moqui.impl.service.GraphQLSchemaDefinition.ArgumentNode
 import static com.moqui.impl.service.GraphQLSchemaDefinition.DataFetcherHandler
@@ -34,7 +38,7 @@ class GraphQLSchemaUtil {
             "id"                : "ID",         "id-long"           : "ID",
             "text-indicator"    : "String",     "text-short"        : "String",
             "text-medium"       : "String",     "text-long"         : "String",
-            "text-very-long"    : "String",     "date-time"         : "String",
+            "text-very-long"    : "String",     "date-time"         : "Timestamp",
             "time"              : "String",     "date"              : "String",
             "number-integer"    : "Int",        "number-float"      : "Float",
             "number-decimal"    : "BigDecimal", "currency-amount"   : "BigDecimal",
@@ -45,16 +49,17 @@ class GraphQLSchemaUtil {
         ExecutionContextImpl eci = (ExecutionContextImpl) ec
         for (String entityName in eci.getEntityFacade().getAllEntityNames()) {
             EntityDefinition ed = eci.getEntityFacade().getEntityDefinition(entityName)
-            addObjectTypeNode(ec, ed, allTypeNodeMap)
+            addObjectTypeNode(ec, ed, true, "default", null, allTypeNodeMap)
         }
     }
 
-    private static void addObjectTypeNode(ExecutionContext ec, EntityDefinition ed, Map<String, GraphQLTypeNode> allTypeNodeMap) {
+    private static void addObjectTypeNode(ExecutionContext ec, EntityDefinition ed, boolean standalone, String masterName, MasterDetail masterDetail, Map<String, GraphQLTypeNode> allTypeNodeMap) {
+        ExecutionContextImpl eci = (ExecutionContextImpl) ec
         String objectTypeName = ed.getEntityName()
 
         // Check if the type already exist in the map
         if (allTypeNodeMap.get(objectTypeName)) {
-            logger.error("Object type [${objectTypeName}] is already defined. So auto object type for entity [${ed.getFullEntityName()}] can't be created.")
+//            logger.error("Object type [${objectTypeName}] is already defined. So auto object type for entity [${ed.getFullEntityName()}] can't be created.")
             return
         }
 
@@ -66,11 +71,46 @@ class GraphQLSchemaUtil {
             FieldInfo fi = ed.getFieldInfo(fieldName)
             String fieldScalarType = fieldTypeGraphQLMap.get(fi.type)
 
-            FieldNode fieldNode = new FieldNode(ec, fi.name, fieldScalarType)
+            Map<String, String> fieldPropertyMap = new HashMap<>()
+            // Add nonNull
+            if (fi.isPk || "true".equals(fi.fieldNode.attribute("not-null"))) fieldPropertyMap.put("nonNull", "true")
+            // Add description
+            String fieldDescription = ""
+            for (MNode descriptionMNode in fi.fieldNode.children("description")) {
+                fieldDescription = fieldDescription + descriptionMNode.text + "\n"
+            }
+            fieldPropertyMap.put("description", fieldDescription)
+
+            FieldNode fieldNode = new FieldNode(ec, fi.name, fieldScalarType, fieldPropertyMap)
             fieldNodeList.add(fieldNode)
         }
 
-        ObjectTypeNode objectTypeNode = new ObjectTypeNode(ec, objectTypeName, new ArrayList<String>(), fieldNodeList, "")
+        MasterDefinition masterDef = ed.getMasterDefinition(masterName)
+        List<MasterDetail> detailList = new ArrayList<>()
+        if (masterDef) {
+            detailList = masterDef.detailList
+        }
+
+        for (MasterDetail childMasterDetail in detailList) {
+            RelationshipInfo relInfo = childMasterDetail.relInfo
+            EntityDefinition relEd = eci.getEntityFacade().getEntityDefinition(relInfo.relatedEntityName)
+
+            String fieldName = childMasterDetail.relationshipName
+            String fieldType = relEd.getEntityName()
+
+            logger.info("===== Adding FieldNode [${fieldName} - ${fieldType}]")
+            FieldNode fieldNode = new FieldNode(ec, fieldName, fieldType)
+            fieldNodeList.add(fieldNode)
+
+
+        }
+
+        String objectTypeDescription = ""
+        for (MNode descriptionMNode in ed.getEntityNode().children("description")) {
+            objectTypeDescription = objectTypeDescription + descriptionMNode.text + "\n"
+        }
+
+        ObjectTypeNode objectTypeNode = new ObjectTypeNode(ec, objectTypeName, objectTypeDescription, new ArrayList<String>(), fieldNodeList, "")
         allTypeNodeMap.put(objectTypeName, objectTypeNode)
         logger.info("Object type [${objectTypeName}] for entity [${ed.getFullEntityName()}] is created.")
     }
