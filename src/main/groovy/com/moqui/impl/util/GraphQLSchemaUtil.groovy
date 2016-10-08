@@ -98,8 +98,15 @@ class GraphQLSchemaUtil {
             String fieldName = childMasterDetail.relationshipName
             String fieldType = relEd.getEntityName()
 
+            Map<String, String> fieldPropertyMap = new HashMap<>()
+            if (relInfo.isTypeOne) {
+                fieldPropertyMap.put("nonNull", "true")
+            } else {
+                fieldPropertyMap.put("isList", "true")
+            }
+
             logger.info("===== Adding FieldNode [${fieldName} - ${fieldType}]")
-            FieldNode fieldNode = new FieldNode(ec, fieldName, fieldType)
+            FieldNode fieldNode = new FieldNode(ec, fieldName, fieldType, fieldPropertyMap)
             fieldNodeList.add(fieldNode)
 
 
