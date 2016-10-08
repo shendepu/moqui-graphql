@@ -747,6 +747,9 @@ public class GraphQLSchemaDefinition {
                     case "data-fetcher":
                         this.dataFetcher = new DataFetcherService(childNode, this, ec)
                         break
+                    case "entity-fetcher":
+                        this.dataFetcher = new DataFetcherEntity(childNode, this, ec)
+                        break
                     case "empty-fetcher":
                         this.dataFetcher = new EmptyDataFetcher(childNode, this)
                         break
@@ -859,9 +862,16 @@ public class GraphQLSchemaDefinition {
         String entityName, operation
         String requireAuthentication
 
+        DataFetcherEntity(MNode node, FieldNode fieldNode, ExecutionContext ec) {
+            super(fieldNode, ec)
+            this.requireAuthentication = fieldNode.requireAuthentication ?: "true"
+            this.entityName = node.attribute("entity-name")
+            this.operation = node.attribute("operation")
+        }
+
         DataFetcherEntity(ExecutionContext ec, FieldNode fieldNode, String entityName, String operation) {
             super(fieldNode, ec)
-            this.requireAuthentication = node.attribute("require-authentication") ?: fieldNode.requireAuthentication ?: "true"
+            this.requireAuthentication = fieldNode.requireAuthentication ?: "true"
             this.entityName = entityName
             this.operation = operation
         }

@@ -113,6 +113,19 @@ along with this software (see the LICENSE.md file). If not, see
     </xs:element>
 
     <xs:element name="empty-fetcher"/>
+    <xs:element name="entity-fetcher">
+        <xs:complexType>
+            <xs:attribute name="entity-name" type="name-full" use="required"/>
+            <xs:attribute name="operation">
+                <xs:simpleType>
+                    <xs:restriction base="xs:token">
+                        <xs:enumeration value="one"/>
+                        <xs:enumeration value="list"/>
+                    </xs:restriction>
+                </xs:simpleType>
+            </xs:attribute>
+        </xs:complexType>
+    </xs:element>
 
     <xs:element name="pre-data-fetcher">
         <xs:complexType>
@@ -147,6 +160,7 @@ along with this software (see the LICENSE.md file). If not, see
                 <xs:choice minOccurs="0" maxOccurs="1">
                     <xs:element ref="data-fetcher"/>
                     <xs:element ref="empty-fetcher"/>
+                    <xs:element ref="entity-fetcher"/>
                 </xs:choice>
                 <xs:element minOccurs="0" maxOccurs="unbounded" ref="field"/>
             </xs:sequence>
