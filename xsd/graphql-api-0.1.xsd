@@ -127,26 +127,20 @@ along with this software (see the LICENSE.md file). If not, see
         </xs:complexType>
     </xs:element>
 
-    <xs:element name="pre-data-fetcher">
+    <xs:element name="pre-fetcher">
         <xs:complexType>
             <xs:attribute name="service" type="xs:string" use="required"/>
         </xs:complexType>
     </xs:element>
-    <xs:element name="post-data-fetcher">
+    <xs:element name="post-fetcher">
         <xs:complexType>
             <xs:attribute name="service" type="xs:string" use="required"/>
         </xs:complexType>
     </xs:element>
 
-    <xs:element name="data-fetcher">
+    <xs:element name="service-fetcher">
         <xs:complexType>
-            <xs:sequence>
-                <xs:element minOccurs="0" maxOccurs="1" ref="pre-data-fetcher"/>
-                <xs:choice minOccurs="1" maxOccurs="1">
-                    <xs:element ref="service"/>
-                </xs:choice>
-                <xs:element minOccurs="0" maxOccurs="1" ref="post-data-fetcher"/>
-            </xs:sequence>
+            <xs:attribute name="service" type="name-package" use="required"/>
             <xs:attribute name="require-authentication" type="authc-options" default="true"/>
         </xs:complexType>
     </xs:element>
@@ -158,10 +152,12 @@ along with this software (see the LICENSE.md file). If not, see
                 <xs:element minOccurs="0" maxOccurs="1" name="depreciation-reason" type="xs:string"/>
                 <xs:element minOccurs="0" maxOccurs="unbounded" ref="argument"/>
                 <xs:choice minOccurs="0" maxOccurs="1">
-                    <xs:element ref="data-fetcher"/>
                     <xs:element ref="empty-fetcher"/>
                     <xs:element ref="entity-fetcher"/>
+                    <xs:element ref="service-fetcher"/>
                 </xs:choice>
+                <xs:element minOccurs="0" maxOccurs="1" ref="pre-fetcher"/>
+                <xs:element minOccurs="0" maxOccurs="1" ref="post-fetcher"/>
                 <xs:element minOccurs="0" maxOccurs="unbounded" ref="field"/>
             </xs:sequence>
             <xs:attribute name="name" type="name-parameter" use="required"/>

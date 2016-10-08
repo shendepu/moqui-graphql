@@ -719,6 +719,7 @@ public class GraphQLSchemaDefinition {
         String requireAuthentication
 
         DataFetcherHandler dataFetcher
+        String preDataFetcher, postDataFetcher
 
         List<ArgumentNode> argumentList = new ArrayList<>()
         List<FieldNode> fieldList = new ArrayList<>()
@@ -744,7 +745,7 @@ public class GraphQLSchemaDefinition {
                     case "argument":
                         this.argumentList.add(new ArgumentNode(childNode))
                         break
-                    case "data-fetcher":
+                    case "service-fetcher":
                         this.dataFetcher = new DataFetcherService(childNode, this, ec)
                         break
                     case "entity-fetcher":
@@ -752,6 +753,12 @@ public class GraphQLSchemaDefinition {
                         break
                     case "empty-fetcher":
                         this.dataFetcher = new EmptyDataFetcher(childNode, this)
+                        break
+                    case "pre-fetcher":
+                        this.preDataFetcher = childNode.text
+                        break
+                    case "post-fetcher":
+                        this.postDataFetcher = childNode.text
                         break
                     case "field":
                         this.fieldList.add(new FieldNode(childNode, ec))
@@ -812,32 +819,18 @@ public class GraphQLSchemaDefinition {
 
     static class DataFetcherService extends DataFetcherHandler {
         String serviceName
-        String preDataFetcher, postDataFetcher
-        String listName
         String requireAuthentication
 
         DataFetcherService(MNode node, FieldNode fieldNode, ExecutionContext ec) {
             super(fieldNode, ec)
             this.requireAuthentication = node.attribute("require-authentication") ?: fieldNode.requireAuthentication ?: "true"
 
-            ArrayList<MNode> preDataFetcherNodes = node.children("pre-data-fetcher")
-            if (preDataFetcherNodes.size() > 0) {
-                this.preDataFetcher = preDataFetcherNodes[0].attribute("service")
-            }
-
-            ArrayList<MNode> postDataFetcherNodes = node.children("post-data-fetcher")
-            if (preDataFetcherNodes.size() > 0) {
-                this.postDataFetcher = postDataFetcherNodes[0].attribute("service")
-            }
-
-            MNode serviceNode = node.children("service")[0]
-            this.serviceName = serviceNode.attribute("name")
-            this.listName = serviceNode.attribute("list-name")
+            this.serviceName = node.attribute("service")
         }
 
         @Override
         Object get(DataFetchingEnvironment environment) {
-            logger.info("---- running data fetcher service ...")
+            logger.info("---- running data fetcher service [${serviceName}] ...")
             boolean loggedInAnonymous = false
             if ("anonymous-all".equals(requireAuthentication)) {
                 ec.artifactExecution.setAnonymousAuthorizedAll()
@@ -851,14 +844,11 @@ public class GraphQLSchemaDefinition {
                 Map result = ec.getService().sync().name(serviceName)
                         .parameter("environment", environment)
                         .parameters(ec.context).call()
-                if (listName) {
-                    return result.get(listName)
-                }
+
                 return result
             } finally {
                 if (loggedInAnonymous) ((UserFacadeImpl) ec.getUser()).logoutAnonymousOnly()
             }
-
         }
     }
 
