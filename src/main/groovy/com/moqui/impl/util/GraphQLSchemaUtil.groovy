@@ -13,6 +13,7 @@
  */
 package com.moqui.impl.util
 
+import graphql.schema.GraphQLInputType
 import org.moqui.impl.context.ExecutionContextImpl
 import org.moqui.impl.entity.FieldInfo
 import org.moqui.context.ExecutionContext
@@ -130,17 +131,17 @@ class GraphQLSchemaUtil {
                     // Add fields in entity as argument
                     ArgumentNode argumentNode
                     if (moquiDateTypes.contains(fir.type)) {
-                        argumentNode = new ArgumentNode(fir.name, "GraphQLDateRangeInputType", null, fieldDescription)
+                        argumentNode = new ArgumentNode(fir.name, "DateRangeInputType", null, fieldDescription)
                         argumentNodeList.add(argumentNode)
                     } else if (moquiStringTypes.contains(fir.type) || moquiNumericTypes.contains(fir.type) || moquiBoolTypes.contains(fir.type)) {
-                        argumentNode = new ArgumentNode(fir.name, "GraphQLOperationInputType", null, fieldDescription)
+                        argumentNode = new ArgumentNode(fir.name, "OperationInputType", null, fieldDescription)
                         argumentNodeList.add(argumentNode)
                     } else {
                         argumentNode = new ArgumentNode(fir.name, fieldTypeGraphQLMap.get(fir.type), null, fieldDescription)
                         argumentNodeList.add(argumentNode)
                     }
 
-                    argumentNode = new ArgumentNode("pagination", "GraphQLPaginationInputType", null, "Pagination")
+                    argumentNode = new ArgumentNode("pagination", "PaginationInputType", null, "Pagination")
                     argumentNodeList.add(argumentNode)
 
                     argumentNodeList.add(argumentNode)
