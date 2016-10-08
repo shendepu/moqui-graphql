@@ -27,6 +27,7 @@ import static org.moqui.impl.entity.EntityJavaUtil.RelationshipInfo
 
 import static com.moqui.impl.service.GraphQLSchemaDefinition.ArgumentNode
 import static com.moqui.impl.service.GraphQLSchemaDefinition.DataFetcherHandler
+import static com.moqui.impl.service.GraphQLSchemaDefinition.DataFetcherEntity
 import static com.moqui.impl.service.GraphQLSchemaDefinition.FieldNode
 import static com.moqui.impl.service.GraphQLSchemaDefinition.GraphQLTypeNode
 import static com.moqui.impl.service.GraphQLSchemaDefinition.ObjectTypeNode
@@ -146,8 +147,13 @@ class GraphQLSchemaUtil {
                 }
             }
 
+
             logger.info("===== Adding FieldNode [${fieldName} - ${fieldType}]")
             FieldNode fieldNode = new FieldNode(ec, fieldName, fieldType, fieldPropertyMap, argumentNodeList)
+
+            DataFetcherHandler dataFetcher = new DataFetcherEntity(ec, fieldNode, relInfo.relatedEntityName, "list", relInfo.keyMap)
+            fieldNode.setDataFetcher(dataFetcher)
+
             fieldNodeList.add(fieldNode)
         }
 

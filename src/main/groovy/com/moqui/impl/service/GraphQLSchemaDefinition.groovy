@@ -790,6 +790,10 @@ public class GraphQLSchemaDefinition {
             this.description = fieldPropertyMap.get("description")
             this.depreciationReason = fieldPropertyMap.get("depreciationReason")
         }
+
+        public void setDataFetcher(DataFetcherHandler dataFetcher) {
+            this.dataFetcher = dataFetcher
+        }
     }
 
     static abstract class DataFetcherHandler {
@@ -861,6 +865,7 @@ public class GraphQLSchemaDefinition {
     static class DataFetcherEntity extends DataFetcherHandler{
         String entityName, operation
         String requireAuthentication
+        Map<String, String> relKeyMap = new HashMap<>()
 
         DataFetcherEntity(MNode node, FieldNode fieldNode, ExecutionContext ec) {
             super(fieldNode, ec)
@@ -869,16 +874,22 @@ public class GraphQLSchemaDefinition {
             this.operation = node.attribute("operation")
         }
 
-        DataFetcherEntity(ExecutionContext ec, FieldNode fieldNode, String entityName, String operation) {
+        DataFetcherEntity(ExecutionContext ec, FieldNode fieldNode, String entityName, String operation, Map<String, String> relKeyMap) {
             super(fieldNode, ec)
             this.requireAuthentication = fieldNode.requireAuthentication ?: "true"
             this.entityName = entityName
             this.operation = operation
+            this.relKeyMap.putAll(relKeyMap)
         }
 
         @Override
         Object get(DataFetchingEnvironment environment) {
-            logger.info("---- running data fetcher entity ...")
+            logger.info("---- running data fetcher entity for entity [${entityName}] with operation [${operation}] ...")
+            logger.info("arguments  - ${environment.arguments}")
+            logger.info("source     - ${environment.source}")
+            logger.info("context    - ${environment.context}")
+            logger.info("relKeyMap  - ${relKeyMap}")
+
             boolean loggedInAnonymous = false
             if ("anonymous-all".equals(requireAuthentication)) {
                 ec.artifactExecution.setAnonymousAuthorizedAll()
@@ -891,9 +902,16 @@ public class GraphQLSchemaDefinition {
             try {
                 if (operation == "one") {
                     EntityFind ef = ec.entity.find(entityName).searchFormMap(ec.context, null, null, false)
+                    for (Map.Entry<String, String> entry in relKeyMap.entrySet()) {
+                        ef = ef.condition(entry.getValue(), ((Map) environment.source).get(entry.getKey()))
+                    }
                     return ef.one().getMap()
                 } else if (operation == "list") {
                     EntityFind ef = ec.entity.find(entityName).searchFormMap(ec.context, null, null, false)
+                    for (Map.Entry<String, String> entry in relKeyMap.entrySet()) {
+                        ef = ef.condition(entry.getValue(), ((Map) environment.source).get(entry.getKey()))
+                    }
+
                     if (!ef.getLimit()) ef.limit(100)
 
                     int count = ef.count() as int
