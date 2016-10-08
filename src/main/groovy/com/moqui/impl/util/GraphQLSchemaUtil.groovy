@@ -117,6 +117,9 @@ class GraphQLSchemaUtil {
             if (!relInfo.isTypeOne) {
                 logger.info("Adding ArgumentNodes for [${fieldName} - ${fieldType}]")
                 for (String fieldNameRel in relEd.getAllFieldNames()) {
+                    // Skip the relationship fields
+                    if (relInfo.keyMap.values().contains(fieldNameRel)) continue
+
                     FieldInfo fir = relEd.getFieldInfo(fieldNameRel)
                     String fieldDescription = ""
                     for (MNode descriptionMNode in fir.fieldNode.children("description")) {
