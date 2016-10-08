@@ -143,6 +143,15 @@ class GraphQLSchemaUtil {
                         argumentNode = new ArgumentNode(fir.name + "_ic", "String", "", "Defines whether case insensitive on field ${fieldNameRel}: [Y | true]")
                         argumentNodeList.add(argumentNode)
                     }
+                    argumentNode = new ArgumentNode("pageIndex", "Int", "0", "Page index for pagination")
+                    argumentNodeList.add(argumentNode)
+                    argumentNode = new ArgumentNode("pageSize", "Int", "20", "Page size for pagination")
+                    argumentNodeList.add(argumentNode)
+                    argumentNode = new ArgumentNode("pageNoLimit", "Boolean", "false", "Page no limit for pagination")
+                    argumentNodeList.add(argumentNode)
+                    argumentNode = new ArgumentNode("orderByField", "String", "", "OrderBy field for pagination. \ne.g. \n" +
+                            "productName \n" + "productName,statusId \n" + "-statusId,productName" )
+                    argumentNodeList.add(argumentNode)
                 }
             }
 
