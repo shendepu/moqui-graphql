@@ -89,6 +89,8 @@ public class GraphQLSchemaDefinition {
 
     protected GraphQLObjectType pageInfoType
     protected GraphQLInputObjectType paginationInputType
+    protected GraphQLInputObjectType operationInputType
+    protected GraphQLInputObjectType dateRangeInputType
 
     public static final Map<String, GraphQLType> graphQLScalarTypes = [
             "Int"       : GraphQLInt,           "Long"      : GraphQLLong,
@@ -107,7 +109,7 @@ public class GraphQLSchemaDefinition {
         this.queryType = schemaNode.attribute("query")
         this.mutationType = schemaNode.attribute("mutation")
 
-        createGraphQLPaginationTypes()
+        createGraphQLPredefinedTypes()
         GraphQLSchemaUtil.createObjectTypeNodeForAllEntities(this.ecfi.getExecutionContext(), allTypeNodeMap)
 
         for (MNode childNode in schemaNode.children) {
@@ -272,11 +274,11 @@ public class GraphQLSchemaDefinition {
         // Add default GraphQLScalarType
         for (Map.Entry<String, Object> entry in graphQLScalarTypes.entrySet()) {
             inputTypes.add((GraphQLType) entry.getValue())
-            inputTypeList.add(entry.getKey())
         }
 
-        // Add pagination input type
         inputTypes.add(paginationInputType)
+        inputTypes.add(operationInputType)
+        inputTypes.add(dateRangeInputType)
 
         // Add explicitly defined input types from *.graphql.xml
         for (String inputTypeName in inputTypeList) {
@@ -295,9 +297,12 @@ public class GraphQLSchemaDefinition {
 
         graphQLTypeMap.put("GraphQLPageInfo", pageInfoType)
         graphQLTypeMap.put("GraphQLPaginationInputType", paginationInputType)
+
+        graphQLTypeMap.put("GraphQLOperationInputType", operationInputType)
+        graphQLTypeMap.put("GraphQLDateRangeInputType", dateRangeInputType)
     }
 
-    private void createGraphQLPaginationTypes() {
+    private void createGraphQLPredefinedTypes() {
         // This GraphQLPageInfo type is used for pagination
         // Pagination structure is
         // {
@@ -337,6 +342,30 @@ public class GraphQLSchemaDefinition {
                                      "productName \n" + "productName,statusId \n" + "-statusId,productName")
                         .build())
                 .build()
+
+        this.operationInputType = GraphQLInputObjectType.newInputObject().name("GraphQLOperationInputType")
+                .field(GraphQLInputObjectField.newInputObjectField().name("op").type(GraphQLString)
+                        .description("Operation on field, one of [ equals | like | contains | begins | empty | in ]")
+                        .build())
+                .field(GraphQLInputObjectField.newInputObjectField().name("value").type(GraphQLString)
+                        .description("Argument value").build())
+                .field(GraphQLInputObjectField.newInputObjectField().name("not").type(GraphQLString)
+                        .description("Not operation, one of [ Y | true ] represents true").build())
+                .field(GraphQLInputObjectField.newInputObjectField().name("ic").type(GraphQLString)
+                        .description("Case insensitive, one of [ Y | true ] represents true").build())
+                .build()
+
+        this.dateRangeInputType = GraphQLInputObjectType.newInputObject().name("GraphQLDateRangeInputType")
+                .field(GraphQLInputObjectField.newInputObjectField().name("period").type(GraphQLChar)
+                        .description("").build())
+                .field(GraphQLInputObjectField.newInputObjectField().name("poffset").type(GraphQLChar)
+                        .description("").build())
+                .field(GraphQLInputObjectField.newInputObjectField().name("from").type(GraphQLChar)
+                        .description("").build())
+                .field(GraphQLInputObjectField.newInputObjectField().name("thru").type(GraphQLChar)
+                        .description("").build())
+                .build()
+
     }
 
     private void addGraphQLUnionType(UnionTypeNode node) {
