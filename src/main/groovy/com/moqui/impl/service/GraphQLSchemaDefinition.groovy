@@ -20,6 +20,7 @@ import graphql.schema.GraphQLArgument
 import graphql.schema.GraphQLEnumType
 import graphql.schema.GraphQLFieldDefinition
 import graphql.schema.GraphQLInputObjectType
+import graphql.schema.GraphQLInputType
 import graphql.schema.GraphQLInterfaceType
 import graphql.schema.GraphQLList
 import graphql.schema.GraphQLNonNull
@@ -266,6 +267,7 @@ public class GraphQLSchemaDefinition {
     private void addGraphQLScalarTypes() {
         for (String name in graphQLScalarTypes.keySet()) {
             graphQLTypeMap.put(name, graphQLScalarTypes.get(name))
+            inputTypeList.add(name)
         }
     }
 
@@ -399,10 +401,10 @@ public class GraphQLSchemaDefinition {
         if (argType == null)
             throw new IllegalArgumentException("GraphQL type [${node.type}] for argument [${node.name}] not found")
 
-        if (!(argType instanceof GraphQLInputObjectType))
+        if (!(argType instanceof GraphQLInputType))
             throw new IllegalArgumentException("GraphQL type [${node.type}] for argument [${node.name}] is not derived from GraphQLInputObjectType")
 
-        argument = argument.type((GraphQLInputObjectType) argType)
+        argument = argument.type((GraphQLInputType) argType)
 
         return argument.build()
     }
@@ -653,6 +655,10 @@ public class GraphQLSchemaDefinition {
             this(ec, name, type, fieldPropertyMap, null, new ArrayList<>(), new ArrayList<>())
         }
 
+        FieldNode(ExecutionContext ec, String name, String type, Map<String, String> fieldPropertyMap,
+                  List<ArgumentNode> argumentList) {
+            this(ec, name, type, fieldPropertyMap, null, argumentList, new ArrayList<>())
+        }
 
         FieldNode(ExecutionContext ec, String name, String type, Map<String, String> fieldPropertyMap,
                   DataFetcherHandler dataFetcher, List<ArgumentNode> argumentList, List<FieldNode> fieldList) {

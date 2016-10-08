@@ -64,10 +64,10 @@ class GraphQLSchemaUtil {
         }
 
         List<FieldNode> fieldNodeList = new ArrayList<>()
-        List<ArgumentNode> argumentNodeList = new ArrayList<>()
 
         ArrayList<String> allFields = ed.getAllFieldNames()
         for (String fieldName in allFields) {
+            // Add fields in entity as field
             FieldInfo fi = ed.getFieldInfo(fieldName)
             String fieldScalarType = fieldTypeGraphQLMap.get(fi.type)
 
@@ -83,8 +83,10 @@ class GraphQLSchemaUtil {
 
             FieldNode fieldNode = new FieldNode(ec, fi.name, fieldScalarType, fieldPropertyMap)
             fieldNodeList.add(fieldNode)
+
         }
 
+        // Add Master-Detail in entity as field
         MasterDefinition masterDef = ed.getMasterDefinition(masterName)
         List<MasterDetail> detailList = new ArrayList<>()
         if (masterDef) {
@@ -105,11 +107,48 @@ class GraphQLSchemaUtil {
                 fieldPropertyMap.put("isList", "true")
             }
 
+            List<ArgumentNode> argumentNodeList = new ArrayList<>()
+
+            if (!relInfo.isTypeOne) {
+                logger.info("Adding ArgumentNodes for [${fieldName} - ${fieldType}]")
+                for (String fieldNameRel in relEd.getAllFieldNames()) {
+                    FieldInfo fir = relEd.getFieldInfo(fieldNameRel)
+                    String fieldDescription = ""
+                    for (MNode descriptionMNode in fir.fieldNode.children("description")) {
+                        fieldDescription = fieldDescription + descriptionMNode.text + "\n"
+                    }
+
+                    // Add fields in entity as argument
+                    ArgumentNode argumentNode = new ArgumentNode(fir.name, fieldTypeGraphQLMap.get(fir.type), "", fieldDescription)
+                    argumentNodeList.add(argumentNode)
+                    if (fir.type == "date" || fir.type == "time" || fir.type == "date-time") {
+                        // Add _period and _poffset
+                        argumentNode = new ArgumentNode(fir.name + "_period", "String", "", "Defines date operation on field ${fieldNameRel} by period and offset")
+                        argumentNodeList.add(argumentNode)
+                        argumentNode = new ArgumentNode(fir.name + "_poffset", "String", "", "Defines data operation on field ${fieldNameRel} with offset")
+                        argumentNodeList.add(argumentNode)
+                        // Add _from and _thru
+                        argumentNode = new ArgumentNode(fir.name + "_from", "Char", "", "Defines date field ${fieldNameRel} later than this value")
+                        argumentNodeList.add(argumentNode)
+                        argumentNode = new ArgumentNode(fir.name + "_thru", "Char", "", "Defines data field ${fieldNameRel} earlier than this value")
+                        argumentNodeList.add(argumentNode)
+                    } else {
+                        // Add _op
+                        argumentNode = new ArgumentNode(fir.name + "_op", "String", "", "Defines which operation to perform on field ${fieldNameRel}: [equals | like | contains | begins | empty | in]")
+                        argumentNodeList.add(argumentNode)
+                        // Add _not
+                        argumentNode = new ArgumentNode(fir.name + "_not", "String", "", "Defines not operation to perform on field ${fieldNameRel}: [Y | true]")
+                        argumentNodeList.add(argumentNode)
+                        // Add _ic
+                        argumentNode = new ArgumentNode(fir.name + "_ic", "String", "", "Defines whether case insensitive on field ${fieldNameRel}: [Y | true]")
+                        argumentNodeList.add(argumentNode)
+                    }
+                }
+            }
+
             logger.info("===== Adding FieldNode [${fieldName} - ${fieldType}]")
-            FieldNode fieldNode = new FieldNode(ec, fieldName, fieldType, fieldPropertyMap)
+            FieldNode fieldNode = new FieldNode(ec, fieldName, fieldType, fieldPropertyMap, argumentNodeList)
             fieldNodeList.add(fieldNode)
-
-
         }
 
         String objectTypeDescription = ""
