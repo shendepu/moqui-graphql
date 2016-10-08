@@ -19,6 +19,7 @@ import graphql.schema.DataFetchingEnvironment
 import graphql.schema.GraphQLArgument
 import graphql.schema.GraphQLEnumType
 import graphql.schema.GraphQLFieldDefinition
+import graphql.schema.GraphQLInputObjectField
 import graphql.schema.GraphQLInputObjectType
 import graphql.schema.GraphQLInputType
 import graphql.schema.GraphQLInterfaceType
@@ -31,6 +32,7 @@ import graphql.schema.GraphQLType
 import graphql.schema.GraphQLTypeReference
 import graphql.schema.GraphQLUnionType
 import org.moqui.context.ExecutionContext
+import org.moqui.entity.EntityFind
 import org.moqui.impl.context.ExecutionContextFactoryImpl
 import org.moqui.impl.context.UserFacadeImpl
 import org.moqui.impl.service.ServiceFacadeImpl
@@ -38,6 +40,20 @@ import org.moqui.service.ServiceFacade
 import org.moqui.util.MNode
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
+
+import static graphql.Scalars.GraphQLBigDecimal
+import static graphql.Scalars.GraphQLBigInteger
+import static graphql.Scalars.GraphQLBoolean
+import static graphql.Scalars.GraphQLByte
+import static graphql.Scalars.GraphQLChar
+import static graphql.Scalars.GraphQLFloat
+import static graphql.Scalars.GraphQLID
+import static graphql.Scalars.GraphQLInt
+import static graphql.Scalars.GraphQLLong
+import static graphql.Scalars.GraphQLShort
+import static graphql.Scalars.GraphQLString
+import static com.moqui.graphql.Scalars.GraphQLTimestamp
+
 
 public class GraphQLSchemaDefinition {
     protected final static Logger logger = LoggerFactory.getLogger(GraphQLSchemaDefinition.class)
@@ -71,13 +87,16 @@ public class GraphQLSchemaDefinition {
     protected ArrayList<InterfaceTypeNode> interfaceTypeNodeList = new ArrayList<>()
     protected ArrayList<ObjectTypeNode> objectTypeNodeList = new ArrayList<>()
 
+    protected GraphQLObjectType pageInfoType
+    protected GraphQLInputObjectType paginationInputType
+
     public static final Map<String, GraphQLType> graphQLScalarTypes = [
-            "Int"       : graphql.Scalars.GraphQLInt, "Long": graphql.Scalars.GraphQLLong,
-            "Float"     : graphql.Scalars.GraphQLFloat, "String": graphql.Scalars.GraphQLString,
-            "Boolean"   : graphql.Scalars.GraphQLBoolean, "ID": graphql.Scalars.GraphQLID,
-            "BigInteger": graphql.Scalars.GraphQLBigInteger, "BigDecimal": graphql.Scalars.GraphQLBigDecimal,
-            "Byte"      : graphql.Scalars.GraphQLByte, "Short": graphql.Scalars.GraphQLShort,
-            "Char"      : graphql.Scalars.GraphQLChar, "Timestamp": com.moqui.graphql.Scalars.GraphQLTimestamp]
+            "Int"       : GraphQLInt,           "Long"      : GraphQLLong,
+            "Float"     : GraphQLFloat,         "String"    : GraphQLString,
+            "Boolean"   : GraphQLBoolean,       "ID"        : GraphQLID,
+            "BigInteger": GraphQLBigInteger,    "BigDecimal": GraphQLBigDecimal,
+            "Byte"      : GraphQLByte,          "Short"     : GraphQLShort,
+            "Char"      : GraphQLChar,          "Timestamp" : GraphQLTimestamp]
 
     public GraphQLSchemaDefinition(ServiceFacade sf, MNode schemaNode) {
         this.sf = sf
@@ -88,6 +107,7 @@ public class GraphQLSchemaDefinition {
         this.queryType = schemaNode.attribute("query")
         this.mutationType = schemaNode.attribute("mutation")
 
+        createGraphQLPaginationTypes()
         GraphQLSchemaUtil.createObjectTypeNodeForAllEntities(this.ecfi.getExecutionContext(), allTypeNodeMap)
 
         for (MNode childNode in schemaNode.children) {
@@ -197,8 +217,7 @@ public class GraphQLSchemaDefinition {
         populateSortedTypes()
 
         graphQLTypeMap.clear()
-        addGraphQLScalarTypes()
-
+        addGraphQLPredefinedTypes()
 
         for (GraphQLTypeNode typeNode in allTypeNodeSortedList) {
             switch (typeNode.type) {
@@ -251,11 +270,15 @@ public class GraphQLSchemaDefinition {
 
     private void addSchemaInputTypes() {
         // Add default GraphQLScalarType
-        for (GraphQLType scalarType in graphQLScalarTypes.values()) {
-            inputTypes.add(scalarType)
+        for (Map.Entry<String, Object> entry in graphQLScalarTypes.entrySet()) {
+            inputTypes.add((GraphQLType) entry.getValue())
+            inputTypeList.add(entry.getKey())
         }
 
-        // Add explicitly defined input types
+        // Add pagination input type
+        inputTypes.add(paginationInputType)
+
+        // Add explicitly defined input types from *.graphql.xml
         for (String inputTypeName in inputTypeList) {
             GraphQLType type = graphQLTypeMap.get(inputTypeName)
             if (type == null)
@@ -264,11 +287,56 @@ public class GraphQLSchemaDefinition {
         }
     }
 
-    private void addGraphQLScalarTypes() {
+    private void addGraphQLPredefinedTypes() {
+        // Add Scalar types
         for (String name in graphQLScalarTypes.keySet()) {
             graphQLTypeMap.put(name, graphQLScalarTypes.get(name))
-            inputTypeList.add(name)
         }
+
+        graphQLTypeMap.put("GraphQLPageInfo", pageInfoType)
+        graphQLTypeMap.put("GraphQLPaginationInputType", paginationInputType)
+    }
+
+    private void createGraphQLPaginationTypes() {
+        // This GraphQLPageInfo type is used for pagination
+        // Pagination structure is
+        // {
+        //      data: [type],
+        //      pageInfo: {     // GraphQLPageInfo type
+        //          pageIndex, pageSize, totalCount, pageMaxIndex, pageRangeLow, pageRangeHigh
+        //      }
+        // }
+        this.pageInfoType = GraphQLObjectType.newObject().name("GraphQLPageInfo")
+                .field(GraphQLFieldDefinition.newFieldDefinition()
+                        .name("pageIndex").type(GraphQLInt).build())
+                .field(GraphQLFieldDefinition.newFieldDefinition()
+                        .name("pageSize").type(GraphQLInt).build())
+                .field(GraphQLFieldDefinition.newFieldDefinition()
+                        .name("totalCount").type(GraphQLInt).build())
+                .field(GraphQLFieldDefinition.newFieldDefinition()
+                        .name("pageMaxIndex").type(GraphQLInt).build())
+                .field(GraphQLFieldDefinition.newFieldDefinition()
+                        .name("pageRangeLow").type(GraphQLInt).build())
+                .field(GraphQLFieldDefinition.newFieldDefinition()
+                        .name("pageRangeHigh").type(GraphQLInt).build())
+                .build()
+
+        this.paginationInputType = GraphQLInputObjectType.newInputObject().name("GraphQLPaginationInputType")
+                .field(GraphQLInputObjectField.newInputObjectField()
+                        .name("pageIndex").type(GraphQLInt).defaultValue(0)
+                        .description("Page index for pagination, default 0").build())
+                .field(GraphQLInputObjectField.newInputObjectField()
+                        .name("pageSize").type(GraphQLInt).defaultValue(20)
+                        .description("Page size for pagination, default 20").build())
+                .field(GraphQLInputObjectField.newInputObjectField()
+                        .name("pageNoLimit").type(GraphQLBoolean).defaultValue(false)
+                        .description("Page no limit for pagination, default false").build())
+                .field(GraphQLInputObjectField.newInputObjectField()
+                        .name("orderByField").type(GraphQLString)
+                        .description("OrderBy field for pagination. \ne.g. \n" +
+                                     "productName \n" + "productName,statusId \n" + "-statusId,productName")
+                        .build())
+                .build()
     }
 
     private void addGraphQLUnionType(UnionTypeNode node) {
@@ -345,7 +413,7 @@ public class GraphQLSchemaDefinition {
                 .deprecate(fieldNode.depreciationReason)
 
         GraphQLType fieldRawType = graphQLTypeMap.get(fieldNode.type)
-        if (fieldRawType == null ) {
+        if (fieldRawType == null) {
             fieldRawType = new GraphQLTypeReference(fieldNode.type)
             graphQLTypeMap.put(fieldNode.name, fieldRawType)
             graphQLTypeReferences.add(fieldNode.type)
@@ -354,10 +422,23 @@ public class GraphQLSchemaDefinition {
         // build type for field which could be one of: type, type!, [type], [type!], [type!]!
         GraphQLType fieldType
         if ("true".equals(fieldNode.isList)) {
-            if ("true".equals(fieldNode.listItemNonNull)) {
-                fieldType = new GraphQLList(new GraphQLNonNull(fieldRawType))
-            } else {
-                fieldType = new GraphQLList(fieldRawType)
+            String listFieldTypeName = fieldNode.type + '__Pagination'
+            fieldType = graphQLTypeMap.get(listFieldTypeName)
+            if (fieldType == null) {
+                // Create pagination object type for field.
+                GraphQLType wrappedListFieldType
+                if ("true".equals(fieldNode.listItemNonNull)) {
+                    wrappedListFieldType = new GraphQLList(new GraphQLNonNull(fieldRawType))
+                } else {
+                    wrappedListFieldType = new GraphQLList(fieldRawType)
+                }
+                fieldType = GraphQLObjectType.newObject().name(listFieldTypeName)
+                        .field(GraphQLFieldDefinition.newFieldDefinition().name("data")
+                                .type(wrappedListFieldType).build())
+                        .field(GraphQLFieldDefinition.newFieldDefinition().name("pageInfo")
+                                .type(pageInfoType).build())
+                        .build()
+                graphQLTypeMap.put(listFieldTypeName, fieldType)
             }
         }
         if ("true".equals(fieldNode.nonNull)) {
@@ -680,21 +761,27 @@ public class GraphQLSchemaDefinition {
     }
 
     static abstract class DataFetcherHandler {
+        @SuppressWarnings("GrFinalVariableAccess")
+        final ExecutionContext ec
+        @SuppressWarnings("GrFinalVariableAccess")
+        final FieldNode fieldNode
+
+        DataFetcherHandler(FieldNode fieldNode, ExecutionContext ec) {
+            this.ec = ec
+            this.fieldNode = fieldNode
+        }
 
         Object get(DataFetchingEnvironment environment) { return null }
     }
 
     static class DataFetcherService extends DataFetcherHandler {
-        @SuppressWarnings("GrFinalVariableAccess")
-        final ExecutionContext ec
-
         String serviceName
         String preDataFetcher, postDataFetcher
         String listName
         String requireAuthentication
 
         DataFetcherService(MNode node, FieldNode fieldNode, ExecutionContext ec) {
-            this.ec = ec
+            super(fieldNode, ec)
             this.requireAuthentication = node.attribute("require-authentication") ?: fieldNode.requireAuthentication ?: "true"
 
             ArrayList<MNode> preDataFetcherNodes = node.children("pre-data-fetcher")
@@ -714,7 +801,7 @@ public class GraphQLSchemaDefinition {
 
         @Override
         Object get(DataFetchingEnvironment environment) {
-            logger.info("---- running data fetcher ...")
+            logger.info("---- running data fetcher service ...")
             boolean loggedInAnonymous = false
             if ("anonymous-all".equals(requireAuthentication)) {
                 ec.artifactExecution.setAnonymousAuthorizedAll()
@@ -739,12 +826,61 @@ public class GraphQLSchemaDefinition {
         }
     }
 
-    static class EmptyDataFetcher extends DataFetcherHandler {
-        @SuppressWarnings("GrFinalVariableAccess")
-        final FieldNode fieldNode
+    static class DataFetcherEntity extends DataFetcherHandler{
+        String entityName, operation
+        String requireAuthentication
 
+        DataFetcherEntity(ExecutionContext ec, FieldNode fieldNode, String entityName, String operation) {
+            super(fieldNode, ec)
+            this.requireAuthentication = node.attribute("require-authentication") ?: fieldNode.requireAuthentication ?: "true"
+            this.entityName = entityName
+            this.operation = operation
+        }
+
+        @Override
+        Object get(DataFetchingEnvironment environment) {
+            logger.info("---- running data fetcher entity ...")
+            boolean loggedInAnonymous = false
+            if ("anonymous-all".equals(requireAuthentication)) {
+                ec.artifactExecution.setAnonymousAuthorizedAll()
+                loggedInAnonymous = ec.getUser().loginAnonymousIfNoUser()
+            } else if ("anonymous-view".equals(requireAuthentication)) {
+                ec.artifactExecution.setAnonymousAuthorizedView()
+                loggedInAnonymous = ec.getUser().loginAnonymousIfNoUser()
+            }
+
+            try {
+                if (operation == "one") {
+                    EntityFind ef = ec.entity.find(entityName).searchFormMap(ec.context, null, null, false)
+                    return ef.one().getMap()
+                } else if (operation == "list") {
+                    EntityFind ef = ec.entity.find(entityName).searchFormMap(ec.context, null, null, false)
+                    if (!ef.getLimit()) ef.limit(100)
+
+                    int count = ef.count() as int
+                    int pageIndex = ef.getPageIndex()
+                    int pageSize = ef.getPageSize()
+                    int pageMaxIndex = ((count - 1) as BigDecimal).divide(pageSize as BigDecimal, 0, BigDecimal.ROUND_DOWN).intValue()
+                    int pageRangeLow = pageIndex * pageSize + 1
+                    int pageRangeHigh = (pageIndex * pageSize) + pageSize
+                    if (pageRangeHigh > count) pageRangeHigh = count
+
+                    Map<String, Object> resultMap = new HashMap<>()
+                    resultMap.put("data", ef.list().getPlainValueList(0))
+                    resultMap.put("pageInfo", ['pageIndex': pageIndex, 'pageSize': pageSize, 'totalCount': count,
+                           'pageMaxIndex': pageMaxIndex, 'pageRangeLow': pageRangeLow, 'pageRangeHigh': pageRangeHigh]) as Map<String, Object>
+
+                    return resultMap
+                }
+            } finally {
+                if (loggedInAnonymous) ((UserFacadeImpl) ec.getUser()).logoutAnonymousOnly()
+            }
+        }
+    }
+
+    static class EmptyDataFetcher extends DataFetcherHandler {
         EmptyDataFetcher (MNode node, FieldNode fieldNode) {
-            this.fieldNode = fieldNode
+            super(fieldNode, null)
         }
 
         @Override
