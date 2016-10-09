@@ -80,14 +80,14 @@ public class GraphQLSchemaDefinition {
 
     protected final ArrayList<String> inputTypeList = new ArrayList<>()
 
-    protected Map<String, GraphQLTypeDefinition> allTypeNodeMap = new HashMap<>()
-    protected LinkedList<GraphQLTypeDefinition> allTypeNodeSortedList = new LinkedList<>()
+    protected Map<String, GraphQLTypeDefinition> allTypeDefMap = new HashMap<>()
+    protected LinkedList<GraphQLTypeDefinition> allTypeDefSortedList = new LinkedList<>()
 
-//    protected Map<String, UnionTypeDefinition> unionTypeNodeMap = new HashMap<>()
-//    protected Map<String, EnumTypeDefinition> enumTypeNodeMap = new HashMap<>()
-    protected Map<String, InterfaceTypeDefinition> interfaceTypeNodeMap = new HashMap<>()
-//    protected Map<String, ObjectTypeDefinition> objectTypeNodeMap = new HashMap<>()
-    protected Map<String, ExtendObjectDefinition> extendObjectNodeMap = new HashMap<>()
+//    protected Map<String, UnionTypeDefinition> unionTypeDefMap = new HashMap<>()
+//    protected Map<String, EnumTypeDefinition> enumTypeDefMap = new HashMap<>()
+    protected Map<String, InterfaceTypeDefinition> interfaceTypeDefMap = new HashMap<>()
+//    protected Map<String, ObjectTypeDefinition> objectTypeDefMap = new HashMap<>()
+    protected Map<String, ExtendObjectDefinition> extendObjectDefMap = new HashMap<>()
 
     protected GraphQLObjectType pageInfoType
     protected GraphQLInputObjectType paginationInputType
@@ -117,7 +117,7 @@ public class GraphQLSchemaDefinition {
         this.mutationType = schemaNode.attribute("mutation")
 
         createGraphQLPredefinedTypes()
-        GraphQLSchemaUtil.createObjectTypeNodeForAllEntities(this.ecfi.getExecutionContext(), allTypeNodeMap)
+        GraphQLSchemaUtil.createObjectTypeNodeForAllEntities(this.ecfi.getExecutionContext(), allTypeDefMap)
 
         for (MNode childNode in schemaNode.children) {
             switch (childNode.name) {
@@ -125,19 +125,19 @@ public class GraphQLSchemaDefinition {
                     inputTypeList.add(childNode.attribute("name"))
                     break
                 case "interface":
-                    allTypeNodeMap.put(childNode.attribute("name"), new InterfaceTypeDefinition(childNode, this.ecfi.getExecutionContext()))
+                    allTypeDefMap.put(childNode.attribute("name"), new InterfaceTypeDefinition(childNode, this.ecfi.getExecutionContext()))
                     break
                 case "object":
-                    allTypeNodeMap.put(childNode.attribute("name"), new ObjectTypeDefinition(childNode, this.ecfi.getExecutionContext()))
+                    allTypeDefMap.put(childNode.attribute("name"), new ObjectTypeDefinition(childNode, this.ecfi.getExecutionContext()))
                     break
                 case "union":
-                    allTypeNodeMap.put(childNode.attribute("name"), new UnionTypeDefinition(childNode))
+                    allTypeDefMap.put(childNode.attribute("name"), new UnionTypeDefinition(childNode))
                     break
                 case "enum":
-                    allTypeNodeMap.put(childNode.attribute("name"), new EnumTypeDefinition(childNode))
+                    allTypeDefMap.put(childNode.attribute("name"), new EnumTypeDefinition(childNode))
                     break
                 case "extend-object":
-                    extendObjectNodeMap.put(childNode.attribute("name"), new ExtendObjectDefinition(childNode))
+                    extendObjectDefMap.put(childNode.attribute("name"), new ExtendObjectDefinition(childNode))
                     break
             }
         }
@@ -145,29 +145,29 @@ public class GraphQLSchemaDefinition {
         updateAllTypeNodeMap()
     }
 
-    private GraphQLTypeDefinition getTypeNode(String name) {
-        return allTypeNodeMap.get(name)
+    private GraphQLTypeDefinition getTypeDef(String name) {
+        return allTypeDefMap.get(name)
 //        return allTypeNodeList.find({ name.equals(it.name) })
     }
 
     private populateSortedTypes() {
-        allTypeNodeSortedList.clear()
+        allTypeDefSortedList.clear()
 
-        GraphQLTypeDefinition queryTypeNode = getTypeNode(queryType)
-        GraphQLTypeDefinition mutationTypeNode = getTypeNode(mutationType)
+        GraphQLTypeDefinition queryTypeDef = getTypeDef(queryType)
+        GraphQLTypeDefinition mutationTypeDef = getTypeDef(mutationType)
 
-        if (queryTypeNode == null) {
+        if (queryTypeDef == null) {
             logger.error("No query type [${queryType}] defined for GraphQL schema")
             return
         }
 
-        allTypeNodeSortedList.push(queryTypeNode)
-        if (mutationType) allTypeNodeSortedList.push(mutationTypeNode)
+        allTypeDefSortedList.push(queryTypeDef)
+        if (mutationType) allTypeDefSortedList.push(mutationTypeDef)
 
         TreeNode<GraphQLTypeDefinition> rootNode = new TreeNode<>(null)
-        rootNode.children.add(new TreeNode<GraphQLTypeDefinition>(queryTypeNode))
-        if (mutationTypeNode) {
-            rootNode.children.add(new TreeNode<GraphQLTypeDefinition>(mutationTypeNode))
+        rootNode.children.add(new TreeNode<GraphQLTypeDefinition>(queryTypeDef))
+        if (mutationTypeDef) {
+            rootNode.children.add(new TreeNode<GraphQLTypeDefinition>(mutationTypeDef))
         }
 
 
@@ -175,8 +175,8 @@ public class GraphQLSchemaDefinition {
         traverseByLevelOrder(rootNode)
 
         logger.info("==== allTypeNodeSortedList ====")
-        for (GraphQLTypeDefinition node in allTypeNodeSortedList) {
-            logger.info("[${node.name} - ${node.type}]")
+        for (GraphQLTypeDefinition typeDef in allTypeDefSortedList) {
+            logger.info("[${typeDef.name} - ${typeDef.type}]")
         }
     }
 
@@ -187,8 +187,8 @@ public class GraphQLSchemaDefinition {
             TreeNode<GraphQLTypeDefinition> tempNode = queue.poll()
             if (tempNode.data) {
                 logger.info("Traversing node [${tempNode.data.name}]")
-                if (!allTypeNodeSortedList.contains(tempNode.data)) {
-                    allTypeNodeSortedList.addFirst(tempNode.data)
+                if (!allTypeDefSortedList.contains(tempNode.data)) {
+                    allTypeDefSortedList.addFirst(tempNode.data)
                 }
             }
             for (TreeNode<GraphQLTypeDefinition> childNode in tempNode.children) {
@@ -205,12 +205,12 @@ public class GraphQLSchemaDefinition {
                 // If type is GraphQLObjectType which already added in Tree, skip.
                 if (objectTypeNames.contains(type)) continue
 
-                GraphQLTypeDefinition typeNode = getTypeNode(type)
-                if (typeNode != null) {
-                    TreeNode<GraphQLTypeDefinition> typeTreeNode = new TreeNode<>(typeNode)
+                GraphQLTypeDefinition typeDef = getTypeDef(type)
+                if (typeDef != null) {
+                    TreeNode<GraphQLTypeDefinition> typeTreeNode = new TreeNode<>(typeDef)
                     node.children.add(typeTreeNode)
                     objectTypeNames.push(type)
-                    logger.info("Adding tree node for GraphQLTypeDefinition [${typeNode.name}]")
+                    logger.info("Adding tree node for GraphQLTypeDefinition [${typeDef.name}]")
                     createTreeNodeRecursive(typeTreeNode, objectTypeNames)
                 } else {
                     logger.error("No GraphQL Type [${type}] defined")
@@ -229,19 +229,19 @@ public class GraphQLSchemaDefinition {
         graphQLTypeMap.clear()
         addGraphQLPredefinedTypes()
 
-        for (GraphQLTypeDefinition typeNode in allTypeNodeSortedList) {
-            switch (typeNode.type) {
+        for (GraphQLTypeDefinition typeDef in allTypeDefSortedList) {
+            switch (typeDef.type) {
                 case "union":
-                    addGraphQLUnionType((UnionTypeDefinition) typeNode)
+                    addGraphQLUnionType((UnionTypeDefinition) typeDef)
                     break
                 case "enum":
-                    addGraphQLEnumType((EnumTypeDefinition) typeNode)
+                    addGraphQLEnumType((EnumTypeDefinition) typeDef)
                     break
                 case "interface":
-                    addGraphQLInterfaceType((InterfaceTypeDefinition) typeNode)
+                    addGraphQLInterfaceType((InterfaceTypeDefinition) typeDef)
                     break
                 case "object":
-                    addGraphQLObjectType((ObjectTypeDefinition) typeNode)
+                    addGraphQLObjectType((ObjectTypeDefinition) typeDef)
                     break
             }
         }
@@ -272,14 +272,14 @@ public class GraphQLSchemaDefinition {
     }
 
     private void updateAllTypeNodeMap() {
-        for (Map.Entry<String, ExtendObjectDefinition> entry in extendObjectNodeMap) {
-            ObjectTypeDefinition objectTypeNode = allTypeNodeMap.get(entry.getKey())
-            if (objectTypeNode == null) {
+        for (Map.Entry<String, ExtendObjectDefinition> entry in extendObjectDefMap) {
+            ObjectTypeDefinition objectTypeDef = allTypeDefMap.get(entry.getKey())
+            if (objectTypeDef == null) {
                 logger.info("ObjectTypeDefinition [${entry.getKey()}] not found to extend")
                 continue
             }
-            ExtendObjectDefinition extendObjectNode = (ExtendObjectDefinition) entry.getValue()
-            if ("true".equals(extendObjectNode.asInterface)) {
+            ExtendObjectDefinition extendObjectDef = (ExtendObjectDefinition) entry.getValue()
+            if ("true".equals(extendObjectDef.asInterface)) {
 
             }
 
@@ -391,18 +391,18 @@ public class GraphQLSchemaDefinition {
 
     }
 
-    private void addGraphQLUnionType(UnionTypeDefinition node) {
+    private void addGraphQLUnionType(UnionTypeDefinition unionTypeDef) {
         GraphQLUnionType.Builder unionType = GraphQLUnionType.newUnionType()
-                .name(node.name)
-                .description(node.description)
+                .name(unionTypeDef.name)
+                .description(unionTypeDef.description)
         Map<String, GraphQLType> unionTypeList = new HashMap<>()
 
-        for (String typeName in node.typeList) {
+        for (String typeName in unionTypeDef.typeList) {
             GraphQLType type = graphQLTypeMap.get(typeName)
             if (type == null) {
-                throw new IllegalArgumentException("GraphQL type [${typeName}] for union type [${node.name}] not found")
+                throw new IllegalArgumentException("GraphQL type [${typeName}] for union type [${unionTypeDef.name}] not found")
             } else if (!(type instanceof GraphQLObjectType)) {
-                throw new ClassCastException("GraphQL type [${typeName}] for union type [${node.name}] is not GraphQLObjectType")
+                throw new ClassCastException("GraphQL type [${typeName}] for union type [${unionTypeDef.name}] is not GraphQLObjectType")
             }
             unionTypeList.put(typeName, type)
             unionType = unionType.possibleType(type)
@@ -410,76 +410,76 @@ public class GraphQLSchemaDefinition {
 
         // TODO: Add typeResolver for type, one way is to add a service as resolver
 
-        graphQLTypeMap.put(node.name, unionType.build())
+        graphQLTypeMap.put(unionTypeDef.name, unionType.build())
     }
 
-    private void addGraphQLEnumType(EnumTypeDefinition node) {
-        GraphQLEnumType.Builder enumType = GraphQLEnumType.newEnum().name(node.name)
-                .description(node.description)
+    private void addGraphQLEnumType(EnumTypeDefinition enumTypeDef) {
+        GraphQLEnumType.Builder enumType = GraphQLEnumType.newEnum().name(enumTypeDef.name)
+                .description(enumTypeDef.description)
 
-        for (EnumValue valueNode in node.valueList) {
+        for (EnumValue valueNode in enumTypeDef.valueList) {
             enumType = enumType.value(valueNode.name, valueNode.value, valueNode.description, valueNode.depreciationReason)
         }
 
-        graphQLTypeMap.put(node.name, enumType.build())
+        graphQLTypeMap.put(enumTypeDef.name, enumType.build())
     }
 
-    private void addGraphQLInterfaceType(InterfaceTypeDefinition node) {
+    private void addGraphQLInterfaceType(InterfaceTypeDefinition interfaceTypeDef) {
         GraphQLInterfaceType.Builder interfaceType = GraphQLInterfaceType.newInterface()
-                .name(node.name)
-                .description(node.description)
+                .name(interfaceTypeDef.name)
+                .description(interfaceTypeDef.description)
 
-        for (FieldDefinition fieldNode in node.fieldList) {
+        for (FieldDefinition fieldNode in interfaceTypeDef.fieldList) {
             interfaceType = interfaceType.field(buildField(fieldNode))
         }
 
         // TODO: Add typeResolver for type, one way is to add a service as resolver
 
-        graphQLTypeMap.put(node.name, interfaceType.build())
+        graphQLTypeMap.put(interfaceTypeDef.name, interfaceType.build())
     }
 
-    private void addGraphQLObjectType(ObjectTypeDefinition node) {
+    private void addGraphQLObjectType(ObjectTypeDefinition objectTypeDef) {
         GraphQLObjectType.Builder objectType = GraphQLObjectType.newObject()
-                .name(node.name)
-                .description(node.description)
+                .name(objectTypeDef.name)
+                .description(objectTypeDef.description)
 
-        for (String interfaceName in node.interfaceList) {
+        for (String interfaceName in objectTypeDef.interfaceList) {
             GraphQLType interfaceType = graphQLTypeMap.get(interfaceName)
             if (interfaceType == null)
-                throw new IllegalArgumentException("GraphQL interface type [${node.name}] not found.")
+                throw new IllegalArgumentException("GraphQL interface type [${objectTypeDef.name}] not found.")
 
             objectType = objectType.withInterface((GraphQLInterfaceType) interfaceType)
         }
 
-        for (FieldDefinition fieldNode in node.fieldList) {
-            objectType = objectType.field(buildField(fieldNode))
+        for (FieldDefinition fieldDef in objectTypeDef.fieldList) {
+            objectType = objectType.field(buildField(fieldDef))
         }
 
-        graphQLTypeMap.put(node.name, objectType.build())
+        graphQLTypeMap.put(objectTypeDef.name, objectType.build())
     }
 
-    private GraphQLFieldDefinition buildField(FieldDefinition fieldNode) {
-        GraphQLFieldDefinition.Builder fieldDef = GraphQLFieldDefinition.newFieldDefinition()
-                .name(fieldNode.name)
-                .description(fieldNode.description)
-                .deprecate(fieldNode.depreciationReason)
+    private GraphQLFieldDefinition buildField(FieldDefinition fieldDef) {
+        GraphQLFieldDefinition.Builder graphQLFieldDef = GraphQLFieldDefinition.newFieldDefinition()
+                .name(fieldDef.name)
+                .description(fieldDef.description)
+                .deprecate(fieldDef.depreciationReason)
 
-        GraphQLType fieldRawType = graphQLTypeMap.get(fieldNode.type)
+        GraphQLType fieldRawType = graphQLTypeMap.get(fieldDef.type)
         if (fieldRawType == null) {
-            fieldRawType = new GraphQLTypeReference(fieldNode.type)
-            graphQLTypeMap.put(fieldNode.name, fieldRawType)
-            graphQLTypeReferences.add(fieldNode.type)
+            fieldRawType = new GraphQLTypeReference(fieldDef.type)
+            graphQLTypeMap.put(fieldDef.name, fieldRawType)
+            graphQLTypeReferences.add(fieldDef.type)
         }
 
         // build type for field which could be one of: type, type!, [type], [type!], [type!]!
         GraphQLType fieldType
-        if ("true".equals(fieldNode.isList)) {
-            String listFieldTypeName = fieldNode.type + '__Pagination'
+        if ("true".equals(fieldDef.isList)) {
+            String listFieldTypeName = fieldDef.type + '__Pagination'
             fieldType = graphQLTypeMap.get(listFieldTypeName)
             if (fieldType == null) {
                 // Create pagination object type for field.
                 GraphQLType wrappedListFieldType
-                if ("true".equals(fieldNode.listItemNonNull)) {
+                if ("true".equals(fieldDef.listItemNonNull)) {
                     wrappedListFieldType = new GraphQLList(new GraphQLNonNull(fieldRawType))
                 } else {
                     wrappedListFieldType = new GraphQLList(fieldRawType)
@@ -493,7 +493,7 @@ public class GraphQLSchemaDefinition {
                 graphQLTypeMap.put(listFieldTypeName, fieldType)
             }
         }
-        if ("true".equals(fieldNode.nonNull)) {
+        if ("true".equals(fieldDef.nonNull)) {
             if (fieldType == null) {
                 fieldType = new GraphQLNonNull(fieldRawType)
             } else {
@@ -503,44 +503,44 @@ public class GraphQLSchemaDefinition {
         if (fieldType == null) fieldType = fieldRawType
 
         if (!(fieldType instanceof GraphQLOutputType))
-            throw new IllegalArgumentException("GraphQL type [${fieldNode.type}] for field [${fieldNode.name}] is not derived from GraphQLOutputType")
+            throw new IllegalArgumentException("GraphQL type [${fieldDef.type}] for field [${fieldDef.name}] is not derived from GraphQLOutputType")
 
-        fieldDef = fieldDef.type((GraphQLOutputType) fieldType)
+        graphQLFieldDef.type((GraphQLOutputType) fieldType)
 
         // build arguments for field
-        for (ArgumentDefinition argNode in fieldNode.argumentList) {
-            fieldDef.argument(buildArgument(argNode))
+        for (ArgumentDefinition argNode in fieldDef.argumentList) {
+            graphQLFieldDef.argument(buildArgument(argNode))
         }
 
-        if (fieldNode.dataFetcher != null) {
-            fieldDef.dataFetcher(new DataFetcher() {
+        if (fieldDef.dataFetcher != null) {
+            graphQLFieldDef.dataFetcher(new DataFetcher() {
                 @Override
                 public Object get(DataFetchingEnvironment environment) {
-                    return fieldNode.dataFetcher.get(environment)
+                    return fieldDef.dataFetcher.get(environment)
                 }
             })
         }
 
-        return fieldDef.build()
+        return graphQLFieldDef.build()
     }
 
-    private GraphQLArgument buildArgument(ArgumentDefinition node) {
+    private GraphQLArgument buildArgument(ArgumentDefinition argumentDef) {
         GraphQLArgument.Builder argument = GraphQLArgument.newArgument()
-                .name(node.name)
-                .description(node.description)
-                .defaultValue(node.defaultValue)
+                .name(argumentDef.name)
+                .description(argumentDef.description)
+                .defaultValue(argumentDef.defaultValue)
 
-        GraphQLType argType = graphQLTypeMap.get(node.type)
+        GraphQLType argType = graphQLTypeMap.get(argumentDef.type)
         if (argType == null)
-            throw new IllegalArgumentException("GraphQL type [${node.type}] for argument [${node.name}] not found")
+            throw new IllegalArgumentException("GraphQL type [${argumentDef.type}] for argument [${argumentDef.name}] not found")
 
         if (!(argType instanceof GraphQLInputType))
-            throw new IllegalArgumentException("GraphQL type [${node.type}] for argument [${node.name}] is not derived from GraphQLInputObjectType")
+            throw new IllegalArgumentException("GraphQL type [${argumentDef.type}] for argument [${argumentDef.name}] is not derived from GraphQLInputObjectType")
 
-        if ("true".equals(node.fieldNode.isList)) {
-            if (graphQLDateTypes.contains(node.type)) {
+        if ("true".equals(argumentDef.fieldDef.isList)) {
+            if (graphQLDateTypes.contains(argumentDef.type)) {
                 argType = graphQLTypeMap.get("DateRangeInputType")
-            } else if (graphQLStringTypes.contains(node.type) || graphQLNumericTypes.contains(node.type)) {
+            } else if (graphQLStringTypes.contains(argumentDef.type) || graphQLNumericTypes.contains(argumentDef.type)) {
                 argType = graphQLTypeMap.get("OperationInputType")
             }
         }
@@ -642,7 +642,7 @@ public class GraphQLSchemaDefinition {
         Boolean convertFromObjectType
 
         String typeResolver
-        Map<String, FieldDefinition> fieldNodeMap = new HashMap<>()
+        Map<String, FieldDefinition> fieldDefMap = new HashMap<>()
         String resolverField
         Map<String, String> resolverMap = new HashMap<>()
 
@@ -657,28 +657,28 @@ public class GraphQLSchemaDefinition {
                         this.description = childNode.text
                         break
                     case "field":
-                        fieldNodeMap.put(childNode.attribute("name"), new FieldDefinition(childNode, ec))
+                        fieldDefMap.put(childNode.attribute("name"), new FieldDefinition(childNode, ec))
 //                        typeList.add(childNode.attribute("type"))
                         break
                 }
             }
         }
 
-        InterfaceTypeDefinition(ObjectTypeDefinition objectTypeNode, ExtendObjectDefinition extendObjectNode, ExecutionContext ec) {
+        InterfaceTypeDefinition(ObjectTypeDefinition objectTypeDef, ExtendObjectDefinition extendObjectDef, ExecutionContext ec) {
             convertFromObjectType = true
-            fieldNodeMap.putAll(objectTypeNode.fieldNodeMap)
+            fieldDefMap.putAll(objectTypeDef.fieldDefMap)
 
-            for (FieldDefinition fieldNode in extendObjectNode.fieldNodeMap.values()) {
-                mergeField(fieldNode)
+            for (FieldDefinition fieldDef in extendObjectDef.fieldDefMap.values()) {
+                mergeField(fieldDef)
             }
         }
 
-        public ArrayList<FieldDefinition> getFieldList() { return new ArrayList<FieldDefinition>(fieldNodeMap.values()) }
+        public ArrayList<FieldDefinition> getFieldList() { return new ArrayList<FieldDefinition>(fieldDefMap.values()) }
 
         @Override
-        ArrayList<String> getDependentTypes() { return new ArrayList<String>(fieldNodeMap.values().type) }
+        ArrayList<String> getDependentTypes() { return new ArrayList<String>(fieldDefMap.values().type) }
 
-        private void mergeField(FieldDefinition fieldNode) {
+        private void mergeField(FieldDefinition fieldDef) {
 
         }
     }
@@ -689,7 +689,7 @@ public class GraphQLSchemaDefinition {
 
         ArrayList<String> interfaceList = new ArrayList<>()
         Map<String, InterfaceTypeDefinition> interfacesMap
-        Map<String, FieldDefinition> fieldNodeMap = new HashMap<>()
+        Map<String, FieldDefinition> fieldDefMap = new HashMap<>()
 
         ObjectTypeDefinition(MNode node, ExecutionContext ec) {
             this.ec = ec
@@ -704,7 +704,7 @@ public class GraphQLSchemaDefinition {
                         interfaceList.add(childNode.attribute("name"))
                         break
                     case "field":
-                        fieldNodeMap.put(childNode.attribute("name"), new FieldDefinition(childNode, ec))
+                        fieldDefMap.put(childNode.attribute("name"), new FieldDefinition(childNode, ec))
 //                        typeList.add(childNode.attribute("type"))
                         break
                 }
@@ -712,19 +712,19 @@ public class GraphQLSchemaDefinition {
         }
 
         ObjectTypeDefinition(ExecutionContext ec, String name, String description, List<String> interfaceList,
-                             Map<String, FieldDefinition> fieldNodeMap) {
+                             Map<String, FieldDefinition> fieldDefMap) {
             this.ec = ec
             this.name = name
             this.description = description
             this.type = "object"
             this.interfaceList = interfaceList
-            this.fieldNodeMap.putAll(fieldNodeMap)
+            this.fieldDefMap.putAll(fieldDefMap)
         }
 
-        public List<FieldDefinition> getFieldList() { return new ArrayList<FieldDefinition>(fieldNodeMap.values()) }
+        public List<FieldDefinition> getFieldList() { return new ArrayList<FieldDefinition>(fieldDefMap.values()) }
 
         @Override
-        ArrayList<String> getDependentTypes() { return new ArrayList<String>(fieldNodeMap.values().type) }
+        ArrayList<String> getDependentTypes() { return new ArrayList<String>(fieldDefMap.values().type) }
     }
 
     static class ExtendObjectDefinition {
@@ -733,7 +733,7 @@ public class GraphQLSchemaDefinition {
         String name, asInterface, resolverField
 
         ArrayList<String> interfaceList = new ArrayList<>()
-        Map<String, FieldDefinition> fieldNodeMap = new HashMap<>()
+        Map<String, FieldDefinition> fieldDefMap = new HashMap<>()
         Map<String, String> resolverMap = new HashMap<>()
 
         ExtendObjectDefinition(MNode node) {
@@ -747,7 +747,7 @@ public class GraphQLSchemaDefinition {
                         interfaceList.add(childNode.attribute("name"))
                         break
                     case "field":
-                        fieldNodeMap.put(childNode.attribute("name"), new FieldDefinition(childNode, ec))
+                        fieldDefMap.put(childNode.attribute("name"), new FieldDefinition(childNode, ec))
                         break
                     case "resolver-map":
                         if (resolverField != null && !resolverField.isEmpty()) {
@@ -776,10 +776,10 @@ public class GraphQLSchemaDefinition {
     static class ArgumentDefinition {
         String name
         Map<String, String> attributeMap = new HashMap<>()
-        FieldDefinition fieldNode
+        FieldDefinition fieldDef
 
-        ArgumentDefinition(MNode node, FieldDefinition fieldNode) {
-            this.fieldNode = fieldNode
+        ArgumentDefinition(MNode node, FieldDefinition fieldDef) {
+            this.fieldDef = fieldDef
             this.name = node.attribute("name")
             attributeMap.put("type", node.attribute("type"))
             attributeMap.put("required", node.attribute("required") ?: "false")
@@ -792,8 +792,8 @@ public class GraphQLSchemaDefinition {
             }
         }
 
-        ArgumentDefinition(FieldDefinition fieldNode, String name, Map<String, String> attributeMap) {
-            this.fieldNode = fieldNode
+        ArgumentDefinition(FieldDefinition fieldDef, String name, Map<String, String> attributeMap) {
+            this.fieldDef = fieldDef
             this.name = name
             this.attributeMap.putAll(attributeMap)
         }
@@ -812,8 +812,8 @@ public class GraphQLSchemaDefinition {
         public String getDefaultValue() { return attributeMap.get("defaultValue") }
         public String getDescription() { return attributeMap.get("description") }
 
-        public void setFieldNode(FieldDefinition fieldNode) {
-            this.fieldNode = fieldNode
+        public void setFieldDef(FieldDefinition fieldDef) {
+            this.fieldDef = fieldDef
         }
     }
 
@@ -874,7 +874,7 @@ public class GraphQLSchemaDefinition {
                 }
             }
 
-            updateFieldNodeOnArgumentNodes()
+            updateFieldDefOnArgumentDefs()
         }
 
         FieldDefinition(ExecutionContext ec, String name, String type) {
@@ -907,37 +907,37 @@ public class GraphQLSchemaDefinition {
             this.description = fieldPropertyMap.get("description")
             this.depreciationReason = fieldPropertyMap.get("depreciationReason")
 
-            updateFieldNodeOnArgumentNodes()
+            updateFieldDefOnArgumentDefs()
         }
 
-        private void updateFieldNodeOnArgumentNodes() {
+        private void updateFieldDefOnArgumentDefs() {
             for (ArgumentDefinition argumentNode in argumentList)
-                argumentNode.setFieldNode(this)
+                argumentNode.setFieldDef(this)
         }
 
         public void setDataFetcher(DataFetcherHandler dataFetcher) {
             this.dataFetcher = dataFetcher
         }
 
-        private void mergeArgument(ArgumentDefinition argumentNode) {
-            mergeArgument(argumentNode.name, argumentNode.attributeMap)
+        private void mergeArgument(ArgumentDefinition argumentDef) {
+            mergeArgument(argumentDef.name, argumentDef.attributeMap)
         }
 
-        private void mergeArgument(AutoArgumentsDefinition autoArgumentsNode) {
-            String entityName = autoArgumentsNode.entityName
+        private void mergeArgument(AutoArgumentsDefinition autoArgumentsDef) {
+            String entityName = autoArgumentsDef.entityName
             if (entityName == null || entityName.isEmpty())
                 throw new IllegalArgumentException("Error in auto-arguments in field ${this.name}, no auto-arguments.@entity-name")
             ExecutionContextImpl eci = (ExecutionContextImpl) ec
             EntityDefinition ed = eci.getEntityFacade().getEntityDefinition(entityName)
             if (ed == null) throw new IllegalArgumentException("Error in auto-arguments in field ${this.name}, the entity-name is not a valid entity name")
 
-            String includeStr = autoArgumentsNode.include
+            String includeStr = autoArgumentsDef.include
             for (String fieldName in ed.getFieldNames("all".equals(includeStr) || "pk".equals(includeStr), "all".equals(includeStr) || "nonpk".equals(includeStr))) {
-                if (autoArgumentsNode.excludes.contains(fieldName)) continue
+                if (autoArgumentsDef.excludes.contains(fieldName)) continue
 
                 Map<String, String> map = new HashMap<>(4)
                 map.put("type", GraphQLSchemaUtil.getEntityFieldGraphQLType(ed.getFieldInfo(fieldName).type))
-                map.put("required", autoArgumentsNode.required)
+                map.put("required", autoArgumentsDef.required)
                 map.put("defaultValue", "")
                 map.put("description", "")
                 mergeArgument(fieldName, map)
@@ -945,14 +945,14 @@ public class GraphQLSchemaDefinition {
         }
 
         private ArgumentDefinition mergeArgument(final String argumentName, Map<String, String> attributeMap) {
-            ArgumentDefinition baseArgumentNode = argumentList.find({ it.name == argumentName })
-            if (baseArgumentNode == null) {
-                baseArgumentNode = new ArgumentDefinition(this, argumentName, attributeMap)
-                argumentList.add(baseArgumentNode)
+            ArgumentDefinition baseArgumentDef = argumentList.find({ it.name == argumentName })
+            if (baseArgumentDef == null) {
+                baseArgumentDef = new ArgumentDefinition(this, argumentName, attributeMap)
+                argumentList.add(baseArgumentDef)
             } else {
-                baseArgumentNode.attributeMap.putAll(attributeMap)
+                baseArgumentDef.attributeMap.putAll(attributeMap)
             }
-            return baseArgumentNode
+            return baseArgumentDef
         }
     }
 
@@ -960,11 +960,11 @@ public class GraphQLSchemaDefinition {
         @SuppressWarnings("GrFinalVariableAccess")
         final ExecutionContext ec
         @SuppressWarnings("GrFinalVariableAccess")
-        final FieldDefinition fieldNode
+        final FieldDefinition fieldDef
 
-        DataFetcherHandler(FieldDefinition fieldNode, ExecutionContext ec) {
+        DataFetcherHandler(FieldDefinition fieldDef, ExecutionContext ec) {
             this.ec = ec
-            this.fieldNode = fieldNode
+            this.fieldDef = fieldDef
         }
 
         Object get(DataFetchingEnvironment environment) { return null }
@@ -974,9 +974,9 @@ public class GraphQLSchemaDefinition {
         String serviceName
         String requireAuthentication
 
-        DataFetcherService(MNode node, FieldDefinition fieldNode, ExecutionContext ec) {
-            super(fieldNode, ec)
-            this.requireAuthentication = node.attribute("require-authentication") ?: fieldNode.requireAuthentication ?: "true"
+        DataFetcherService(MNode node, FieldDefinition fieldDef, ExecutionContext ec) {
+            super(fieldDef, ec)
+            this.requireAuthentication = node.attribute("require-authentication") ?: fieldDef.requireAuthentication ?: "true"
 
             this.serviceName = node.attribute("service")
         }
@@ -1010,16 +1010,16 @@ public class GraphQLSchemaDefinition {
         String requireAuthentication
         Map<String, String> relKeyMap = new HashMap<>()
 
-        DataFetcherEntity(MNode node, FieldDefinition fieldNode, ExecutionContext ec) {
-            super(fieldNode, ec)
-            this.requireAuthentication = fieldNode.requireAuthentication ?: "true"
+        DataFetcherEntity(MNode node, FieldDefinition fieldDef, ExecutionContext ec) {
+            super(fieldDef, ec)
+            this.requireAuthentication = fieldDef.requireAuthentication ?: "true"
             this.entityName = node.attribute("entity-name")
             this.operation = node.attribute("operation")
         }
 
-        DataFetcherEntity(ExecutionContext ec, FieldDefinition fieldNode, String entityName, String operation, Map<String, String> relKeyMap) {
-            super(fieldNode, ec)
-            this.requireAuthentication = fieldNode.requireAuthentication ?: "true"
+        DataFetcherEntity(ExecutionContext ec, FieldDefinition fieldDef, String entityName, String operation, Map<String, String> relKeyMap) {
+            super(fieldDef, ec)
+            this.requireAuthentication = fieldDef.requireAuthentication ?: "true"
             this.entityName = entityName
             this.operation = operation
             this.relKeyMap.putAll(relKeyMap)
@@ -1080,7 +1080,7 @@ public class GraphQLSchemaDefinition {
             }
         }
 
-        void putArgsIntoContext(Map<String, Object> arguments, ExecutionContext ec) {
+        static void putArgsIntoContext(Map<String, Object> arguments, ExecutionContext ec) {
             for (Map.Entry<String, Object> entry in arguments.entrySet()) {
                 String argName = entry.getKey()
                 Object argValue = entry.getValue()
@@ -1137,14 +1137,14 @@ public class GraphQLSchemaDefinition {
     }
 
     static class EmptyDataFetcher extends DataFetcherHandler {
-        EmptyDataFetcher (MNode node, FieldDefinition fieldNode) {
-            super(fieldNode, null)
+        EmptyDataFetcher (MNode node, FieldDefinition fieldDef) {
+            super(fieldDef, null)
         }
 
         @Override
         Object get(DataFetchingEnvironment environment) {
-            if (!graphQLScalarTypes.containsKey(fieldNode.type)) {
-                if ("true".equals(fieldNode.isList)) {
+            if (!graphQLScalarTypes.containsKey(fieldDef.type)) {
+                if ("true".equals(fieldDef.isList)) {
                     return new ArrayList<Object>()
                 }
                 return new HashMap<String, Object>()

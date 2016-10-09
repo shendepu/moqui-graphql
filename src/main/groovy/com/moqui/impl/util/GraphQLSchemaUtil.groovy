@@ -57,17 +57,17 @@ class GraphQLSchemaUtil {
         }
     }
 
-    private static void addObjectTypeNode(ExecutionContext ec, EntityDefinition ed, boolean standalone, String masterName, MasterDetail masterDetail, Map<String, GraphQLSchemaDefinition.GraphQLTypeDefinition> allTypeNodeMap) {
+    private static void addObjectTypeNode(ExecutionContext ec, EntityDefinition ed, boolean standalone, String masterName, MasterDetail masterDetail, Map<String, GraphQLSchemaDefinition.GraphQLTypeDefinition> allTypeDefMap) {
         ExecutionContextImpl eci = (ExecutionContextImpl) ec
         String objectTypeName = ed.getEntityName()
 
         // Check if the type already exist in the map
-        if (allTypeNodeMap.get(objectTypeName)) {
+        if (allTypeDefMap.get(objectTypeName)) {
 //            logger.error("Object type [${objectTypeName}] is already defined. So auto object type for entity [${ed.getFullEntityName()}] can't be created.")
             return
         }
 
-        Map<String, GraphQLSchemaDefinition.FieldDefinition> fieldNodeMap = new HashMap<>()
+        Map<String, GraphQLSchemaDefinition.FieldDefinition> fieldDefMap = new HashMap<>()
 
         ArrayList<String> allFields = ed.getAllFieldNames()
         for (String fieldName in allFields) {
@@ -85,8 +85,8 @@ class GraphQLSchemaUtil {
             }
             fieldPropertyMap.put("description", fieldDescription)
 
-            GraphQLSchemaDefinition.FieldDefinition fieldNode = new GraphQLSchemaDefinition.FieldDefinition(ec, fi.name, fieldScalarType, fieldPropertyMap)
-            fieldNodeMap.put(fieldName, fieldNode)
+            GraphQLSchemaDefinition.FieldDefinition fieldDef = new GraphQLSchemaDefinition.FieldDefinition(ec, fi.name, fieldScalarType, fieldPropertyMap)
+            fieldDefMap.put(fieldName, fieldDef)
         }
 
         // Add Master-Detail in entity as field
@@ -110,7 +110,7 @@ class GraphQLSchemaUtil {
                 fieldPropertyMap.put("isList", "true")
             }
 
-            List<ArgumentDefinition> argumentNodeList = new ArrayList<>()
+            List<ArgumentDefinition> argumentDefList = new ArrayList<>()
 
             if (!relInfo.isTypeOne) {
                 logger.info("Adding ArgumentNodes for [${fieldName} - ${fieldType}]")
@@ -125,33 +125,33 @@ class GraphQLSchemaUtil {
                     }
 
                     // Add fields in entity as argument
-                    ArgumentDefinition argumentNode
+                    ArgumentDefinition argumentDef
                     if (moquiDateTypes.contains(fir.type)) {
-                        argumentNode = new ArgumentDefinition(fir.name, "DateRangeInputType", null, null, fieldDescription)
-                        argumentNodeList.add(argumentNode)
+                        argumentDef = new ArgumentDefinition(fir.name, "DateRangeInputType", null, null, fieldDescription)
+                        argumentDefList.add(argumentDef)
                     } else if (moquiStringTypes.contains(fir.type) || moquiNumericTypes.contains(fir.type) || moquiBoolTypes.contains(fir.type)) {
-                        argumentNode = new ArgumentDefinition(fir.name, "OperationInputType", null, null, fieldDescription)
-                        argumentNodeList.add(argumentNode)
+                        argumentDef = new ArgumentDefinition(fir.name, "OperationInputType", null, null, fieldDescription)
+                        argumentDefList.add(argumentDef)
                     } else {
-                        argumentNode = new ArgumentDefinition(fir.name, fieldTypeGraphQLMap.get(fir.type), null, null, fieldDescription)
-                        argumentNodeList.add(argumentNode)
+                        argumentDef = new ArgumentDefinition(fir.name, fieldTypeGraphQLMap.get(fir.type), null, null, fieldDescription)
+                        argumentDefList.add(argumentDef)
                     }
 
-                    argumentNode = new ArgumentDefinition("pagination", "PaginationInputType", null, null, "Pagination")
-                    argumentNodeList.add(argumentNode)
+                    argumentDef = new ArgumentDefinition("pagination", "PaginationInputType", null, null, "Pagination")
+                    argumentDefList.add(argumentDef)
 
-                    argumentNodeList.add(argumentNode)
+                    argumentDefList.add(argumentDef)
                 }
             }
 
 
             logger.info("===== Adding FieldDefinition [${fieldName} - ${fieldType}]")
-            GraphQLSchemaDefinition.FieldDefinition fieldNode = new GraphQLSchemaDefinition.FieldDefinition(ec, fieldName, fieldType, fieldPropertyMap, argumentNodeList)
+            GraphQLSchemaDefinition.FieldDefinition fieldDef = new GraphQLSchemaDefinition.FieldDefinition(ec, fieldName, fieldType, fieldPropertyMap, argumentDefList)
 
-            DataFetcherHandler dataFetcher = new DataFetcherEntity(ec, fieldNode, relInfo.relatedEntityName, "list", relInfo.keyMap)
-            fieldNode.setDataFetcher(dataFetcher)
+            DataFetcherHandler dataFetcher = new DataFetcherEntity(ec, fieldDef, relInfo.relatedEntityName, "list", relInfo.keyMap)
+            fieldDef.setDataFetcher(dataFetcher)
 
-            fieldNodeMap.put(fieldName, fieldNode)
+            fieldDefMap.put(fieldName, fieldDef)
         }
 
         String objectTypeDescription = ""
@@ -159,8 +159,8 @@ class GraphQLSchemaUtil {
             objectTypeDescription = objectTypeDescription + descriptionMNode.text + "\n"
         }
 
-        GraphQLSchemaDefinition.ObjectTypeDefinition objectTypeNode = new GraphQLSchemaDefinition.ObjectTypeDefinition(ec, objectTypeName, objectTypeDescription, new ArrayList<String>(), fieldNodeMap)
-        allTypeNodeMap.put(objectTypeName, objectTypeNode)
+        GraphQLSchemaDefinition.ObjectTypeDefinition objectTypeDef = new GraphQLSchemaDefinition.ObjectTypeDefinition(ec, objectTypeName, objectTypeDescription, new ArrayList<String>(), fieldDefMap)
+        allTypeDefMap.put(objectTypeName, objectTypeDef)
         logger.info("Object type [${objectTypeName}] for entity [${ed.getFullEntityName()}] is created.")
     }
 
