@@ -897,64 +897,14 @@ public class GraphQLSchemaDefinition {
 
             try {
                 if (operation == "one") {
+                    putArgsIntoContext(environment.arguments, ec)
                     EntityFind ef = ec.entity.find(entityName).searchFormMap(ec.context, null, null, false)
                     for (Map.Entry<String, String> entry in relKeyMap.entrySet()) {
                         ef = ef.condition(entry.getValue(), ((Map) environment.source).get(entry.getKey()))
                     }
                     return ef.one().getMap()
                 } else if (operation == "list") {
-                    for (Map.Entry<String, Object> entry in environment.arguments.entrySet()) {
-                        String argName = entry.getKey()
-                        Object argValue = entry.getValue()
-                        if (argValue == null) continue
-                        logger.info("------- argument ${argName} value [${argValue}]")
-                        logger.info("------- argument ${argName} class [${argValue.getClass()}]")
-                        logger.info("------- argument ${argName} instanceof Map [${argValue instanceof Map}]")
-                        logger.info("------- argument ${argName} instanceof LinkedHashMap [${argValue instanceof LinkedHashMap}]")
-
-                        if (argValue instanceof LinkedHashMap) {
-                            // currently the defaultValue on GraphQLInputObjectField does not work
-                            /*
-                            if ("OperationInputType".equals(argValue.get("type"))) {
-                                logger.info("------- == checking OperationInputType variable ${argName} to ec.context with value ${argValue}")
-                                if (argValue.get("value") != null ) ec.context.put(argName, argValue.get("value"))
-                                if (argValue.get("op") != null) ec.context.put(argName + "_op", argValue.get("op"))
-                                if (argValue.get("not") != null) ec.context.put(argName + "_not", argValue.get("not"))
-                                if (argValue.get("ic") != null) ec.context.put(argName + "_ic", argValue.get("ic"))
-                            } else if ("DateRangeInputType".equals(argValue.get("type"))) {
-                                // Add _period, _offset, _from, _thru
-                                for (Map.Entry<String, Object> argEntry in argValue.entrySet()) {
-                                    if (argEntry.getValue() == null || "type".equals(argEntry.getKey())) continue
-                                    ec.context.put(argName + "_" + argEntry.getKey(), argEntry.getValue())
-                                }
-                            } else if ("PaginationInputType".equals(argValue.get("type"))) {
-                                // Add pageIndex, pageSize, pageNoLimit, orderByField
-                                for (Map.Entry<String, Object> argEntry in argValue.entrySet()) {
-                                    if (argEntry.getValue() == null || "type".equals(argEntry.getKey())) continue
-                                    logger.info("------- == adding pagination variable ${argEntry.getKey()} to ec.context with value ${argEntry.getValue()}")
-                                    ec.context.put(argEntry.getKey(), argEntry.getValue())
-                                }
-                            }
-                            */
-
-                            if (argValue.get("value") != null) ec.context.put(argName, argValue.get("value"))
-                            if (argValue.get("op") != null) ec.context.put(argName + "_op", argValue.get("op"))
-                            if (argValue.get("not") != null) ec.context.put(argName + "_not", argValue.get("not"))
-                            if (argValue.get("ic") != null) ec.context.put(argName + "_ic", argValue.get("ic"))
-                            ec.context.put("pageIndex", argValue.get("pageIndex") ?: 0)
-                            ec.context.put("pageSize", argValue.get("pageSize") ?: 20)
-                            if (argValue.get("pageNoLimit") != null) ec.context.put("pageNoLimit", argValue.get("pageNoLimit"))
-                            if (argValue.get("orderByField") != null) ec.context.put("orderByField", argValue.get("orderByField"))
-
-                            if (argValue.get("period") != null) ec.context.put(argName + "_period", argValue.get("period"))
-                            if (argValue.get("poffset") != null) ec.context.put(argName + "_poffset", argValue.get("poffset"))
-                            if (argValue.get("from") != null) ec.context.put(argName + "_from", argValue.get("from"))
-                            if (argValue.get("thru") != null) ec.context.put(argName + "_thru", argValue.get("thru"))
-
-                        } else {
-                            ec.context.put(argName, argValue)
-                        }
-                    }
+                    putArgsIntoContext(environment.arguments, ec)
 
                     EntityFind ef = ec.entity.find(entityName).searchFormMap(ec.context, null, null, false)
                     for (Map.Entry<String, String> entry in relKeyMap.entrySet()) {
@@ -980,6 +930,61 @@ public class GraphQLSchemaDefinition {
                 }
             } finally {
                 if (loggedInAnonymous) ((UserFacadeImpl) ec.getUser()).logoutAnonymousOnly()
+            }
+        }
+
+        void putArgsIntoContext(Map<String, Object> arguments, ExecutionContext ec) {
+            for (Map.Entry<String, Object> entry in arguments.entrySet()) {
+                String argName = entry.getKey()
+                Object argValue = entry.getValue()
+                if (argValue == null) continue
+                logger.info("------- argument ${argName} value [${argValue}]")
+                logger.info("------- argument ${argName} class [${argValue.getClass()}]")
+                logger.info("------- argument ${argName} instanceof Map [${argValue instanceof Map}]")
+                logger.info("------- argument ${argName} instanceof LinkedHashMap [${argValue instanceof LinkedHashMap}]")
+
+                if (argValue instanceof LinkedHashMap) {
+                    // currently the defaultValue on GraphQLInputObjectField does not work
+                    /*
+                    if ("OperationInputType".equals(argValue.get("type"))) {
+                        logger.info("------- == checking OperationInputType variable ${argName} to ec.context with value ${argValue}")
+                        if (argValue.get("value") != null ) ec.context.put(argName, argValue.get("value"))
+                        if (argValue.get("op") != null) ec.context.put(argName + "_op", argValue.get("op"))
+                        if (argValue.get("not") != null) ec.context.put(argName + "_not", argValue.get("not"))
+                        if (argValue.get("ic") != null) ec.context.put(argName + "_ic", argValue.get("ic"))
+                    } else if ("DateRangeInputType".equals(argValue.get("type"))) {
+                        // Add _period, _offset, _from, _thru
+                        for (Map.Entry<String, Object> argEntry in argValue.entrySet()) {
+                            if (argEntry.getValue() == null || "type".equals(argEntry.getKey())) continue
+                            ec.context.put(argName + "_" + argEntry.getKey(), argEntry.getValue())
+                        }
+                    } else if ("PaginationInputType".equals(argValue.get("type"))) {
+                        // Add pageIndex, pageSize, pageNoLimit, orderByField
+                        for (Map.Entry<String, Object> argEntry in argValue.entrySet()) {
+                            if (argEntry.getValue() == null || "type".equals(argEntry.getKey())) continue
+                            logger.info("------- == adding pagination variable ${argEntry.getKey()} to ec.context with value ${argEntry.getValue()}")
+                            ec.context.put(argEntry.getKey(), argEntry.getValue())
+                        }
+                    }
+                    */
+
+                    if (argValue.get("value") != null) ec.context.put(argName, argValue.get("value"))
+                    if (argValue.get("op") != null) ec.context.put(argName + "_op", argValue.get("op"))
+                    if (argValue.get("not") != null) ec.context.put(argName + "_not", argValue.get("not"))
+                    if (argValue.get("ic") != null) ec.context.put(argName + "_ic", argValue.get("ic"))
+                    ec.context.put("pageIndex", argValue.get("pageIndex") ?: 0)
+                    ec.context.put("pageSize", argValue.get("pageSize") ?: 20)
+                    if (argValue.get("pageNoLimit") != null) ec.context.put("pageNoLimit", argValue.get("pageNoLimit"))
+                    if (argValue.get("orderByField") != null) ec.context.put("orderByField", argValue.get("orderByField"))
+
+                    if (argValue.get("period") != null) ec.context.put(argName + "_period", argValue.get("period"))
+                    if (argValue.get("poffset") != null) ec.context.put(argName + "_poffset", argValue.get("poffset"))
+                    if (argValue.get("from") != null) ec.context.put(argName + "_from", argValue.get("from"))
+                    if (argValue.get("thru") != null) ec.context.put(argName + "_thru", argValue.get("thru"))
+
+                } else {
+                    ec.context.put(argName, argValue)
+                }
             }
         }
     }
