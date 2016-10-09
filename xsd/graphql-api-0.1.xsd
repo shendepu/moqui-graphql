@@ -19,72 +19,6 @@ along with this software (see the LICENSE.md file). If not, see
     <xs:simpleType name="name-all-upper"><xs:restriction base="xs:string">
         <xs:pattern value="[A-Z][_A-Z0-9]*"/></xs:restriction></xs:simpleType>
 
-    <xs:element name="exclude">
-        <xs:complexType>
-            <xs:attribute name="field-name" type="name-field" use="required"/>
-        </xs:complexType>
-    </xs:element>
-
-    <xs:element name="auto-arguments">
-        <xs:complexType>
-            <xs:sequence>
-                <xs:element minOccurs="0" maxOccurs="unbounded" ref="exclude"/>
-            </xs:sequence>
-            <xs:attribute name="entity-name" type="name-full"/>
-            <xs:attribute name="include" default="all">
-                <xs:simpleType>
-                    <xs:restriction base="xs:token">
-                        <xs:enumeration value="pk"/>
-                        <xs:enumeration value="nonpk"/>
-                        <xs:enumeration value="all"/>
-                    </xs:restriction>
-                </xs:simpleType>
-            </xs:attribute>
-            <xs:attribute name="required" default="false">
-                <xs:simpleType>
-                    <xs:restriction base="xs:token">
-                        <xs:enumeration value="true"/>
-                        <xs:enumeration value="false"/>
-                        <!-- Not supported yet. Maybe not, since there is no nest -->
-                        <!--
-                        <xs:enumeration value="disabled">
-                            <xs:annotation>
-                                <xs:documentation>Behave the same as if the parameter did not exist, useful when
-                                    overriding a previously defined parameter.
-                                </xs:documentation>
-                            </xs:annotation>
-                        </xs:enumeration> -->
-                    </xs:restriction>
-                </xs:simpleType>
-            </xs:attribute>
-            <!-- Not supported yet -->
-            <!--
-            <xs:attribute name="allow-html" default="none">
-                <xs:annotation>
-                    <xs:documentation>
-                        Applies only to String fields. Only checked for incoming parameters (meant for validating input from
-                        users, other systems, etc). Defaults to "none" meaning no HTML is allowed (will result in an error
-                        message).
-
-                        If some HTML is desired then use "safe" which will follow the rules in the antisamy-esapi.xml file.
-                        This should be safe for both internal and public users.
-
-                        In rare cases when users are trusted or it is not a sensitive field the "any" option may be used to not
-                        check the HTML content at all.
-                    </xs:documentation>
-                </xs:annotation>
-                <xs:simpleType>
-                    <xs:restriction base="xs:token">
-                        <xs:enumeration value="any"/>
-                        <xs:enumeration value="safe"/>
-                        <xs:enumeration value="none"/>
-                    </xs:restriction>
-                </xs:simpleType>
-            </xs:attribute>
-            -->
-        </xs:complexType>
-    </xs:element>
-
     <xs:simpleType name="graphql-scalar-type">
         <xs:restriction base="xs:token">
             <xs:enumeration value="Int"/>
@@ -240,6 +174,72 @@ along with this software (see the LICENSE.md file). If not, see
         </xs:complexType>
     </xs:element>
 
+    <xs:element name="exclude">
+        <xs:complexType>
+            <xs:attribute name="field-name" type="name-field" use="required"/>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:element name="auto-arguments">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element minOccurs="0" maxOccurs="unbounded" ref="exclude"/>
+            </xs:sequence>
+            <xs:attribute name="entity-name" type="name-full"/>
+            <xs:attribute name="include" default="all">
+                <xs:simpleType>
+                    <xs:restriction base="xs:token">
+                        <xs:enumeration value="pk"/>
+                        <xs:enumeration value="nonpk"/>
+                        <xs:enumeration value="all"/>
+                    </xs:restriction>
+                </xs:simpleType>
+            </xs:attribute>
+            <xs:attribute name="required" default="false">
+                <xs:simpleType>
+                    <xs:restriction base="xs:token">
+                        <xs:enumeration value="true"/>
+                        <xs:enumeration value="false"/>
+                        <!-- Not supported yet. Maybe not, since there is no nest -->
+                        <!--
+                        <xs:enumeration value="disabled">
+                            <xs:annotation>
+                                <xs:documentation>Behave the same as if the parameter did not exist, useful when
+                                    overriding a previously defined parameter.
+                                </xs:documentation>
+                            </xs:annotation>
+                        </xs:enumeration> -->
+                    </xs:restriction>
+                </xs:simpleType>
+            </xs:attribute>
+            <!-- Not supported yet -->
+            <!--
+            <xs:attribute name="allow-html" default="none">
+                <xs:annotation>
+                    <xs:documentation>
+                        Applies only to String fields. Only checked for incoming parameters (meant for validating input from
+                        users, other systems, etc). Defaults to "none" meaning no HTML is allowed (will result in an error
+                        message).
+
+                        If some HTML is desired then use "safe" which will follow the rules in the antisamy-esapi.xml file.
+                        This should be safe for both internal and public users.
+
+                        In rare cases when users are trusted or it is not a sensitive field the "any" option may be used to not
+                        check the HTML content at all.
+                    </xs:documentation>
+                </xs:annotation>
+                <xs:simpleType>
+                    <xs:restriction base="xs:token">
+                        <xs:enumeration value="any"/>
+                        <xs:enumeration value="safe"/>
+                        <xs:enumeration value="none"/>
+                    </xs:restriction>
+                </xs:simpleType>
+            </xs:attribute>
+            -->
+        </xs:complexType>
+    </xs:element>
+
     <xs:element name="argument">
         <xs:complexType>
             <xs:sequence>
@@ -247,7 +247,9 @@ along with this software (see the LICENSE.md file). If not, see
             </xs:sequence>
             <xs:attribute name="name" type="name-parameter" use="required"/>
             <xs:attribute name="type" type="xs:string" use="required"/>
-            <xs:attribute name="required" type="xs:boolean" default="false"/>
+            <xs:attribute name="required" type="xs:boolean" default="false">
+                <xs:annotation><xs:documentation>It seems GraphQL-Java does not support required on GraphQLArgument</xs:documentation></xs:annotation>
+            </xs:attribute>
             <xs:attribute name="default-value" type="xs:string"/>
         </xs:complexType>
     </xs:element>

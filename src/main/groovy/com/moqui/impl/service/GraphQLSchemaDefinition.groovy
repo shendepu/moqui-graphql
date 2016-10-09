@@ -34,7 +34,9 @@ import graphql.schema.GraphQLUnionType
 import org.moqui.context.ExecutionContext
 import org.moqui.entity.EntityFind
 import org.moqui.impl.context.ExecutionContextFactoryImpl
+import org.moqui.impl.context.ExecutionContextImpl
 import org.moqui.impl.context.UserFacadeImpl
+import org.moqui.impl.entity.EntityDefinition
 import org.moqui.impl.service.ServiceFacadeImpl
 import org.moqui.service.ServiceFacade
 import org.moqui.util.MNode
@@ -99,6 +101,11 @@ public class GraphQLSchemaDefinition {
             "BigInteger": GraphQLBigInteger,    "BigDecimal": GraphQLBigDecimal,
             "Byte"      : GraphQLByte,          "Short"     : GraphQLShort,
             "Char"      : GraphQLChar,          "Timestamp" : GraphQLTimestamp]
+
+    static final List<String> graphQLStringTypes = ["String", "ID", "Char"]
+    static final List<String> graphQLDateTypes = ["Timestamp"]
+    static final List<String> graphQLNumericTypes = ["Int", "Long", "Float", "BigInteger", "BigDecimal", "Short"]
+    static final List<String> graphQLBoolTypes = ["Boolean"]
 
     public GraphQLSchemaDefinition(ServiceFacade sf, MNode schemaNode) {
         this.sf = sf
@@ -520,6 +527,14 @@ public class GraphQLSchemaDefinition {
         if (!(argType instanceof GraphQLInputType))
             throw new IllegalArgumentException("GraphQL type [${node.type}] for argument [${node.name}] is not derived from GraphQLInputObjectType")
 
+        if ("true".equals(node.fieldNode.isList)) {
+            if (graphQLDateTypes.contains(node.type)) {
+                argType = graphQLTypeMap.get("DateRangeInputType")
+            } else if (graphQLStringTypes.contains(node.type) || graphQLNumericTypes.contains(node.type)) {
+                argType = graphQLTypeMap.get("OperationInputType")
+            }
+        }
+
         argument = argument.type((GraphQLInputType) argType)
 
         return argument.build()
@@ -691,30 +706,61 @@ public class GraphQLSchemaDefinition {
         }
     }
 
-    static class ArgumentNode {
-        String name, type, defaultValue, description
+    static class AutoArgumentsNode {
+        String entityName, include, required
+        List<String> excludes = new ArrayList<>()
 
-        ArgumentNode(MNode node) {
+        AutoArgumentsNode(MNode node) {
+            this.entityName = node.attribute("entity-name")
+            this.include = node.attribute("include") ?: "all"
+            this.required = node.attribute("required") ?: "false"
+            for (MNode childNode in node.children("exclude")) {
+                excludes.add(childNode.attribute("field-name"))
+            }
+        }
+    }
+
+    static class ArgumentNode {
+        String name
+        Map<String, String> attributeMap = new HashMap<>()
+        FieldNode fieldNode
+
+        ArgumentNode(MNode node, FieldNode fieldNode) {
+            this.fieldNode = fieldNode
             this.name = node.attribute("name")
-            this.type = node.attribute("type")
-            this.defaultValue = node.attribute("default-value")
+            attributeMap.put("type", node.attribute("type"))
+            attributeMap.put("required", node.attribute("required") ?: "false")
+            attributeMap.put("defaultValue", node.attribute("default-value"))
 
             for (MNode childNode in node.children) {
                 if ("description".equals(childNode.name)) {
-                    this.description = node.attribute("description")
+                    attributeMap.put("description", node.attribute("description"))
                 }
             }
         }
 
-        ArgumentNode(String name, String type) {
-            ArgumentNode(name, type, "", "")
+        ArgumentNode(FieldNode fieldNode, String name, Map<String, String> attributeMap) {
+            this.fieldNode = fieldNode
+            this.name = name
+            this.attributeMap.putAll(attributeMap)
         }
 
-        ArgumentNode(String name, String type, String defaultValue, String description) {
+        ArgumentNode(String name, String type, String required, String defaultValue, String description) {
             this.name = name
-            this.type = type
-            this.defaultValue = defaultValue
-            this.description = description
+            attributeMap.put("type", type)
+            attributeMap.put("required", required)
+            attributeMap.put("defaultValue", defaultValue)
+            attributeMap.put("description", description)
+        }
+
+        public String getName() { return name }
+        public String getType() { return attributeMap.get("type") }
+        public String getRequired() { return attributeMap.get("required") }
+        public String getDefaultValue() { return attributeMap.get("defaultValue") }
+        public String getDescription() { return attributeMap.get("description") }
+
+        public void setFieldNode(FieldNode fieldNode) {
+            this.fieldNode = fieldNode
         }
     }
 
@@ -748,8 +794,11 @@ public class GraphQLSchemaDefinition {
                     case "depreciation-reason":
                         this.depreciationReason = childNode.text
                         break
+                    case "auto-arguments":
+                        mergeArgument(new AutoArgumentsNode(childNode))
+                        break
                     case "argument":
-                        this.argumentList.add(new ArgumentNode(childNode))
+                        mergeArgument(new ArgumentNode(childNode, this))
                         break
                     case "service-fetcher":
                         this.dataFetcher = new DataFetcherService(childNode, this, ec)
@@ -771,6 +820,8 @@ public class GraphQLSchemaDefinition {
                         break
                 }
             }
+
+            updateFieldNodeOnArgumentNodes()
         }
 
         FieldNode(ExecutionContext ec, String name, String type) {
@@ -802,10 +853,53 @@ public class GraphQLSchemaDefinition {
 
             this.description = fieldPropertyMap.get("description")
             this.depreciationReason = fieldPropertyMap.get("depreciationReason")
+
+            updateFieldNodeOnArgumentNodes()
+        }
+
+        private void updateFieldNodeOnArgumentNodes() {
+            for (ArgumentNode argumentNode in argumentList)
+                argumentNode.setFieldNode(this)
         }
 
         public void setDataFetcher(DataFetcherHandler dataFetcher) {
             this.dataFetcher = dataFetcher
+        }
+
+        private void mergeArgument(ArgumentNode argumentNode) {
+            mergeArgument(argumentNode.name, argumentNode.attributeMap)
+        }
+
+        private void mergeArgument(AutoArgumentsNode autoArgumentsNode) {
+            String entityName = autoArgumentsNode.entityName
+            if (entityName == null || entityName.isEmpty())
+                throw new IllegalArgumentException("Error in auto-arguments in field ${this.name}, no auto-arguments.@entity-name")
+            ExecutionContextImpl eci = (ExecutionContextImpl) ec
+            EntityDefinition ed = eci.getEntityFacade().getEntityDefinition(entityName)
+            if (ed == null) throw new IllegalArgumentException("Error in auto-arguments in field ${this.name}, the entity-name is not a valid entity name")
+
+            String includeStr = autoArgumentsNode.include
+            for (String fieldName in ed.getFieldNames("all".equals(includeStr) || "pk".equals(includeStr), "all".equals(includeStr) || "nonpk".equals(includeStr))) {
+                if (autoArgumentsNode.excludes.contains(fieldName)) continue
+
+                Map<String, String> map = new HashMap<>(4)
+                map.put("type", GraphQLSchemaUtil.getEntityFieldGraphQLType(ed.getFieldInfo(fieldName).type))
+                map.put("required", autoArgumentsNode.required)
+                map.put("defaultValue", "")
+                map.put("description", "")
+                mergeArgument(fieldName, map)
+            }
+        }
+
+        private ArgumentNode mergeArgument(final String argumentName, Map<String, String> attributeMap) {
+            ArgumentNode baseArgumentNode = argumentList.find({ it.name == argumentName })
+            if (baseArgumentNode == null) {
+                baseArgumentNode = new ArgumentNode(this, argumentName, attributeMap)
+                argumentList.add(baseArgumentNode)
+            } else {
+                baseArgumentNode.attributeMap.putAll(attributeMap)
+            }
+            return baseArgumentNode
         }
     }
 

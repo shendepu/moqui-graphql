@@ -131,17 +131,17 @@ class GraphQLSchemaUtil {
                     // Add fields in entity as argument
                     ArgumentNode argumentNode
                     if (moquiDateTypes.contains(fir.type)) {
-                        argumentNode = new ArgumentNode(fir.name, "DateRangeInputType", null, fieldDescription)
+                        argumentNode = new ArgumentNode(fir.name, "DateRangeInputType", null, null, fieldDescription)
                         argumentNodeList.add(argumentNode)
                     } else if (moquiStringTypes.contains(fir.type) || moquiNumericTypes.contains(fir.type) || moquiBoolTypes.contains(fir.type)) {
-                        argumentNode = new ArgumentNode(fir.name, "OperationInputType", null, fieldDescription)
+                        argumentNode = new ArgumentNode(fir.name, "OperationInputType", null, null, fieldDescription)
                         argumentNodeList.add(argumentNode)
                     } else {
-                        argumentNode = new ArgumentNode(fir.name, fieldTypeGraphQLMap.get(fir.type), null, fieldDescription)
+                        argumentNode = new ArgumentNode(fir.name, fieldTypeGraphQLMap.get(fir.type), null, null, fieldDescription)
                         argumentNodeList.add(argumentNode)
                     }
 
-                    argumentNode = new ArgumentNode("pagination", "PaginationInputType", null, "Pagination")
+                    argumentNode = new ArgumentNode("pagination", "PaginationInputType", null, null, "Pagination")
                     argumentNodeList.add(argumentNode)
 
                     argumentNodeList.add(argumentNode)
@@ -166,5 +166,9 @@ class GraphQLSchemaUtil {
         ObjectTypeNode objectTypeNode = new ObjectTypeNode(ec, objectTypeName, objectTypeDescription, new ArrayList<String>(), fieldNodeList, "")
         allTypeNodeMap.put(objectTypeName, objectTypeNode)
         logger.info("Object type [${objectTypeName}] for entity [${ed.getFullEntityName()}] is created.")
+    }
+
+    static String getEntityFieldGraphQLType(String type) {
+        return fieldTypeGraphQLMap.get(type)
     }
 }
