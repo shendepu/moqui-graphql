@@ -163,7 +163,7 @@ class GraphQLSchemaUtil {
             objectTypeDescription = objectTypeDescription + descriptionMNode.text + "\n"
         }
 
-        ObjectTypeNode objectTypeNode = new ObjectTypeNode(ec, objectTypeName, objectTypeDescription, new ArrayList<String>(), fieldNodeList, "")
+        ObjectTypeNode objectTypeNode = new ObjectTypeNode(ec, objectTypeName, objectTypeDescription, new ArrayList<String>(), fieldNodeList)
         allTypeNodeMap.put(objectTypeName, objectTypeNode)
         logger.info("Object type [${objectTypeName}] for entity [${ed.getFullEntityName()}] is created.")
     }

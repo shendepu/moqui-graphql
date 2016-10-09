@@ -662,7 +662,6 @@ public class GraphQLSchemaDefinition {
         @SuppressWarnings("GrFinalVariableAccess")
         final ExecutionContext ec
 
-        String typeResolver
         ArrayList<String> interfaceList = new ArrayList<>()
         ArrayList<FieldNode> fieldList = new ArrayList<>()
 //        ArrayList<String> typeList = new ArrayList<>()
@@ -671,7 +670,6 @@ public class GraphQLSchemaDefinition {
             this.ec = ec
             this.name = node.attribute("name")
             this.type = "object"
-            this.typeResolver = node.attribute("type-resolver")
             for (MNode childNode in node.children) {
                 switch (childNode.name) {
                     case "description":
@@ -689,12 +687,11 @@ public class GraphQLSchemaDefinition {
         }
 
         ObjectTypeNode(ExecutionContext ec, String name, String description, ArrayList<String> interfaceList,
-                       ArrayList<FieldNode> fieldList, String typeResolver) {
+                       ArrayList<FieldNode> fieldList) {
             this.ec = ec
             this.name = name
             this.description = description
             this.type = "object"
-            this.typeResolver = typeResolver
             this.interfaceList = interfaceList
             this.fieldList = fieldList
         }
