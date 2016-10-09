@@ -260,15 +260,8 @@ public class GraphQLSchemaDefinition {
 
         GraphQLSchema schema = schemaBuilder.build(inputTypes)
 
-        for (String referenceTypeName in graphQLTypeReferences) {
-            GraphQLType type = schema.allTypesAsList.find({ it.name == referenceTypeName })
-            if (type != null) {
-                logger.info("Replacing GraphQLTypeReference [${referenceTypeName}]")
-                graphQLTypeMap.put(referenceTypeName, type)
-            } else {
-                logger.error("GraphQLTypeReference for [${referenceTypeName}] not found in schema")
-            }
-        }
+        // Clear out reference to unused GraphQLType, used ones are still referenced by schema
+        graphQLTypeMap.clear()
 
         return schema
     }
