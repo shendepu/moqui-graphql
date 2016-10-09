@@ -125,19 +125,15 @@ public class GraphQLSchemaDefinition {
                     inputTypeList.add(childNode.attribute("name"))
                     break
                 case "interface":
-//                    allTypeNodeList.add(new InterfaceTypeNode(childNode, this.ecfi.getExecutionContext()))
                     allTypeNodeMap.put(childNode.attribute("name"), new InterfaceTypeNode(childNode, this.ecfi.getExecutionContext()))
                     break
                 case "object":
-//                    allTypeNodeList.add(new ObjectTypeNode(childNode, this.ecfi.getExecutionContext()))
                     allTypeNodeMap.put(childNode.attribute("name"), new ObjectTypeNode(childNode, this.ecfi.getExecutionContext()))
                     break
                 case "union":
-//                    allTypeNodeList.add(new UnionTypeNode(childNode))
                     allTypeNodeMap.put(childNode.attribute("name"), new UnionTypeNode(childNode))
                     break
                 case "enum":
-//                    allTypeNodeList.add(new EnumTypeNode(childNode))
                     allTypeNodeMap.put(childNode.attribute("name"), new EnumTypeNode(childNode))
                     break
             }
