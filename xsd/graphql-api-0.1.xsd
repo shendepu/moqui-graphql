@@ -101,6 +101,44 @@ along with this software (see the LICENSE.md file). If not, see
         </xs:complexType>
     </xs:element>
 
+    <xs:element name="resolver-map">
+        <xs:annotation><xs:documentation>
+            Map value of extend-object@resolver-field to an GraphQLObjectType.
+        </xs:documentation></xs:annotation>
+        <xs:complexType>
+            <xs:attribute name="resolver-value" type="xs:string" use="required"/>
+            <xs:attribute name="resolver-type" type="name-upper" use="required"/>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:element name="extend-object">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element minOccurs="0" maxOccurs="unbounded" ref="field"/>
+                <xs:choice minOccurs="1" maxOccurs="1">
+                    <xs:element minOccurs="0" maxOccurs="unbounded" name="interface">
+                        <xs:complexType>
+                            <xs:attribute name="name" type="xs:string" use="required"/>
+                        </xs:complexType>
+                    </xs:element>
+                    <xs:element minOccurs="0" maxOccurs="unbounded" ref="resolver-map"/>
+                </xs:choice>
+            </xs:sequence>
+            <xs:attribute name="name" type="name-upper" use="required"/>
+            <xs:attribute name="as-interface" type="xs:boolean" default="false">
+                <xs:annotation><xs:documentation>Turn an GraphQLObjectType to GraphQLInterface
+                </xs:documentation></xs:annotation>
+            </xs:attribute>
+            <xs:attribute name="resolver-field" type="name-field">
+                <xs:annotation><xs:documentation>This field value determines actual type. The typical case in moqui
+                    is Person, Organization is a concrete of Party, the Party@partyTypeEnumId tells the Party is
+                    Person or Organization. So in this case, resolver-field is partyTypeEnumId, then there should be
+                    resolver-map element to map the value of partyTypeEnumId to GraphQLObjectType
+                </xs:documentation></xs:annotation>
+            </xs:attribute>
+        </xs:complexType>
+    </xs:element>
+
     <xs:element name="service">
         <xs:complexType>
             <xs:attribute name="name" type="xs:string" use="required"/>
@@ -266,7 +304,10 @@ along with this software (see the LICENSE.md file). If not, see
     <xs:element name="schema">
         <xs:complexType>
             <xs:sequence>
-                <xs:element minOccurs="0" maxOccurs="unbounded" ref="graphql-type"/>
+                <xs:choice minOccurs="0" maxOccurs="unbounded">
+                    <xs:element ref="graphql-type"/>
+                    <xs:element ref="extend-object"/>
+                </xs:choice>
                 <xs:element minOccurs="0" maxOccurs="unbounded" ref="input-type"/>
             </xs:sequence>
             <xs:attribute name="name" type="xs:string" use="required"/>

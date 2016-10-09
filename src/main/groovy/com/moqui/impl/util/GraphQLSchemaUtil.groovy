@@ -13,7 +13,7 @@
  */
 package com.moqui.impl.util
 
-import graphql.schema.GraphQLInputType
+import com.moqui.impl.service.GraphQLSchemaDefinition
 import org.moqui.impl.context.ExecutionContextImpl
 import org.moqui.impl.entity.FieldInfo
 import org.moqui.context.ExecutionContext
@@ -26,12 +26,9 @@ import static org.moqui.impl.entity.EntityDefinition.MasterDefinition
 import static org.moqui.impl.entity.EntityDefinition.MasterDetail
 import static org.moqui.impl.entity.EntityJavaUtil.RelationshipInfo
 
-import static com.moqui.impl.service.GraphQLSchemaDefinition.ArgumentNode
+import static com.moqui.impl.service.GraphQLSchemaDefinition.ArgumentDefinition
 import static com.moqui.impl.service.GraphQLSchemaDefinition.DataFetcherHandler
 import static com.moqui.impl.service.GraphQLSchemaDefinition.DataFetcherEntity
-import static com.moqui.impl.service.GraphQLSchemaDefinition.FieldNode
-import static com.moqui.impl.service.GraphQLSchemaDefinition.GraphQLTypeNode
-import static com.moqui.impl.service.GraphQLSchemaDefinition.ObjectTypeNode
 
 class GraphQLSchemaUtil {
     protected final static Logger logger = LoggerFactory.getLogger(GraphQLSchemaUtil.class)
@@ -52,7 +49,7 @@ class GraphQLSchemaUtil {
     static final List<String> moquiNumericTypes = ["number-integer", "number-float", "number-decimal", "currency-amount", "currency-precise"]
     static final List<String> moquiBoolTypes = ["text-indicator"]
 
-    static void createObjectTypeNodeForAllEntities(ExecutionContext ec, Map<String, GraphQLTypeNode> allTypeNodeMap) {
+    static void createObjectTypeNodeForAllEntities(ExecutionContext ec, Map<String, GraphQLSchemaDefinition.GraphQLTypeDefinition> allTypeNodeMap) {
         ExecutionContextImpl eci = (ExecutionContextImpl) ec
         for (String entityName in eci.getEntityFacade().getAllEntityNames()) {
             EntityDefinition ed = eci.getEntityFacade().getEntityDefinition(entityName)
@@ -60,7 +57,7 @@ class GraphQLSchemaUtil {
         }
     }
 
-    private static void addObjectTypeNode(ExecutionContext ec, EntityDefinition ed, boolean standalone, String masterName, MasterDetail masterDetail, Map<String, GraphQLTypeNode> allTypeNodeMap) {
+    private static void addObjectTypeNode(ExecutionContext ec, EntityDefinition ed, boolean standalone, String masterName, MasterDetail masterDetail, Map<String, GraphQLSchemaDefinition.GraphQLTypeDefinition> allTypeNodeMap) {
         ExecutionContextImpl eci = (ExecutionContextImpl) ec
         String objectTypeName = ed.getEntityName()
 
@@ -70,7 +67,7 @@ class GraphQLSchemaUtil {
             return
         }
 
-        List<FieldNode> fieldNodeList = new ArrayList<>()
+        Map<String, GraphQLSchemaDefinition.FieldDefinition> fieldNodeMap = new HashMap<>()
 
         ArrayList<String> allFields = ed.getAllFieldNames()
         for (String fieldName in allFields) {
@@ -88,9 +85,8 @@ class GraphQLSchemaUtil {
             }
             fieldPropertyMap.put("description", fieldDescription)
 
-            FieldNode fieldNode = new FieldNode(ec, fi.name, fieldScalarType, fieldPropertyMap)
-            fieldNodeList.add(fieldNode)
-
+            GraphQLSchemaDefinition.FieldDefinition fieldNode = new GraphQLSchemaDefinition.FieldDefinition(ec, fi.name, fieldScalarType, fieldPropertyMap)
+            fieldNodeMap.put(fieldName, fieldNode)
         }
 
         // Add Master-Detail in entity as field
@@ -114,7 +110,7 @@ class GraphQLSchemaUtil {
                 fieldPropertyMap.put("isList", "true")
             }
 
-            List<ArgumentNode> argumentNodeList = new ArrayList<>()
+            List<ArgumentDefinition> argumentNodeList = new ArrayList<>()
 
             if (!relInfo.isTypeOne) {
                 logger.info("Adding ArgumentNodes for [${fieldName} - ${fieldType}]")
@@ -129,19 +125,19 @@ class GraphQLSchemaUtil {
                     }
 
                     // Add fields in entity as argument
-                    ArgumentNode argumentNode
+                    ArgumentDefinition argumentNode
                     if (moquiDateTypes.contains(fir.type)) {
-                        argumentNode = new ArgumentNode(fir.name, "DateRangeInputType", null, null, fieldDescription)
+                        argumentNode = new ArgumentDefinition(fir.name, "DateRangeInputType", null, null, fieldDescription)
                         argumentNodeList.add(argumentNode)
                     } else if (moquiStringTypes.contains(fir.type) || moquiNumericTypes.contains(fir.type) || moquiBoolTypes.contains(fir.type)) {
-                        argumentNode = new ArgumentNode(fir.name, "OperationInputType", null, null, fieldDescription)
+                        argumentNode = new ArgumentDefinition(fir.name, "OperationInputType", null, null, fieldDescription)
                         argumentNodeList.add(argumentNode)
                     } else {
-                        argumentNode = new ArgumentNode(fir.name, fieldTypeGraphQLMap.get(fir.type), null, null, fieldDescription)
+                        argumentNode = new ArgumentDefinition(fir.name, fieldTypeGraphQLMap.get(fir.type), null, null, fieldDescription)
                         argumentNodeList.add(argumentNode)
                     }
 
-                    argumentNode = new ArgumentNode("pagination", "PaginationInputType", null, null, "Pagination")
+                    argumentNode = new ArgumentDefinition("pagination", "PaginationInputType", null, null, "Pagination")
                     argumentNodeList.add(argumentNode)
 
                     argumentNodeList.add(argumentNode)
@@ -149,13 +145,13 @@ class GraphQLSchemaUtil {
             }
 
 
-            logger.info("===== Adding FieldNode [${fieldName} - ${fieldType}]")
-            FieldNode fieldNode = new FieldNode(ec, fieldName, fieldType, fieldPropertyMap, argumentNodeList)
+            logger.info("===== Adding FieldDefinition [${fieldName} - ${fieldType}]")
+            GraphQLSchemaDefinition.FieldDefinition fieldNode = new GraphQLSchemaDefinition.FieldDefinition(ec, fieldName, fieldType, fieldPropertyMap, argumentNodeList)
 
             DataFetcherHandler dataFetcher = new DataFetcherEntity(ec, fieldNode, relInfo.relatedEntityName, "list", relInfo.keyMap)
             fieldNode.setDataFetcher(dataFetcher)
 
-            fieldNodeList.add(fieldNode)
+            fieldNodeMap.put(fieldName, fieldNode)
         }
 
         String objectTypeDescription = ""
@@ -163,7 +159,7 @@ class GraphQLSchemaUtil {
             objectTypeDescription = objectTypeDescription + descriptionMNode.text + "\n"
         }
 
-        ObjectTypeNode objectTypeNode = new ObjectTypeNode(ec, objectTypeName, objectTypeDescription, new ArrayList<String>(), fieldNodeList)
+        GraphQLSchemaDefinition.ObjectTypeDefinition objectTypeNode = new GraphQLSchemaDefinition.ObjectTypeDefinition(ec, objectTypeName, objectTypeDescription, new ArrayList<String>(), fieldNodeMap)
         allTypeNodeMap.put(objectTypeName, objectTypeNode)
         logger.info("Object type [${objectTypeName}] for entity [${ed.getFullEntityName()}] is created.")
     }
