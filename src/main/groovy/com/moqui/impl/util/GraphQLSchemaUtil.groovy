@@ -70,7 +70,7 @@ class GraphQLSchemaUtil {
             return
         }
 
-        Map<String, GraphQLSchemaDefinition.FieldDefinition> fieldDefMap = new HashMap<>()
+        Map<String, FieldDefinition> fieldDefMap = new HashMap<>()
 
         ArrayList<String> allFields = ed.getAllFieldNames()
         for (String fieldName in allFields) {
@@ -88,7 +88,7 @@ class GraphQLSchemaUtil {
             }
             fieldPropertyMap.put("description", fieldDescription)
 
-            GraphQLSchemaDefinition.FieldDefinition fieldDef = new GraphQLSchemaDefinition.FieldDefinition(ec, fi.name, fieldScalarType, fieldPropertyMap)
+            FieldDefinition fieldDef = new FieldDefinition(ec, fi.name, fieldScalarType, fieldPropertyMap)
             fieldDefMap.put(fieldName, fieldDef)
         }
 
@@ -149,7 +149,7 @@ class GraphQLSchemaUtil {
 
 
             logger.info("===== Adding FieldDefinition [${fieldName} - ${fieldType}]")
-            GraphQLSchemaDefinition.FieldDefinition fieldDef = new GraphQLSchemaDefinition.FieldDefinition(ec, fieldName, fieldType, fieldPropertyMap, argumentDefList)
+            FieldDefinition fieldDef = new FieldDefinition(ec, fieldName, fieldType, fieldPropertyMap, argumentDefList)
 
             DataFetcherHandler dataFetcher = new DataFetcherEntity(ec, fieldDef, relInfo.relatedEntityName, "list", relInfo.keyMap)
             fieldDef.setDataFetcher(dataFetcher)
