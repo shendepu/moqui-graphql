@@ -290,7 +290,7 @@ public class GraphQLSchemaDefinition {
                     throw new IllegalArgumentException("Interface [${name}] to be extended already exists")
 
                 InterfaceTypeDefinition interfaceTypeDef = new InterfaceTypeDefinition(objectTypeDef, extendObjectDef, ecfi.getExecutionContext())
-                allTypeDefMap.put(name, interfaceTypeDef)
+                allTypeDefMap.put(interfaceTypeDef.name, interfaceTypeDef)
             } else {
                 objectTypeDef.extend(extendObjectDef)
             }
