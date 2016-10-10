@@ -719,6 +719,10 @@ public class GraphQLSchemaDefinition {
             }
         }
 
+        public void addResolver(String resolverValue, String resolverType) {
+            resolverMap.put(resolverValue, resolverType)
+        }
+
         public ArrayList<FieldDefinition> getFieldList() { return new ArrayList<FieldDefinition>(fieldDefMap.values()) }
 
         @Override
@@ -772,7 +776,7 @@ public class GraphQLSchemaDefinition {
                     throw new IllegalArgumentException("Interface definition [${childNode.attribute("name")}] not found")
                 if (!(interfaceTypeDef instanceof InterfaceTypeDefinition))
                     throw new IllegalArgumentException("Interface definition [${childNode.attribute("name")}] is not instance of InterfaceTypeDefinition")
-                extendInterface((InterfaceTypeDefinition) interfaceTypeDef)
+                extendInterface((InterfaceTypeDefinition) interfaceTypeDef, childNode)
             }
             for (MNode childNode in extendObjectDefinition.extendObjectNode.children("field")) {
                 GraphQLSchemaUtil.mergeFieldDefinition(childNode, fieldDefMap, ec)
@@ -784,12 +788,13 @@ public class GraphQLSchemaDefinition {
         @Override
         ArrayList<String> getDependentTypes() { return new ArrayList<String>(fieldDefMap.values().type) }
 
-        private void extendInterface(InterfaceTypeDefinition interfaceTypeDefinition) {
+        private void extendInterface(InterfaceTypeDefinition interfaceTypeDefinition, MNode interfaceNode) {
             for (Map.Entry<String, FieldDefinition> entry in interfaceTypeDefinition.fieldDefMap) {
                 // Ignore already defined field in object type, behave like field in object type override interface type
                 if (fieldDefMap.containsKey(entry.getKey())) continue
                 fieldDefMap.put(entry.getKey(), ((FieldDefinition) entry.getValue()).clone())
             }
+            interfaceTypeDefinition.addResolver(interfaceNode.attribute("resolver-value"), interfaceNode.attribute("resolver-type"))
         }
     }
 

@@ -136,6 +136,8 @@ along with this software (see the LICENSE.md file). If not, see
                     <xs:element minOccurs="0" maxOccurs="unbounded" name="interface">
                         <xs:complexType>
                             <xs:attribute name="name" type="xs:string" use="required"/>
+                            <xs:attribute name="resolver-value" type="xs:string" use="required"/>
+                            <xs:attribute name="resolver-type" type="xs:string" use="required"/>
                         </xs:complexType>
                     </xs:element>
                     <xs:element minOccurs="0" maxOccurs="1" ref="convert-to-interface"/>
