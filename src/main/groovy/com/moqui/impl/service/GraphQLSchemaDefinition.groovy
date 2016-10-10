@@ -278,23 +278,36 @@ public class GraphQLSchemaDefinition {
     }
 
     private void updateAllTypeDefMap() {
+        // Extend object which convert to interface first
         for (Map.Entry<String, ExtendObjectDefinition> entry in extendObjectDefMap) {
+            ExtendObjectDefinition extendObjectDef = (ExtendObjectDefinition) entry.getValue()
+            if (!extendObjectDef.convertToInterface) continue
+
             String name = entry.getKey()
             ObjectTypeDefinition objectTypeDef = (ObjectTypeDefinition) allTypeDefMap.get(name)
             if (objectTypeDef == null)
                 throw new IllegalArgumentException("ObjectTypeDefinition [${name}] not found to extend")
 
-            ExtendObjectDefinition extendObjectDef = (ExtendObjectDefinition) entry.getValue()
-            if (extendObjectDef.convertToInterface) {
-                if (interfaceTypeDefMap.containsKey(name))
-                    throw new IllegalArgumentException("Interface [${name}] to be extended already exists")
+            if (interfaceTypeDefMap.containsKey(name))
+                throw new IllegalArgumentException("Interface [${name}] to be extended already exists")
 
-                InterfaceTypeDefinition interfaceTypeDef = new InterfaceTypeDefinition(objectTypeDef, extendObjectDef, ecfi.getExecutionContext())
-                allTypeDefMap.put(interfaceTypeDef.name, interfaceTypeDef)
-            } else {
-                objectTypeDef.extend(extendObjectDef, allTypeDefMap)
-            }
+            InterfaceTypeDefinition interfaceTypeDef = new InterfaceTypeDefinition(objectTypeDef, extendObjectDef, ecfi.getExecutionContext())
+            allTypeDefMap.put(interfaceTypeDef.name, interfaceTypeDef)
         }
+
+        // Extend object
+        for (Map.Entry<String, ExtendObjectDefinition> entry in extendObjectDefMap) {
+            ExtendObjectDefinition extendObjectDef = (ExtendObjectDefinition) entry.getValue()
+            if (extendObjectDef.convertToInterface) continue
+
+            String name = entry.getKey()
+            ObjectTypeDefinition objectTypeDef = (ObjectTypeDefinition) allTypeDefMap.get(name)
+            if (objectTypeDef == null)
+                throw new IllegalArgumentException("ObjectTypeDefinition [${name}] not found to extend")
+
+            objectTypeDef.extend(extendObjectDef, allTypeDefMap)
+        }
+
     }
 
     private void addSchemaInputTypes() {
