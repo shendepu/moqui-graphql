@@ -717,6 +717,8 @@ public class GraphQLSchemaDefinition {
             for (MNode fieldNode in extendObjectDef.extendObjectNode.children("field")) {
                 GraphQLSchemaUtil.mergeFieldDefinition(fieldNode, fieldDefMap, ec)
             }
+            // Make object type that interface convert from extends interface automatically.
+            objectTypeDef.interfaceList.add(name)
         }
 
         public void addResolver(String resolverValue, String resolverType) {
