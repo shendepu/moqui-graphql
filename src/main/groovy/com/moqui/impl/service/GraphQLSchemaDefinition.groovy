@@ -232,7 +232,15 @@ public class GraphQLSchemaDefinition {
 
         Integer unionTypeCount = 0, enumTypeCount = 0, interfaceTypeCount = 0, objectTypeCount = 0
 
+        // Initialize interface type first to prevent null reference when initialize object type
         for (GraphQLTypeDefinition typeDef in allTypeDefSortedList) {
+            if (!("interface".equals(typeDef.type))) continue
+            addGraphQLInterfaceType((InterfaceTypeDefinition) typeDef)
+            interfaceTypeCount++
+        }
+
+        for (GraphQLTypeDefinition typeDef in allTypeDefSortedList) {
+            if ("interface".equals(typeDef.type)) continue
             switch (typeDef.type) {
                 case "union":
                     addGraphQLUnionType((UnionTypeDefinition) typeDef)
@@ -241,10 +249,6 @@ public class GraphQLSchemaDefinition {
                 case "enum":
                     addGraphQLEnumType((EnumTypeDefinition) typeDef)
                     enumTypeCount++
-                    break
-                case "interface":
-                    addGraphQLInterfaceType((InterfaceTypeDefinition) typeDef)
-                    interfaceTypeCount++
                     break
                 case "object":
                     addGraphQLObjectType((ObjectTypeDefinition) typeDef)
@@ -495,7 +499,7 @@ public class GraphQLSchemaDefinition {
         for (String interfaceName in objectTypeDef.interfaceList) {
             GraphQLType interfaceType = graphQLTypeMap.get(interfaceName)
             if (interfaceType == null)
-                throw new IllegalArgumentException("GraphQL interface type [${objectTypeDef.name}] not found.")
+                throw new IllegalArgumentException("GraphQL interface type ${interfaceName} for [${objectTypeDef.name}] not found.")
 
             objectType = objectType.withInterface((GraphQLInterfaceType) interfaceType)
         }
