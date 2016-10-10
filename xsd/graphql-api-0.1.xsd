@@ -111,6 +111,23 @@ along with this software (see the LICENSE.md file). If not, see
         </xs:complexType>
     </xs:element>
 
+    <xs:element name="convert-to-interface">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element minOccurs="0" maxOccurs="unbounded" ref="resolver-map"/>
+            </xs:sequence>
+            <xs:attribute name="resolver-field" type="name-field" use="required">
+                <xs:annotation>
+                    <xs:documentation>This field value determines actual type. The typical case in moqui
+                        is Person, Organization is a concrete of Party, the Party@partyTypeEnumId tells the Party is
+                        Person or Organization. So in this case, resolver-field is partyTypeEnumId, then there should be
+                        resolver-map element to map the value of partyTypeEnumId to GraphQLObjectType
+                    </xs:documentation>
+                </xs:annotation>
+            </xs:attribute>
+        </xs:complexType>
+    </xs:element>
+
     <xs:element name="extend-object">
         <xs:complexType>
             <xs:sequence>
@@ -121,21 +138,10 @@ along with this software (see the LICENSE.md file). If not, see
                             <xs:attribute name="name" type="xs:string" use="required"/>
                         </xs:complexType>
                     </xs:element>
-                    <xs:element minOccurs="0" maxOccurs="unbounded" ref="resolver-map"/>
+                    <xs:element minOccurs="0" maxOccurs="1" ref="convert-to-interface"/>
                 </xs:choice>
             </xs:sequence>
             <xs:attribute name="name" type="name-upper" use="required"/>
-            <xs:attribute name="as-interface" type="xs:boolean" default="false">
-                <xs:annotation><xs:documentation>Turn an GraphQLObjectType to GraphQLInterface
-                </xs:documentation></xs:annotation>
-            </xs:attribute>
-            <xs:attribute name="resolver-field" type="name-field">
-                <xs:annotation><xs:documentation>This field value determines actual type. The typical case in moqui
-                    is Person, Organization is a concrete of Party, the Party@partyTypeEnumId tells the Party is
-                    Person or Organization. So in this case, resolver-field is partyTypeEnumId, then there should be
-                    resolver-map element to map the value of partyTypeEnumId to GraphQLObjectType
-                </xs:documentation></xs:annotation>
-            </xs:attribute>
         </xs:complexType>
     </xs:element>
 

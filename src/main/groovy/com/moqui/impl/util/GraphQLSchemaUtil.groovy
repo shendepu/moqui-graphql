@@ -27,8 +27,11 @@ import static org.moqui.impl.entity.EntityDefinition.MasterDetail
 import static org.moqui.impl.entity.EntityJavaUtil.RelationshipInfo
 
 import static com.moqui.impl.service.GraphQLSchemaDefinition.ArgumentDefinition
+import static com.moqui.impl.service.GraphQLSchemaDefinition.AutoArgumentsDefinition
 import static com.moqui.impl.service.GraphQLSchemaDefinition.DataFetcherHandler
 import static com.moqui.impl.service.GraphQLSchemaDefinition.DataFetcherEntity
+import static com.moqui.impl.service.GraphQLSchemaDefinition.FieldDefinition
+import static com.moqui.impl.service.GraphQLSchemaDefinition.DataFetcherService
 
 class GraphQLSchemaUtil {
     protected final static Logger logger = LoggerFactory.getLogger(GraphQLSchemaUtil.class)
@@ -166,5 +169,49 @@ class GraphQLSchemaUtil {
 
     static String getEntityFieldGraphQLType(String type) {
         return fieldTypeGraphQLMap.get(type)
+    }
+
+
+    static void mergeFieldDefinition(MNode fieldNode, Map<String, FieldDefinition> fieldDefMap, ExecutionContext ec) {
+        FieldDefinition fieldDef = fieldDefMap.get(fieldNode.attribute("name"))
+        if (fieldDef != null) {
+            if (fieldNode.attribute("type")) fieldDef.type = fieldNode.attribute("type")
+            if (fieldNode.attribute("non-null")) fieldDef.nonNull = fieldNode.attribute("non-null")
+            if (fieldNode.attribute("is-list")) fieldDef.nonNull = fieldNode.attribute("is-list")
+            if (fieldNode.attribute("list-item-non-null")) fieldDef.listItemNonNull = fieldNode.attribute("list-item-non-null")
+            if (fieldNode.attribute("require-authentication")) fieldDef.requireAuthentication = fieldNode.attribute("require-authentication")
+            for (MNode childNode in fieldNode.children) {
+                switch (childNode.name) {
+                    case "description":
+                        fieldDef.description = childNode.text
+                        break
+                    case "depreciation-reason":
+                        fieldDef.depreciationReason = childNode.text
+                        break
+                    case "auto-arguments":
+                        fieldDef.mergeArgument(new AutoArgumentsDefinition(childNode))
+                        break
+                    case "argument":
+                        fieldDef.mergeArgument(new ArgumentDefinition(childNode, fieldDef))
+                        break
+                    case "empty-fetcher":
+                        fieldDef.setDataFetcher(new GraphQLSchemaDefinition.EmptyDataFetcher(childNode, fieldDef))
+                        break
+                    case "entity-fetcher":
+                        fieldDef.setDataFetcher(new DataFetcherEntity(childNode, fieldDef, ec))
+                        break
+                    case "service-fetcher":
+                        fieldDef.setDataFetcher(new DataFetcherService(childNode, fieldDef, ec))
+                        break
+                    case "pre-fetcher":
+                        break
+                    case "post-fetcher":
+                        break
+                }
+            }
+        } else {
+            fieldDef = new FieldDefinition(fieldNode, ec)
+            fieldDefMap.put(fieldDef.name, fieldDef)
+        }
     }
 }

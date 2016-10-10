@@ -31,6 +31,7 @@ import graphql.schema.GraphQLSchema
 import graphql.schema.GraphQLType
 import graphql.schema.GraphQLTypeReference
 import graphql.schema.GraphQLUnionType
+import graphql.schema.TypeResolver
 import org.moqui.context.ExecutionContext
 import org.moqui.entity.EntityFind
 import org.moqui.impl.context.ExecutionContextFactoryImpl
@@ -142,7 +143,7 @@ public class GraphQLSchemaDefinition {
             }
         }
 
-        updateAllTypeNodeMap()
+        updateAllTypeDefMap()
     }
 
     private GraphQLTypeDefinition getTypeDef(String name) {
@@ -229,19 +230,25 @@ public class GraphQLSchemaDefinition {
         graphQLTypeMap.clear()
         addGraphQLPredefinedTypes()
 
+        Integer unionTypeCount = 0, enumTypeCount = 0, interfaceTypeCount = 0, objectTypeCount = 0
+
         for (GraphQLTypeDefinition typeDef in allTypeDefSortedList) {
             switch (typeDef.type) {
                 case "union":
                     addGraphQLUnionType((UnionTypeDefinition) typeDef)
+                    unionTypeCount++
                     break
                 case "enum":
                     addGraphQLEnumType((EnumTypeDefinition) typeDef)
+                    enumTypeCount++
                     break
                 case "interface":
                     addGraphQLInterfaceType((InterfaceTypeDefinition) typeDef)
+                    interfaceTypeCount++
                     break
                 case "object":
                     addGraphQLObjectType((ObjectTypeDefinition) typeDef)
+                    objectTypeCount++
                     break
             }
         }
@@ -265,26 +272,29 @@ public class GraphQLSchemaDefinition {
 
         GraphQLSchema schema = schemaBuilder.build(inputTypes)
 
-        // Clear out reference to unused GraphQLType, used ones are still referenced by schema
-        graphQLTypeMap.clear()
+        logger.info("Schema [${schemaName}] loaded: ${unionTypeCount} union type, ${enumTypeCount} enum type, ${interfaceTypeCount} interface type, ${objectTypeCount} object type")
 
         return schema
     }
 
-    private void updateAllTypeNodeMap() {
+    private void updateAllTypeDefMap() {
         for (Map.Entry<String, ExtendObjectDefinition> entry in extendObjectDefMap) {
-            ObjectTypeDefinition objectTypeDef = allTypeDefMap.get(entry.getKey())
-            if (objectTypeDef == null) {
-                logger.info("ObjectTypeDefinition [${entry.getKey()}] not found to extend")
-                continue
-            }
+            String name = entry.getKey()
+            ObjectTypeDefinition objectTypeDef = (ObjectTypeDefinition) allTypeDefMap.get(name)
+            if (objectTypeDef == null)
+                throw new IllegalArgumentException("ObjectTypeDefinition [${name}] not found to extend")
+
             ExtendObjectDefinition extendObjectDef = (ExtendObjectDefinition) entry.getValue()
-            if ("true".equals(extendObjectDef.asInterface)) {
+            if (extendObjectDef.convertToInterface) {
+                if (interfaceTypeDefMap.containsKey(name))
+                    throw new IllegalArgumentException("Interface [${name}] to be extended already exists")
 
+                InterfaceTypeDefinition interfaceTypeDef = new InterfaceTypeDefinition(objectTypeDef, extendObjectDef, ecfi.getExecutionContext())
+                allTypeDefMap.put(name, interfaceTypeDef)
+            } else {
+                objectTypeDef.extend(extendObjectDef)
             }
-
         }
-
     }
 
     private void addSchemaInputTypes() {
@@ -430,10 +440,36 @@ public class GraphQLSchemaDefinition {
                 .description(interfaceTypeDef.description)
 
         for (FieldDefinition fieldNode in interfaceTypeDef.fieldList) {
-            interfaceType = interfaceType.field(buildField(fieldNode))
+            interfaceType.field(buildField(fieldNode))
         }
 
         // TODO: Add typeResolver for type, one way is to add a service as resolver
+        if (interfaceTypeDef.convertFromObjectType) {
+            logger.info("~~~~~~~~~~~~~~~~ Interface typeResolver Adding")
+            if (interfaceTypeDef.resolverField == null || interfaceTypeDef.resolverField.isEmpty())
+                throw new IllegalArgumentException("Interface definition of ${interfaceTypeDef.name} resolverField not set")
+
+            interfaceType.typeResolver(new TypeResolver() {
+                @Override
+                GraphQLObjectType getType(Object object) {
+
+                    logger.info("~~~~~~~~~~~~~~~~ Interface typeResolver interfaceTypeDef ${interfaceTypeDef.name}")
+                    logger.info("~~~~~~~~~~~~~~~~ Interface typeResolver interfaceTypeDef ${interfaceTypeDef.resolverField}")
+                    logger.info("~~~~~~~~~~~~~~~~ Interface typeResolver interfaceTypeDef ${interfaceTypeDef.resolverMap}")
+                    logger.info("~~~~~~~~~~~~~~~~ Interface typeResolver interfaceTypeDef ${interfaceTypeDef.defaultResolvedTypeName}")
+                    logger.info("~~~~~~~~~~~~~~~~ Interface typeResolver getType ${object}")
+                    logger.info("~~~~~~~~~~~~~~~~ Interface typeResolver getType ${object.getClass()}")
+                    String resolverFieldValue = ((Map) object).get(interfaceTypeDef.resolverField)
+                    String resolvedTypeName = interfaceTypeDef.resolverMap.get(resolverFieldValue)
+
+                    logger.info("~~~~~~~~~~~~~~~~ Interface typeResolver getType ${resolverFieldValue}")
+                    logger.info("~~~~~~~~~~~~~~~~ Interface typeResolver getType ${resolvedTypeName}")
+                    GraphQLType resolvedType = graphQLTypeMap.get(resolvedTypeName)
+                    if (resolvedType == null) resolvedType = graphQLTypeMap.get(interfaceTypeDef.defaultResolvedTypeName)
+                    return (GraphQLObjectType) resolvedType
+                }
+            })
+        }
 
         graphQLTypeMap.put(interfaceTypeDef.name, interfaceType.build())
     }
@@ -645,8 +681,10 @@ public class GraphQLSchemaDefinition {
         Map<String, FieldDefinition> fieldDefMap = new HashMap<>()
         String resolverField
         Map<String, String> resolverMap = new HashMap<>()
+        String defaultResolvedTypeName
 
         InterfaceTypeDefinition(MNode node, ExecutionContext ec) {
+            this.convertFromObjectType = false
             this.ec = ec
             this.name = node.attribute("name")
             this.type = "interface"
@@ -665,11 +703,17 @@ public class GraphQLSchemaDefinition {
         }
 
         InterfaceTypeDefinition(ObjectTypeDefinition objectTypeDef, ExtendObjectDefinition extendObjectDef, ExecutionContext ec) {
-            convertFromObjectType = true
-            fieldDefMap.putAll(objectTypeDef.fieldDefMap)
+            this.convertFromObjectType = true
+            this.ec = ec
+            this.name = objectTypeDef.name + "Interface"
+            this.type = "interface"
+            this.defaultResolvedTypeName = objectTypeDef.name
+            this.resolverField = extendObjectDef.resolverField
+            this.resolverMap.putAll(extendObjectDef.resolverMap)
 
-            for (FieldDefinition fieldDef in extendObjectDef.fieldDefMap.values()) {
-                mergeField(fieldDef)
+            fieldDefMap.putAll(objectTypeDef.fieldDefMap)
+            for (MNode fieldNode in extendObjectDef.extendObjectNode.children("field")) {
+                GraphQLSchemaUtil.mergeFieldDefinition(fieldNode, fieldDefMap, ec)
             }
         }
 
@@ -678,9 +722,6 @@ public class GraphQLSchemaDefinition {
         @Override
         ArrayList<String> getDependentTypes() { return new ArrayList<String>(fieldDefMap.values().type) }
 
-        private void mergeField(FieldDefinition fieldDef) {
-
-        }
     }
 
     static class ObjectTypeDefinition extends GraphQLTypeDefinition {
@@ -721,6 +762,12 @@ public class GraphQLSchemaDefinition {
             this.fieldDefMap.putAll(fieldDefMap)
         }
 
+        public void extend(ExtendObjectDefinition extendObjectDefinition) {
+            for (MNode fieldNode in extendObjectDefinition.extendObjectNode.children("field")) {
+                GraphQLSchemaUtil.mergeFieldDefinition(fieldNode, fieldDefMap, ec)
+            }
+        }
+
         public List<FieldDefinition> getFieldList() { return new ArrayList<FieldDefinition>(fieldDefMap.values()) }
 
         @Override
@@ -730,16 +777,18 @@ public class GraphQLSchemaDefinition {
     static class ExtendObjectDefinition {
         @SuppressWarnings("GrFinalVariableAccess")
         final ExecutionContext ec
-        String name, asInterface, resolverField
+        MNode extendObjectNode
+        String name, resolverField
 
         ArrayList<String> interfaceList = new ArrayList<>()
         Map<String, FieldDefinition> fieldDefMap = new HashMap<>()
         Map<String, String> resolverMap = new HashMap<>()
 
+        Boolean convertToInterface = false
+
         ExtendObjectDefinition(MNode node) {
+            this.extendObjectNode = node
             this.name = node.attribute("name")
-            this.asInterface = node.attribute("as-interface") ?: "false"
-            this.resolverField = node.attribute("resolver-field")
 
             for (MNode childNode in node.children) {
                 switch (childNode.name) {
@@ -749,9 +798,11 @@ public class GraphQLSchemaDefinition {
                     case "field":
                         fieldDefMap.put(childNode.attribute("name"), new FieldDefinition(childNode, ec))
                         break
-                    case "resolver-map":
-                        if (resolverField != null && !resolverField.isEmpty()) {
-                            resolverMap.put(childNode.attribute("resolver-value"), childNode.attribute("resolver-type"))
+                    case "convert-to-interface":
+                        convertToInterface = true
+                        resolverField = childNode.attribute("resolver-field")
+                        for (MNode resolverMapNode in childNode.children("resolver-map")) {
+                            resolverMap.put(resolverMapNode.attribute("resolver-value"), resolverMapNode.attribute("resolver-type"))
                         }
                         break
                 }
@@ -919,11 +970,11 @@ public class GraphQLSchemaDefinition {
             this.dataFetcher = dataFetcher
         }
 
-        private void mergeArgument(ArgumentDefinition argumentDef) {
+        public void mergeArgument(ArgumentDefinition argumentDef) {
             mergeArgument(argumentDef.name, argumentDef.attributeMap)
         }
 
-        private void mergeArgument(AutoArgumentsDefinition autoArgumentsDef) {
+        public void mergeArgument(AutoArgumentsDefinition autoArgumentsDef) {
             String entityName = autoArgumentsDef.entityName
             if (entityName == null || entityName.isEmpty())
                 throw new IllegalArgumentException("Error in auto-arguments in field ${this.name}, no auto-arguments.@entity-name")
@@ -944,7 +995,7 @@ public class GraphQLSchemaDefinition {
             }
         }
 
-        private ArgumentDefinition mergeArgument(final String argumentName, Map<String, String> attributeMap) {
+        public ArgumentDefinition mergeArgument(final String argumentName, Map<String, String> attributeMap) {
             ArgumentDefinition baseArgumentDef = argumentList.find({ it.name == argumentName })
             if (baseArgumentDef == null) {
                 baseArgumentDef = new ArgumentDefinition(this, argumentName, attributeMap)
