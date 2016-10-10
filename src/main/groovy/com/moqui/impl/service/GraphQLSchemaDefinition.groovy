@@ -80,9 +80,11 @@ public class GraphQLSchemaDefinition {
     protected final Set<GraphQLType> inputTypes = new HashSet<GraphQLType>()
 
     protected final ArrayList<String> inputTypeList = new ArrayList<>()
+    protected final List<String> preLoadObjectTypes = new LinkedList<>()
 
     protected Map<String, GraphQLTypeDefinition> allTypeDefMap = new LinkedHashMap<>()
     protected LinkedList<GraphQLTypeDefinition> allTypeDefSortedList = new LinkedList<>()
+    protected Map<String, GraphQLTypeDefinition> requiredTypeDefMap = new LinkedHashMap<>()
 
 //    protected Map<String, UnionTypeDefinition> unionTypeDefMap = new HashMap<>()
 //    protected Map<String, EnumTypeDefinition> enumTypeDefMap = new HashMap<>()
@@ -126,7 +128,9 @@ public class GraphQLSchemaDefinition {
                     inputTypeList.add(childNode.attribute("name"))
                     break
                 case "interface":
-                    allTypeDefMap.put(childNode.attribute("name"), new InterfaceTypeDefinition(childNode, this.ecfi.getExecutionContext()))
+                    InterfaceTypeDefinition interfaceTypeDef = new InterfaceTypeDefinition(childNode, this.ecfi.getExecutionContext())
+                    allTypeDefMap.put(childNode.attribute("name"), interfaceTypeDef)
+                    interfaceTypeDefMap.put(childNode.attribute("name"), interfaceTypeDef)
                     break
                 case "object":
                     allTypeDefMap.put(childNode.attribute("name"), new ObjectTypeDefinition(childNode, this.ecfi.getExecutionContext()))
@@ -139,6 +143,9 @@ public class GraphQLSchemaDefinition {
                     break
                 case "extend-object":
                     extendObjectDefMap.put(childNode.attribute("name"), new ExtendObjectDefinition(childNode))
+                    break
+                case "pre-load-object":
+                    preLoadObjectTypes.add(childNode.attribute("name"))
                     break
             }
         }
@@ -162,34 +169,57 @@ public class GraphQLSchemaDefinition {
             return
         }
 
-        allTypeDefSortedList.push(queryTypeDef)
-        if (mutationType) allTypeDefSortedList.push(mutationTypeDef)
-
-        TreeNode<GraphQLTypeDefinition> rootNode = new TreeNode<>(null)
-        rootNode.children.add(new TreeNode<GraphQLTypeDefinition>(queryTypeDef))
-        if (mutationTypeDef) {
-            rootNode.children.add(new TreeNode<GraphQLTypeDefinition>(mutationTypeDef))
+        for (String preLoadObjectType in preLoadObjectTypes) {
+            GraphQLTypeDefinition preLoadObjectTypeDef = getTypeDef(preLoadObjectType)
+            if (preLoadObjectTypeDef != null) allTypeDefSortedList.add(preLoadObjectTypeDef)
         }
 
+        TreeNode<GraphQLTypeDefinition> rootNode = new TreeNode<>(null)
+        TreeNode<GraphQLTypeDefinition> interfaceNode = new TreeNode<>(null)
 
-        createTreeNodeRecursive(rootNode, [queryType, mutationType])
-        traverseByLevelOrder(rootNode)
+        for (Map.Entry<String, InterfaceTypeDefinition> entry in interfaceTypeDefMap)
+            interfaceNode.children.add(new TreeNode<GraphQLTypeDefinition>((InterfaceTypeDefinition) entry.getValue()))
 
-        logger.info("==== allTypeNodeSortedList ====")
+        TreeNode<GraphQLTypeDefinition> queryTypeNode = new TreeNode<GraphQLTypeDefinition>(queryTypeDef)
+        rootNode.children.add(queryTypeNode)
+
+        List<String> objectTypeNames = [queryType, mutationType]
+
+        createTreeNodeRecursive(interfaceNode, objectTypeNames, true)
+        traverseByPostOrder(interfaceNode, allTypeDefSortedList)
+
+
+        createTreeNodeRecursive(queryTypeNode, objectTypeNames, false)
+        traverseByPostOrder(queryTypeNode, allTypeDefSortedList)
+
+        if (mutationTypeDef) {
+            TreeNode<GraphQLTypeDefinition> mutationTypeNode = new TreeNode<GraphQLTypeDefinition>(mutationTypeDef)
+            rootNode.children.add(mutationTypeNode)
+            createTreeNodeRecursive(mutationTypeNode, objectTypeNames, false)
+            traverseByPostOrder(mutationTypeNode, allTypeDefSortedList)
+        }
+
+        for (Map.Entry<String, GraphQLTypeDefinition> entry in requiredTypeDefMap) {
+            if (allTypeDefSortedList.contains(entry.getValue())) continue
+            allTypeDefSortedList.add((GraphQLTypeDefinition) entry.getValue())
+        }
+
+        logger.info("==== allTypeNodeSortedList begin ====")
         for (GraphQLTypeDefinition typeDef in allTypeDefSortedList) {
             logger.info("[${typeDef.name} - ${typeDef.type}]")
         }
+        logger.info("==== allTypeNodeSortedList end ====")
     }
 
-    private void traverseByLevelOrder(TreeNode<GraphQLTypeDefinition> startNode) {
+    private void traverseByLevelOrder(TreeNode<GraphQLTypeDefinition> startNode, LinkedList<GraphQLTypeDefinition> sortedList) {
         Queue<TreeNode<GraphQLTypeDefinition>> queue = new LinkedList<>()
         queue.add(startNode)
         while(!queue.isEmpty()) {
             TreeNode<GraphQLTypeDefinition> tempNode = queue.poll()
             if (tempNode.data) {
                 logger.info("Traversing node [${tempNode.data.name}]")
-                if (!allTypeDefSortedList.contains(tempNode.data)) {
-                    allTypeDefSortedList.addFirst(tempNode.data)
+                if (!sortedList.contains(tempNode.data)) {
+                    sortedList.addFirst(tempNode.data)
                 }
             }
             for (TreeNode<GraphQLTypeDefinition> childNode in tempNode.children) {
@@ -198,13 +228,28 @@ public class GraphQLSchemaDefinition {
         }
     }
 
-    private void createTreeNodeRecursive(TreeNode<GraphQLTypeDefinition> node, List<String> objectTypeNames) {
+    private void traverseByPostOrder(TreeNode<GraphQLTypeDefinition> startNode, LinkedList<GraphQLTypeDefinition> sortedList) {
+        if (startNode == null) return
+
+        for (TreeNode<GraphQLTypeDefinition> childNode in startNode.children) {
+            traverseByPostOrder(childNode, sortedList)
+        }
+
+        if (startNode.data == null) return
+        logger.info("Post order traversing node [${startNode.data.name}]")
+        if (!sortedList.contains(startNode.data)) {
+            sortedList.add(startNode.data)
+        }
+    }
+
+    private void createTreeNodeRecursive(TreeNode<GraphQLTypeDefinition> node, List<String> objectTypeNames, Boolean includeInterface) {
         if (node.data) {
             for (String type in node.data.getDependentTypes()) {
                 // If type is GraphQL Scalar types, skip.
                 if (graphQLScalarTypes.containsKey(type)) continue
                 // If type is GraphQLObjectType which already added in Tree, skip.
                 if (objectTypeNames.contains(type)) continue
+                if (!includeInterface && "interface".equals(type)) continue
 
                 GraphQLTypeDefinition typeDef = getTypeDef(type)
                 if (typeDef != null) {
@@ -212,14 +257,14 @@ public class GraphQLSchemaDefinition {
                     node.children.add(typeTreeNode)
                     objectTypeNames.push(type)
                     logger.info("Adding tree node for GraphQLTypeDefinition [${typeDef.name}]")
-                    createTreeNodeRecursive(typeTreeNode, objectTypeNames)
+                    createTreeNodeRecursive(typeTreeNode, objectTypeNames, includeInterface)
                 } else {
                     logger.error("No GraphQL Type [${type}] defined")
                 }
             }
         } else {
             for (TreeNode<GraphQLTypeDefinition> childTreeNode in node.children) {
-                createTreeNodeRecursive(childTreeNode, objectTypeNames)
+                createTreeNodeRecursive(childTreeNode, objectTypeNames, includeInterface)
             }
         }
     }
@@ -233,14 +278,13 @@ public class GraphQLSchemaDefinition {
         Integer unionTypeCount = 0, enumTypeCount = 0, interfaceTypeCount = 0, objectTypeCount = 0
 
         // Initialize interface type first to prevent null reference when initialize object type
-        for (GraphQLTypeDefinition typeDef in allTypeDefSortedList) {
-            if (!("interface".equals(typeDef.type))) continue
-            addGraphQLInterfaceType((InterfaceTypeDefinition) typeDef)
-            interfaceTypeCount++
-        }
+//        for (GraphQLTypeDefinition typeDef in allTypeDefSortedList) {
+//            if (!("interface".equals(typeDef.type))) continue
+//            addGraphQLInterfaceType((InterfaceTypeDefinition) typeDef)
+//            interfaceTypeCount++
+//        }
 
         for (GraphQLTypeDefinition typeDef in allTypeDefSortedList) {
-            if ("interface".equals(typeDef.type)) continue
             switch (typeDef.type) {
                 case "union":
                     addGraphQLUnionType((UnionTypeDefinition) typeDef)
@@ -249,6 +293,10 @@ public class GraphQLSchemaDefinition {
                 case "enum":
                     addGraphQLEnumType((EnumTypeDefinition) typeDef)
                     enumTypeCount++
+                    break
+                case "interface":
+                    addGraphQLInterfaceType((InterfaceTypeDefinition) typeDef)
+                    interfaceTypeCount++
                     break
                 case "object":
                     addGraphQLObjectType((ObjectTypeDefinition) typeDef)
@@ -274,6 +322,12 @@ public class GraphQLSchemaDefinition {
         inputTypes.clear()
         addSchemaInputTypes()
 
+        logger.info("==== graphQLTypeMap begin ====")
+        for (Map.Entry<String, GraphQLType> entry in graphQLTypeMap){
+            logger.info(("GraphQLType [${entry.getKey()} - ${((GraphQLType) entry.getValue()).name} - ${entry.getValue().getClass()}]"))
+        }
+        logger.info("==== graphQLTypeMap end ====")
+
         GraphQLSchema schema = schemaBuilder.build(inputTypes)
 
         logger.info("Schema [${schemaName}] loaded: ${unionTypeCount} union type, ${enumTypeCount} enum type, ${interfaceTypeCount} interface type, ${objectTypeCount} object type")
@@ -297,12 +351,16 @@ public class GraphQLSchemaDefinition {
 
             InterfaceTypeDefinition interfaceTypeDef = new InterfaceTypeDefinition(objectTypeDef, extendObjectDef, ecfi.getExecutionContext())
             allTypeDefMap.put(interfaceTypeDef.name, interfaceTypeDef)
+            interfaceTypeDefMap.put(interfaceTypeDef.name, interfaceTypeDef)
+
+            objectTypeDef.extend(extendObjectDef, allTypeDefMap)
+            // Interface need the object to do resolve
+            requiredTypeDefMap.put(objectTypeDef.name, objectTypeDef)
         }
 
         // Extend object
         for (Map.Entry<String, ExtendObjectDefinition> entry in extendObjectDefMap) {
             ExtendObjectDefinition extendObjectDef = (ExtendObjectDefinition) entry.getValue()
-            if (extendObjectDef.convertToInterface) continue
 
             String name = entry.getKey()
             ObjectTypeDefinition objectTypeDef = (ObjectTypeDefinition) allTypeDefMap.get(name)
@@ -530,7 +588,7 @@ public class GraphQLSchemaDefinition {
             logger.info("${fieldDef.name}")
             logger.info("${fieldDef.type}")
             fieldRawType = new GraphQLTypeReference(fieldDef.type)
-            graphQLTypeMap.put(fieldDef.name, fieldRawType)
+            graphQLTypeMap.put(fieldDef.type, fieldRawType)
             graphQLTypeReferences.add(fieldDef.type)
         }
 
@@ -615,7 +673,7 @@ public class GraphQLSchemaDefinition {
 
     public static class TreeNode<T> {
         T data
-        public final List<TreeNode<T>> children = new ArrayList<TreeNode<T>>()
+        public final List<TreeNode<T>> children = new LinkedList<TreeNode<T>>()
 
         public TreeNode(data) { this.data = data }
     }
@@ -737,6 +795,10 @@ public class GraphQLSchemaDefinition {
             for (MNode fieldNode in extendObjectDef.extendObjectNode.children("field")) {
                 GraphQLSchemaUtil.mergeFieldDefinition(fieldNode, fieldDefMap, ec)
             }
+
+            for (String excludeFieldName in extendObjectDef.excludeFields)
+                fieldDefMap.remove(excludeFieldName)
+
             // Make object type that interface convert from extends interface automatically.
             objectTypeDef.interfaceList.add(name)
         }
@@ -800,9 +862,9 @@ public class GraphQLSchemaDefinition {
             this.fieldDefMap.putAll(fieldDefMap)
         }
 
-        public void extend(ExtendObjectDefinition extendObjectDefinition, Map<String, GraphQLTypeDefinition> allTypeDefMap) {
+        public void extend(ExtendObjectDefinition extendObjectDef, Map<String, GraphQLTypeDefinition> allTypeDefMap) {
             // Extend interface first, then field.
-            for (MNode childNode in extendObjectDefinition.extendObjectNode.children("interface")) {
+            for (MNode childNode in extendObjectDef.extendObjectNode.children("interface")) {
                 GraphQLTypeDefinition interfaceTypeDef = allTypeDefMap.get(childNode.attribute("name"))
                 if (interfaceTypeDef == null)
                     throw new IllegalArgumentException("Interface definition [${childNode.attribute("name")}] not found")
@@ -810,9 +872,12 @@ public class GraphQLSchemaDefinition {
                     throw new IllegalArgumentException("Interface definition [${childNode.attribute("name")}] is not instance of InterfaceTypeDefinition")
                 extendInterface((InterfaceTypeDefinition) interfaceTypeDef, childNode)
             }
-            for (MNode childNode in extendObjectDefinition.extendObjectNode.children("field")) {
+            for (MNode childNode in extendObjectDef.extendObjectNode.children("field")) {
                 GraphQLSchemaUtil.mergeFieldDefinition(childNode, fieldDefMap, ec)
             }
+
+            for (String excludeFieldName in extendObjectDef.excludeFields)
+                fieldDefMap.remove(excludeFieldName)
         }
 
         public List<FieldDefinition> getFieldList() {
@@ -849,6 +914,7 @@ public class GraphQLSchemaDefinition {
 
         List<String> interfaceList = new LinkedList<>()
         Map<String, FieldDefinition> fieldDefMap = new LinkedHashMap<>()
+        List<String> excludeFields = new ArrayList<>()
         Map<String, String> resolverMap = new LinkedHashMap<>()
 
         Boolean convertToInterface = false
@@ -864,6 +930,9 @@ public class GraphQLSchemaDefinition {
                         break
                     case "field":
                         fieldDefMap.put(childNode.attribute("name"), new FieldDefinition(childNode, ec))
+                        break
+                    case "exclude-field":
+                        excludeFields.add(childNode.attribute("name"))
                         break
                     case "convert-to-interface":
                         convertToInterface = true

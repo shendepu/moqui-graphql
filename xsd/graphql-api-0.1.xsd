@@ -132,6 +132,11 @@ along with this software (see the LICENSE.md file). If not, see
         <xs:complexType>
             <xs:sequence>
                 <xs:element minOccurs="0" maxOccurs="unbounded" ref="field"/>
+                <xs:element minOccurs="0" maxOccurs="unbounded" name="exclude-field">
+                    <xs:complexType>
+                        <xs:attribute name="name" type="name-field"/>
+                    </xs:complexType>
+                </xs:element>
                 <xs:choice minOccurs="1" maxOccurs="1">
                     <xs:element minOccurs="0" maxOccurs="unbounded" name="interface">
                         <xs:complexType>
@@ -308,6 +313,12 @@ along with this software (see the LICENSE.md file). If not, see
         </xs:complexType>
     </xs:element>
 
+    <xs:element name="pre-load-object">
+        <xs:complexType>
+            <xs:attribute name="object-type" type="xs:string"/>
+        </xs:complexType>
+    </xs:element>
+
     <xs:element name="schema">
         <xs:complexType>
             <xs:sequence>
@@ -316,6 +327,7 @@ along with this software (see the LICENSE.md file). If not, see
                     <xs:element ref="extend-object"/>
                 </xs:choice>
                 <xs:element minOccurs="0" maxOccurs="unbounded" ref="input-type"/>
+                <xs:element minOccurs="0" maxOccurs="unbounded" ref="pre-load-object"/>
             </xs:sequence>
             <xs:attribute name="name" type="xs:string" use="required"/>
             <xs:attribute name="query" type="xs:string">
