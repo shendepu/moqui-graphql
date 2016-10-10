@@ -70,9 +70,9 @@ class GraphQLSchemaUtil {
             return
         }
 
-        Map<String, FieldDefinition> fieldDefMap = new HashMap<>()
+        Map<String, FieldDefinition> fieldDefMap = new LinkedHashMap<>()
 
-        ArrayList<String> allFields = ed.getAllFieldNames()
+        List<String> allFields = ed.getAllFieldNames()
         for (String fieldName in allFields) {
             // Add fields in entity as field
             FieldInfo fi = ed.getFieldInfo(fieldName)
@@ -113,7 +113,7 @@ class GraphQLSchemaUtil {
                 fieldPropertyMap.put("isList", "true")
             }
 
-            List<ArgumentDefinition> argumentDefList = new ArrayList<>()
+            List<ArgumentDefinition> argumentDefList = new LinkedList<>()
 
             if (!relInfo.isTypeOne) {
                 logger.info("Adding ArgumentNodes for [${fieldName} - ${fieldType}]")

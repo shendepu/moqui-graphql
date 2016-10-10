@@ -81,14 +81,14 @@ public class GraphQLSchemaDefinition {
 
     protected final ArrayList<String> inputTypeList = new ArrayList<>()
 
-    protected Map<String, GraphQLTypeDefinition> allTypeDefMap = new HashMap<>()
+    protected Map<String, GraphQLTypeDefinition> allTypeDefMap = new LinkedHashMap<>()
     protected LinkedList<GraphQLTypeDefinition> allTypeDefSortedList = new LinkedList<>()
 
 //    protected Map<String, UnionTypeDefinition> unionTypeDefMap = new HashMap<>()
 //    protected Map<String, EnumTypeDefinition> enumTypeDefMap = new HashMap<>()
-    protected Map<String, InterfaceTypeDefinition> interfaceTypeDefMap = new HashMap<>()
+    protected Map<String, InterfaceTypeDefinition> interfaceTypeDefMap = new LinkedHashMap<>()
 //    protected Map<String, ObjectTypeDefinition> objectTypeDefMap = new HashMap<>()
-    protected Map<String, ExtendObjectDefinition> extendObjectDefMap = new HashMap<>()
+    protected Map<String, ExtendObjectDefinition> extendObjectDefMap = new LinkedHashMap<>()
 
     protected GraphQLObjectType pageInfoType
     protected GraphQLInputObjectType paginationInputType
@@ -615,7 +615,7 @@ public class GraphQLSchemaDefinition {
     static abstract class GraphQLTypeDefinition {
         String name, description, type
 
-        ArrayList<String> getDependentTypes() { }
+        List<String> getDependentTypes() { }
     }
 
     static class EnumValue {
@@ -638,7 +638,7 @@ public class GraphQLSchemaDefinition {
     }
 
     static class EnumTypeDefinition extends GraphQLTypeDefinition {
-        ArrayList<EnumValue> valueList = new ArrayList<>()
+        List<EnumValue> valueList = new LinkedList<>()
 
         EnumTypeDefinition(MNode node) {
             this.name = node.attribute("name")
@@ -657,14 +657,12 @@ public class GraphQLSchemaDefinition {
         }
 
         @Override
-        ArrayList<String> getDependentTypes() {
-            return new ArrayList<String>()
-        }
+        List<String> getDependentTypes() { return new LinkedList<String>() }
     }
 
     static  class UnionTypeDefinition extends GraphQLTypeDefinition {
         String typeResolver
-        ArrayList<String> typeList = new LinkedList<>()
+        List<String> typeList = new LinkedList<>()
 
         UnionTypeDefinition(MNode node) {
             this.name = node.attribute("name")
@@ -684,9 +682,7 @@ public class GraphQLSchemaDefinition {
         }
 
         @Override
-        ArrayList<String> getDependentTypes() {
-            return typeList
-        }
+        List<String> getDependentTypes() { return typeList }
     }
 
 
@@ -697,9 +693,9 @@ public class GraphQLSchemaDefinition {
         Boolean convertFromObjectType
 
         String typeResolver
-        Map<String, FieldDefinition> fieldDefMap = new HashMap<>()
+        Map<String, FieldDefinition> fieldDefMap = new LinkedHashMap<>()
         String resolverField
-        Map<String, String> resolverMap = new HashMap<>()
+        Map<String, String> resolverMap = new LinkedHashMap<>()
         String defaultResolvedTypeName
 
         InterfaceTypeDefinition(MNode node, ExecutionContext ec) {
@@ -742,20 +738,29 @@ public class GraphQLSchemaDefinition {
             resolverMap.put(resolverValue, resolverType)
         }
 
-        public ArrayList<FieldDefinition> getFieldList() { return new ArrayList<FieldDefinition>(fieldDefMap.values()) }
+        public List<FieldDefinition> getFieldList() {
+            List< FieldDefinition> fieldList = new LinkedList<>()
+            for (Map.Entry<String, FieldDefinition> entry in fieldDefMap)
+                fieldList.add((FieldDefinition) entry.getValue())
+            return fieldList
+        }
 
         @Override
-        ArrayList<String> getDependentTypes() { return new ArrayList<String>(fieldDefMap.values().type) }
-
+        List<String> getDependentTypes() {
+            List<String> typeList = new LinkedList<>()
+            for (Map.Entry<String, FieldDefinition> entry in fieldDefMap)
+                typeList.add(((FieldDefinition) entry.getValue()).type)
+            return typeList
+        }
     }
 
     static class ObjectTypeDefinition extends GraphQLTypeDefinition {
         @SuppressWarnings("GrFinalVariableAccess")
         final ExecutionContext ec
 
-        ArrayList<String> interfaceList = new ArrayList<>()
+        List<String> interfaceList = new LinkedList<>()
         Map<String, InterfaceTypeDefinition> interfacesMap
-        Map<String, FieldDefinition> fieldDefMap = new HashMap<>()
+        Map<String, FieldDefinition> fieldDefMap = new LinkedHashMap<>()
 
         ObjectTypeDefinition(MNode node, ExecutionContext ec) {
             this.ec = ec
@@ -802,10 +807,20 @@ public class GraphQLSchemaDefinition {
             }
         }
 
-        public List<FieldDefinition> getFieldList() { return new ArrayList<FieldDefinition>(fieldDefMap.values()) }
+        public List<FieldDefinition> getFieldList() {
+            List<FieldDefinition> fieldList = new LinkedList<>()
+            for (Map.Entry<String, FieldDefinition> entry in fieldDefMap)
+                fieldList.add((FieldDefinition) entry.getValue())
+            return fieldList
+        }
 
         @Override
-        ArrayList<String> getDependentTypes() { return new ArrayList<String>(fieldDefMap.values().type) }
+        List<String> getDependentTypes() {
+            List<String> typeList = new LinkedList<>()
+            for (Map.Entry<String, FieldDefinition> entry in fieldDefMap)
+                typeList.add(((FieldDefinition) entry.getValue()).type)
+            return typeList
+        }
 
         private void extendInterface(InterfaceTypeDefinition interfaceTypeDefinition, MNode interfaceNode) {
             for (Map.Entry<String, FieldDefinition> entry in interfaceTypeDefinition.fieldDefMap) {
@@ -823,9 +838,9 @@ public class GraphQLSchemaDefinition {
         MNode extendObjectNode
         String name, resolverField
 
-        ArrayList<String> interfaceList = new ArrayList<>()
-        Map<String, FieldDefinition> fieldDefMap = new HashMap<>()
-        Map<String, String> resolverMap = new HashMap<>()
+        List<String> interfaceList = new LinkedList<>()
+        Map<String, FieldDefinition> fieldDefMap = new LinkedHashMap<>()
+        Map<String, String> resolverMap = new LinkedHashMap<>()
 
         Boolean convertToInterface = false
 
@@ -855,7 +870,7 @@ public class GraphQLSchemaDefinition {
 
     static class AutoArgumentsDefinition {
         String entityName, include, required
-        List<String> excludes = new ArrayList<>()
+        List<String> excludes = new LinkedList<>()
 
         AutoArgumentsDefinition(MNode node) {
             this.entityName = node.attribute("entity-name")
@@ -869,7 +884,7 @@ public class GraphQLSchemaDefinition {
 
     static class ArgumentDefinition implements Cloneable {
         String name
-        Map<String, String> attributeMap = new HashMap<>()
+        Map<String, String> attributeMap = new LinkedHashMap<>()
         FieldDefinition fieldDef
 
         ArgumentDefinition(MNode node, FieldDefinition fieldDef) {
@@ -925,7 +940,7 @@ public class GraphQLSchemaDefinition {
         DataFetcherHandler dataFetcher
         String preDataFetcher, postDataFetcher
 
-        List<ArgumentDefinition> argumentList = new ArrayList<>()
+        List<ArgumentDefinition> argumentList = new LinkedList<>()
 
         FieldDefinition(MNode node, ExecutionContext ec) {
             this.ec = ec
@@ -1017,7 +1032,7 @@ public class GraphQLSchemaDefinition {
             other.preDataFetcher = preDataFetcher
             other.postDataFetcher = postDataFetcher
 
-            List<ArgumentDefinition> otherArgumentList = new ArrayList<>(argumentList.size())
+            List<ArgumentDefinition> otherArgumentList = new LinkedList<>()
             for (ArgumentDefinition argDef in argumentList) otherArgumentList.add(argDef.clone())
             other.argumentList.addAll(otherArgumentList)
 
