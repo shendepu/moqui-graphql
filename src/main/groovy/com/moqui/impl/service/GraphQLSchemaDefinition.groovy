@@ -891,7 +891,7 @@ public class GraphQLSchemaDefinition {
         @Override
         List<String> getDependentTypes() {
             List<String> typeList = new LinkedList<>()
-            for (String interfaceTypeName in interfaceList) typeList.add(interfaceList)
+            for (String interfaceTypeName in interfaceList) typeList.add(interfaceTypeName)
             for (Map.Entry<String, FieldDefinition> entry in fieldDefMap) typeList.add(((FieldDefinition) entry.getValue()).type)
 
             return typeList
