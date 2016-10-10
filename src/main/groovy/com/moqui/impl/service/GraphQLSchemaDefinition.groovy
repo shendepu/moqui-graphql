@@ -292,7 +292,7 @@ public class GraphQLSchemaDefinition {
                 InterfaceTypeDefinition interfaceTypeDef = new InterfaceTypeDefinition(objectTypeDef, extendObjectDef, ecfi.getExecutionContext())
                 allTypeDefMap.put(interfaceTypeDef.name, interfaceTypeDef)
             } else {
-                objectTypeDef.extend(extendObjectDef)
+                objectTypeDef.extend(extendObjectDef, allTypeDefMap)
             }
         }
     }
@@ -762,9 +762,18 @@ public class GraphQLSchemaDefinition {
             this.fieldDefMap.putAll(fieldDefMap)
         }
 
-        public void extend(ExtendObjectDefinition extendObjectDefinition) {
-            for (MNode fieldNode in extendObjectDefinition.extendObjectNode.children("field")) {
-                GraphQLSchemaUtil.mergeFieldDefinition(fieldNode, fieldDefMap, ec)
+        public void extend(ExtendObjectDefinition extendObjectDefinition, Map<String, GraphQLTypeDefinition> allTypeDefMap) {
+            // Extend interface first, then field.
+            for (MNode childNode in extendObjectDefinition.extendObjectNode.children("interface")) {
+                GraphQLTypeDefinition interfaceTypeDef = allTypeDefMap.get(childNode.attribute("name"))
+                if (interfaceTypeDef == null)
+                    throw new IllegalArgumentException("Interface definition [${childNode.attribute("name")}] not found")
+                if (!(interfaceTypeDef instanceof InterfaceTypeDefinition))
+                    throw new IllegalArgumentException("Interface definition [${childNode.attribute("name")}] is not instance of InterfaceTypeDefinition")
+                extendInterface((InterfaceTypeDefinition) interfaceTypeDef)
+            }
+            for (MNode childNode in extendObjectDefinition.extendObjectNode.children("interface")) {
+                GraphQLSchemaUtil.mergeFieldDefinition(childNode, fieldDefMap, ec)
             }
         }
 
@@ -772,6 +781,10 @@ public class GraphQLSchemaDefinition {
 
         @Override
         ArrayList<String> getDependentTypes() { return new ArrayList<String>(fieldDefMap.values().type) }
+
+        private void extendInterface(InterfaceTypeDefinition interfaceTypeDefinition) {
+
+        }
     }
 
     static class ExtendObjectDefinition {
@@ -878,7 +891,6 @@ public class GraphQLSchemaDefinition {
         String preDataFetcher, postDataFetcher
 
         List<ArgumentDefinition> argumentList = new ArrayList<>()
-        List<FieldDefinition> fieldList = new ArrayList<>()
 
         FieldDefinition(MNode node, ExecutionContext ec) {
             this.ec = ec
@@ -919,9 +931,6 @@ public class GraphQLSchemaDefinition {
                     case "post-fetcher":
                         this.postDataFetcher = childNode.text
                         break
-                    case "field":
-                        this.fieldList.add(new FieldDefinition(childNode, ec))
-                        break
                 }
             }
 
@@ -929,26 +938,25 @@ public class GraphQLSchemaDefinition {
         }
 
         FieldDefinition(ExecutionContext ec, String name, String type) {
-            this(ec, name, type, new HashMap<>(), null, new ArrayList<>(), new ArrayList<>())
+            this(ec, name, type, new HashMap<>(), null, new ArrayList<>())
         }
 
         FieldDefinition(ExecutionContext ec, String name, String type, Map<String, String> fieldPropertyMap) {
-            this(ec, name, type, fieldPropertyMap, null, new ArrayList<>(), new ArrayList<>())
+            this(ec, name, type, fieldPropertyMap, null, new ArrayList<>())
         }
 
         FieldDefinition(ExecutionContext ec, String name, String type, Map<String, String> fieldPropertyMap,
                         List<ArgumentDefinition> argumentList) {
-            this(ec, name, type, fieldPropertyMap, null, argumentList, new ArrayList<>())
+            this(ec, name, type, fieldPropertyMap, null, argumentList)
         }
 
         FieldDefinition(ExecutionContext ec, String name, String type, Map<String, String> fieldPropertyMap,
-                        DataFetcherHandler dataFetcher, List<ArgumentDefinition> argumentList, List<FieldDefinition> fieldList) {
+                        DataFetcherHandler dataFetcher, List<ArgumentDefinition> argumentList) {
             this.ec = ec
             this.name = name
             this.type = type
             this.dataFetcher = dataFetcher
             this.argumentList.addAll(argumentList)
-            this.fieldList.addAll(fieldList)
 
             this.nonNull = fieldPropertyMap.get("nonNull")
             this.isList = fieldPropertyMap.get("isList")
