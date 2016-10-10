@@ -502,6 +502,8 @@ public class GraphQLSchemaDefinition {
 
         GraphQLType fieldRawType = graphQLTypeMap.get(fieldDef.type)
         if (fieldRawType == null) {
+            logger.info("${fieldDef.name}")
+            logger.info("${fieldDef.type}")
             fieldRawType = new GraphQLTypeReference(fieldDef.type)
             graphQLTypeMap.put(fieldDef.name, fieldRawType)
             graphQLTypeReferences.add(fieldDef.type)
@@ -772,7 +774,7 @@ public class GraphQLSchemaDefinition {
                     throw new IllegalArgumentException("Interface definition [${childNode.attribute("name")}] is not instance of InterfaceTypeDefinition")
                 extendInterface((InterfaceTypeDefinition) interfaceTypeDef)
             }
-            for (MNode childNode in extendObjectDefinition.extendObjectNode.children("interface")) {
+            for (MNode childNode in extendObjectDefinition.extendObjectNode.children("field")) {
                 GraphQLSchemaUtil.mergeFieldDefinition(childNode, fieldDefMap, ec)
             }
         }
@@ -783,7 +785,11 @@ public class GraphQLSchemaDefinition {
         ArrayList<String> getDependentTypes() { return new ArrayList<String>(fieldDefMap.values().type) }
 
         private void extendInterface(InterfaceTypeDefinition interfaceTypeDefinition) {
-
+            for (Map.Entry<String, FieldDefinition> entry in interfaceTypeDefinition.fieldDefMap) {
+                // Ignore already defined field in object type, behave like field in object type override interface type
+                if (fieldDefMap.containsKey(entry.getKey())) continue
+                fieldDefMap.put(entry.getKey(), ((FieldDefinition) entry.getValue()).clone())
+            }
         }
     }
 
@@ -837,7 +843,7 @@ public class GraphQLSchemaDefinition {
         }
     }
 
-    static class ArgumentDefinition {
+    static class ArgumentDefinition implements Cloneable {
         String name
         Map<String, String> attributeMap = new HashMap<>()
         FieldDefinition fieldDef
@@ -879,9 +885,14 @@ public class GraphQLSchemaDefinition {
         public void setFieldDef(FieldDefinition fieldDef) {
             this.fieldDef = fieldDef
         }
+
+        @Override
+        public ArgumentDefinition clone() {
+            return new ArgumentDefinition(this.fieldDef, this.name, this.attributeMap)
+        }
     }
 
-    static class FieldDefinition {
+    static class FieldDefinition implements Cloneable {
         ExecutionContext ec
         String name, type, description, depreciationReason
         String nonNull, isList, listItemNonNull
@@ -967,6 +978,26 @@ public class GraphQLSchemaDefinition {
             this.depreciationReason = fieldPropertyMap.get("depreciationReason")
 
             updateFieldDefOnArgumentDefs()
+        }
+
+        @Override
+        public FieldDefinition clone() {
+            FieldDefinition other = new FieldDefinition(this.ec, this.name, this.type)
+            other.description = description
+            other.depreciationReason = depreciationReason
+            other.nonNull = nonNull
+            other.isList = isList
+            other.listItemNonNull = listItemNonNull
+            other.requireAuthentication = requireAuthentication
+            other.dataFetcher = dataFetcher
+            other.preDataFetcher = preDataFetcher
+            other.postDataFetcher = postDataFetcher
+
+            List<ArgumentDefinition> otherArgumentList = new ArrayList<>(argumentList.size())
+            for (ArgumentDefinition argDef in argumentList) otherArgumentList.add(argDef.clone())
+            other.argumentList.addAll(otherArgumentList)
+
+            return other
         }
 
         private void updateFieldDefOnArgumentDefs() {
