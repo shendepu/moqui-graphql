@@ -419,6 +419,8 @@ public class GraphQLSchemaDefinition {
     }
 
     private void addGraphQLUnionType(UnionTypeDefinition unionTypeDef) {
+        if (graphQLTypeMap.containsKey(unionTypeDef.name)) return
+
         GraphQLUnionType.Builder unionType = GraphQLUnionType.newUnionType()
                 .name(unionTypeDef.name)
                 .description(unionTypeDef.description)
@@ -441,6 +443,8 @@ public class GraphQLSchemaDefinition {
     }
 
     private void addGraphQLEnumType(EnumTypeDefinition enumTypeDef) {
+        if (graphQLTypeMap.containsKey(enumTypeDef.name)) return
+
         GraphQLEnumType.Builder enumType = GraphQLEnumType.newEnum().name(enumTypeDef.name)
                 .description(enumTypeDef.description)
 
@@ -452,6 +456,8 @@ public class GraphQLSchemaDefinition {
     }
 
     private void addGraphQLInterfaceType(InterfaceTypeDefinition interfaceTypeDef) {
+        if (graphQLTypeMap.containsKey(interfaceTypeDef.name)) return
+
         GraphQLInterfaceType.Builder interfaceType = GraphQLInterfaceType.newInterface()
                 .name(interfaceTypeDef.name)
                 .description(interfaceTypeDef.description)
@@ -461,7 +467,7 @@ public class GraphQLSchemaDefinition {
         }
 
         // TODO: Add typeResolver for type, one way is to add a service as resolver
-        if (interfaceTypeDef.convertFromObjectType) {
+        if (!interfaceTypeDef.convertFromObjectTypeName.isEmpty()) {
             logger.info("~~~~~~~~~~~~~~~~ Interface typeResolver Adding")
             if (interfaceTypeDef.resolverField == null || interfaceTypeDef.resolverField.isEmpty())
                 throw new IllegalArgumentException("Interface definition of ${interfaceTypeDef.name} resolverField not set")
@@ -492,6 +498,8 @@ public class GraphQLSchemaDefinition {
     }
 
     private void addGraphQLObjectType(ObjectTypeDefinition objectTypeDef) {
+        if (graphQLTypeMap.containsKey(objectTypeDef.name)) return
+
         GraphQLObjectType.Builder objectType = GraphQLObjectType.newObject()
                 .name(objectTypeDef.name)
                 .description(objectTypeDef.description)
@@ -690,7 +698,7 @@ public class GraphQLSchemaDefinition {
         @SuppressWarnings("GrFinalVariableAccess")
         final ExecutionContext ec
 
-        Boolean convertFromObjectType
+        String convertFromObjectTypeName
 
         String typeResolver
         Map<String, FieldDefinition> fieldDefMap = new LinkedHashMap<>()
@@ -699,7 +707,6 @@ public class GraphQLSchemaDefinition {
         String defaultResolvedTypeName
 
         InterfaceTypeDefinition(MNode node, ExecutionContext ec) {
-            this.convertFromObjectType = false
             this.ec = ec
             this.name = node.attribute("name")
             this.type = "interface"
@@ -718,7 +725,7 @@ public class GraphQLSchemaDefinition {
         }
 
         InterfaceTypeDefinition(ObjectTypeDefinition objectTypeDef, ExtendObjectDefinition extendObjectDef, ExecutionContext ec) {
-            this.convertFromObjectType = true
+            this.convertFromObjectTypeName = objectTypeDef.name
             this.ec = ec
             this.name = objectTypeDef.name + "Interface"
             this.type = "interface"
@@ -748,6 +755,7 @@ public class GraphQLSchemaDefinition {
         @Override
         List<String> getDependentTypes() {
             List<String> typeList = new LinkedList<>()
+//            if (!convertFromObjectTypeName.isEmpty()) typeList.add(convertFromObjectTypeName)
             for (Map.Entry<String, FieldDefinition> entry in fieldDefMap)
                 typeList.add(((FieldDefinition) entry.getValue()).type)
             return typeList
@@ -817,8 +825,9 @@ public class GraphQLSchemaDefinition {
         @Override
         List<String> getDependentTypes() {
             List<String> typeList = new LinkedList<>()
-            for (Map.Entry<String, FieldDefinition> entry in fieldDefMap)
-                typeList.add(((FieldDefinition) entry.getValue()).type)
+            for (String interfaceTypeName in interfaceList) typeList.add(interfaceList)
+            for (Map.Entry<String, FieldDefinition> entry in fieldDefMap) typeList.add(((FieldDefinition) entry.getValue()).type)
+
             return typeList
         }
 
