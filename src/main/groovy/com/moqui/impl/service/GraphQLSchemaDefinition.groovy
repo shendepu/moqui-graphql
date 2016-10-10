@@ -568,6 +568,7 @@ public class GraphQLSchemaDefinition {
                 throw new IllegalArgumentException("GraphQL interface type ${interfaceName} for [${objectTypeDef.name}] not found.")
 
             objectType = objectType.withInterface((GraphQLInterfaceType) interfaceType)
+            logger.info("==== addGraphQLObjectType ${objectTypeDef.name} interface ${interfaceType.name}")
         }
 
         for (FieldDefinition fieldDef in objectTypeDef.fieldList) {
@@ -903,6 +904,7 @@ public class GraphQLSchemaDefinition {
                 fieldDefMap.put(entry.getKey(), ((FieldDefinition) entry.getValue()).clone())
             }
             interfaceTypeDefinition.addResolver(interfaceNode.attribute("resolver-value"), interfaceNode.attribute("resolver-type"))
+            if (!interfaceList.contains(interfaceTypeDefinition.name)) interfaceList.add(interfaceTypeDefinition.name)
         }
     }
 
