@@ -131,17 +131,17 @@ class GraphQLSchemaUtil {
                     ArgumentDefinition argumentDef
                     if (moquiDateTypes.contains(fir.type)) {
                         argumentDef = new ArgumentDefinition(fir.name, "DateRangeInputType", null, null, fieldDescription)
-                        argumentDefList.add(argumentDef)
+//                        argumentDefList.add(argumentDef)
                     } else if (moquiStringTypes.contains(fir.type) || moquiNumericTypes.contains(fir.type) || moquiBoolTypes.contains(fir.type)) {
                         argumentDef = new ArgumentDefinition(fir.name, "OperationInputType", null, null, fieldDescription)
-                        argumentDefList.add(argumentDef)
+//                        argumentDefList.add(argumentDef)
                     } else {
                         argumentDef = new ArgumentDefinition(fir.name, fieldTypeGraphQLMap.get(fir.type), null, null, fieldDescription)
-                        argumentDefList.add(argumentDef)
+//                        argumentDefList.add(argumentDef)
                     }
 
-                    argumentDef = new ArgumentDefinition("pagination", "PaginationInputType", null, null, "Pagination")
-                    argumentDefList.add(argumentDef)
+//                    argumentDef = new ArgumentDefinition("pagination", "PaginationInputType", null, null, "Pagination")
+//                    argumentDefList.add(argumentDef)
 
                     argumentDefList.add(argumentDef)
                 }

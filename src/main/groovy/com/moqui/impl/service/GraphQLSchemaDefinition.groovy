@@ -15,6 +15,9 @@ package com.moqui.impl.service
 
 import com.moqui.graphql.DataFetchingException
 import com.moqui.impl.util.GraphQLSchemaUtil
+import graphql.language.IntValue
+import graphql.language.ObjectField
+import graphql.language.ObjectValue
 import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment
 import graphql.schema.GraphQLArgument
@@ -34,14 +37,12 @@ import graphql.schema.GraphQLTypeReference
 import graphql.schema.GraphQLUnionType
 import graphql.schema.TypeResolver
 import org.apache.commons.collections.map.HashedMap
-import org.apache.shiro.authz.AuthorizationException
 import org.moqui.context.ArtifactAuthorizationException
 import org.moqui.context.ArtifactTarpitException
 import org.moqui.context.AuthenticationRequiredException
 import org.moqui.context.ExecutionContext
 import org.moqui.entity.EntityCondition
 import org.moqui.entity.EntityFind
-import org.moqui.entity.EntityList
 import org.moqui.entity.EntityValue
 import org.moqui.impl.context.ExecutionContextFactoryImpl
 import org.moqui.impl.context.ExecutionContextImpl
@@ -106,6 +107,7 @@ public class GraphQLSchemaDefinition {
     protected GraphQLInputObjectType paginationInputType
     protected GraphQLInputObjectType operationInputType
     protected GraphQLInputObjectType dateRangeInputType
+    protected GraphQLArgument paginationArgument
 
     protected Map<String, GraphQLArgument> directiveArgumentMap = new LinkedHashMap<>()
 
@@ -132,7 +134,7 @@ public class GraphQLSchemaDefinition {
         this.queryType = schemaNode.attribute("query")
         this.mutationType = schemaNode.attribute("mutation")
 
-        createGraphQLPredefinedTypes()
+        createPredefinedGraphQLTypes()
         GraphQLSchemaUtil.createObjectTypeNodeForAllEntities(this.ecfi.getExecutionContext(), allTypeDefMap)
 
         for (MNode childNode in schemaNode.children) {
@@ -417,7 +419,7 @@ public class GraphQLSchemaDefinition {
         graphQLTypeMap.put("DateRangeInputType", dateRangeInputType)
     }
 
-    private void createGraphQLPredefinedTypes() {
+    private void createPredefinedGraphQLTypes() {
         GraphQLArgument ifArgument = GraphQLArgument.newArgument().name("if")
                 .type(GraphQLBoolean)
                 .description("Directive @if")
@@ -465,6 +467,10 @@ public class GraphQLSchemaDefinition {
                 .field(createPredefinedInputField("from", GraphQLChar, null, ""))
                 .field(createPredefinedInputField("thru", GraphQLChar, null, ""))
                 .build()
+
+        this.paginationArgument = GraphQLArgument.newArgument().name("pagination")
+                .type(paginationInputType)
+                .description("pagination").build()
     }
 
     private GraphQLFieldDefinition createPredefinedField(String name, GraphQLOutputType type, String description) {
@@ -636,6 +642,8 @@ public class GraphQLSchemaDefinition {
         // build arguments for field
         for (ArgumentDefinition argNode in fieldDef.argumentList)
             graphQLFieldDef.argument(buildArgument(argNode))
+        // Add pagination argument
+        if ("true".equals(fieldDef.isList)) graphQLFieldDef.argument(paginationArgument)
         // Add directive arguments
         for (Map.Entry<String, GraphQLArgument> entry in directiveArgumentMap)
             graphQLFieldDef.argument((GraphQLArgument) entry.getValue())
