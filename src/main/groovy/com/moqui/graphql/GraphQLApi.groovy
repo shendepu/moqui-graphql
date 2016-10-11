@@ -14,8 +14,10 @@
 package com.moqui.graphql
 
 import com.moqui.impl.service.GraphQLSchemaDefinition
+import graphql.ExceptionWhileDataFetching
 import graphql.ExecutionResult
 import graphql.GraphQL
+import graphql.GraphQLError
 import groovy.transform.CompileStatic
 import org.moqui.context.ExecutionContextFactory
 import org.moqui.context.ResourceReference
@@ -122,7 +124,21 @@ class GraphQLApi {
 
         GraphQLResult(ExecutionResult executionResult) {
             if (executionResult.getErrors().size() > 0) {
-                responseObj.put("errors", executionResult.getErrors())
+                List<Map<String, Object>> errors = new ArrayList<>()
+                Map<String, Object> errorMap
+
+                for (GraphQLError error in executionResult.getErrors()) {
+                    errorMap = new LinkedHashMap<>()
+                    errorMap.put('message', error.getMessage())
+                    errorMap.put('errorType', error.getErrorType())
+                    if (error instanceof ExceptionWhileDataFetching) {
+                        Throwable t = ((ExceptionWhileDataFetching) error).getException()
+                        if (t instanceof DataFetchingException)
+                            errorMap.put('errorCode', ((DataFetchingException) t).errorCode)
+                    }
+                    errors.add(errorMap)
+                }
+                responseObj.put('errors', errors)
             }
             responseObj.put("data", executionResult.getData())
         }

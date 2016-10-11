@@ -13,6 +13,7 @@
  */
 package com.moqui.impl.service
 
+import com.moqui.graphql.DataFetchingException
 import com.moqui.impl.util.GraphQLSchemaUtil
 import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment
@@ -32,6 +33,10 @@ import graphql.schema.GraphQLType
 import graphql.schema.GraphQLTypeReference
 import graphql.schema.GraphQLUnionType
 import graphql.schema.TypeResolver
+import org.apache.shiro.authz.AuthorizationException
+import org.moqui.context.ArtifactAuthorizationException
+import org.moqui.context.ArtifactTarpitException
+import org.moqui.context.AuthenticationRequiredException
 import org.moqui.context.ExecutionContext
 import org.moqui.entity.EntityFind
 import org.moqui.impl.context.ExecutionContextFactoryImpl
@@ -39,6 +44,7 @@ import org.moqui.impl.context.ExecutionContextImpl
 import org.moqui.impl.context.UserFacadeImpl
 import org.moqui.impl.entity.EntityDefinition
 import org.moqui.impl.service.ServiceFacadeImpl
+import org.moqui.impl.webapp.ScreenResourceNotFoundException
 import org.moqui.service.ServiceFacade
 import org.moqui.util.MNode
 import org.slf4j.Logger
@@ -1172,7 +1178,26 @@ public class GraphQLSchemaDefinition {
             this.fieldDef = fieldDef
         }
 
-        Object get(DataFetchingEnvironment environment) { return null }
+        Object get(DataFetchingEnvironment environment) {
+            try {
+                return fetch(environment)
+            } catch (AuthenticationRequiredException e) {
+                throw new DataFetchingException('401', e.getMessage())
+            } catch (ArtifactAuthorizationException e) {
+                throw new DataFetchingException('403', e.getMessage())
+            } catch (ScreenResourceNotFoundException e) {
+                throw new DataFetchingException('404', e.getMessage())
+            } catch (ArtifactTarpitException e) {
+                throw new DataFetchingException('429', e.getMessage())
+            } catch (DataFetchingException e) {
+                throw e
+            }
+            catch (Throwable t) {
+                throw new DataFetchingException("UNKNOWN", t.getMessage())
+            }
+        }
+
+        Object fetch(DataFetchingEnvironment environment) { return null }
     }
 
     static class DataFetcherService extends DataFetcherHandler {
@@ -1187,7 +1212,7 @@ public class GraphQLSchemaDefinition {
         }
 
         @Override
-        Object get(DataFetchingEnvironment environment) {
+        Object fetch(DataFetchingEnvironment environment) {
             logger.info("---- running data fetcher service [${serviceName}] ...")
             boolean loggedInAnonymous = false
             if ("anonymous-all".equals(requireAuthentication)) {
@@ -1231,7 +1256,7 @@ public class GraphQLSchemaDefinition {
         }
 
         @Override
-        Object get(DataFetchingEnvironment environment) {
+        Object fetch(DataFetchingEnvironment environment) {
             logger.info("---- running data fetcher entity for entity [${entityName}] with operation [${operation}] ...")
             logger.info("arguments  - ${environment.arguments}")
             logger.info("source     - ${environment.source}")
@@ -1280,9 +1305,11 @@ public class GraphQLSchemaDefinition {
 
                     return resultMap
                 }
-            } finally {
+            }
+            finally {
                 if (loggedInAnonymous) ((UserFacadeImpl) ec.getUser()).logoutAnonymousOnly()
             }
+            return null
         }
 
         static void putArgsIntoContext(Map<String, Object> arguments, ExecutionContext ec) {
