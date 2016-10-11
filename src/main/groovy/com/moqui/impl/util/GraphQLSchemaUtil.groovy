@@ -107,8 +107,8 @@ class GraphQLSchemaUtil {
             String fieldType = relEd.getEntityName()
 
             Map<String, String> fieldPropertyMap = new HashMap<>()
-            if (relInfo.isTypeOne) {
-                fieldPropertyMap.put("nonNull", "true")
+            if (relInfo.type.startsWith("one")) {
+                if ("one".equals(relInfo.type)) fieldPropertyMap.put("nonNull", "true")
             } else {
                 fieldPropertyMap.put("isList", "true")
             }
@@ -151,7 +151,7 @@ class GraphQLSchemaUtil {
             logger.info("===== Adding FieldDefinition [${fieldName} - ${fieldType}]")
             FieldDefinition fieldDef = new FieldDefinition(ec, fieldName, fieldType, fieldPropertyMap, argumentDefList)
 
-            DataFetcherHandler dataFetcher = new DataFetcherEntity(ec, fieldDef, relInfo.relatedEntityName, "list", relInfo.keyMap)
+            DataFetcherHandler dataFetcher = new DataFetcherEntity(ec, fieldDef, relInfo.relatedEntityName, relInfo.keyMap)
             fieldDef.setDataFetcher(dataFetcher)
 
             fieldDefMap.put(fieldName, fieldDef)

@@ -166,14 +166,6 @@ along with this software (see the LICENSE.md file). If not, see
     <xs:element name="entity-fetcher">
         <xs:complexType>
             <xs:attribute name="entity-name" type="name-full" use="required"/>
-            <xs:attribute name="operation">
-                <xs:simpleType>
-                    <xs:restriction base="xs:token">
-                        <xs:enumeration value="one"/>
-                        <xs:enumeration value="list"/>
-                    </xs:restriction>
-                </xs:simpleType>
-            </xs:attribute>
         </xs:complexType>
     </xs:element>
 

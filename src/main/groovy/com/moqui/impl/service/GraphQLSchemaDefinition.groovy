@@ -39,6 +39,7 @@ import org.moqui.context.ArtifactTarpitException
 import org.moqui.context.AuthenticationRequiredException
 import org.moqui.context.ExecutionContext
 import org.moqui.entity.EntityFind
+import org.moqui.entity.EntityValue
 import org.moqui.impl.context.ExecutionContextFactoryImpl
 import org.moqui.impl.context.ExecutionContextImpl
 import org.moqui.impl.context.UserFacadeImpl
@@ -1029,9 +1030,9 @@ public class GraphQLSchemaDefinition {
             this.name = node.attribute("name")
             this.type = node.attribute("type")
             this.description = node.attribute("description")
-            this.nonNull = node.attribute("non-null")
-            this.isList = node.attribute("is-list")
-            this.listItemNonNull = node.attribute("list-item-non-null")
+            this.nonNull = node.attribute("non-null") ?: "false"
+            this.isList = node.attribute("is-list") ?: "false"
+            this.listItemNonNull = node.attribute("list-item-non-null") ?: "false"
             this.requireAuthentication = node.attribute("require-authentication") ?: "true"
 
             for (MNode childNode in node.children) {
@@ -1090,9 +1091,9 @@ public class GraphQLSchemaDefinition {
             this.dataFetcher = dataFetcher
             this.argumentList.addAll(argumentList)
 
-            this.nonNull = fieldPropertyMap.get("nonNull")
-            this.isList = fieldPropertyMap.get("isList")
-            this.listItemNonNull = fieldPropertyMap.get("listItemNonNull")
+            this.nonNull = fieldPropertyMap.get("nonNull") ?: "false"
+            this.isList = fieldPropertyMap.get("isList") ?: "false"
+            this.listItemNonNull = fieldPropertyMap.get("listItemNonNull") ?: "false"
             this.requireAuthentication = fieldPropertyMap.get("requireAuthentication") ?: "true"
 
             this.description = fieldPropertyMap.get("description")
@@ -1244,15 +1245,18 @@ public class GraphQLSchemaDefinition {
             super(fieldDef, ec)
             this.requireAuthentication = fieldDef.requireAuthentication ?: "true"
             this.entityName = node.attribute("entity-name")
-            this.operation = node.attribute("operation")
+
+            if ("true".equals(fieldDef.isList)) this.operation = "list"
+            else this.operation = "one"
         }
 
-        DataFetcherEntity(ExecutionContext ec, FieldDefinition fieldDef, String entityName, String operation, Map<String, String> relKeyMap) {
+        DataFetcherEntity(ExecutionContext ec, FieldDefinition fieldDef, String entityName, Map<String, String> relKeyMap) {
             super(fieldDef, ec)
             this.requireAuthentication = fieldDef.requireAuthentication ?: "true"
             this.entityName = entityName
-            this.operation = operation
             this.relKeyMap.putAll(relKeyMap)
+            if ("true".equals(fieldDef.isList)) { this.operation = "list" }
+            else { this.operation = "one" }
         }
 
         @Override
@@ -1279,7 +1283,9 @@ public class GraphQLSchemaDefinition {
                     for (Map.Entry<String, String> entry in relKeyMap.entrySet()) {
                         ef = ef.condition(entry.getValue(), ((Map) environment.source).get(entry.getKey()))
                     }
-                    return ef.one().getMap()
+                    EntityValue one = ef.one()
+                    if (one != null) return one.getMap()
+                    return one
                 } else if (operation == "list") {
                     putArgsIntoContext(environment.arguments, ec)
 
@@ -1315,6 +1321,8 @@ public class GraphQLSchemaDefinition {
         static void putArgsIntoContext(Map<String, Object> arguments, ExecutionContext ec) {
             for (Map.Entry<String, Object> entry in arguments.entrySet()) {
                 String argName = entry.getKey()
+                // Ignore if argument which is used for directive @include and @skip
+                if ("if".equals(argName)) continue
                 Object argValue = entry.getValue()
                 if (argValue == null) continue
                 logger.info("------- argument ${argName} value [${argValue}]")
