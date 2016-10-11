@@ -97,6 +97,9 @@ public class GraphQLSchemaDefinition {
     protected GraphQLInputObjectType operationInputType
     protected GraphQLInputObjectType dateRangeInputType
 
+    protected Map<String, GraphQLArgument> directiveArgumentMap = new LinkedHashMap<>()
+
+
     public static final Map<String, GraphQLType> graphQLScalarTypes = [
             "Int"       : GraphQLInt,           "Long"      : GraphQLLong,
             "Float"     : GraphQLFloat,         "String"    : GraphQLString,
@@ -405,6 +408,12 @@ public class GraphQLSchemaDefinition {
     }
 
     private void createGraphQLPredefinedTypes() {
+        GraphQLArgument ifArgument = GraphQLArgument.newArgument().name("if")
+                .type(GraphQLBoolean)
+                .description("Directive @if")
+                .build()
+        directiveArgumentMap.put("if", ifArgument)
+
         // This GraphQLPageInfo type is used for pagination
         // Pagination structure is
         // {
@@ -414,66 +423,53 @@ public class GraphQLSchemaDefinition {
         //      }
         // }
         this.pageInfoType = GraphQLObjectType.newObject().name("GraphQLPageInfo")
-                .field(GraphQLFieldDefinition.newFieldDefinition()
-                        .name("pageIndex").type(GraphQLInt).build())
-                .field(GraphQLFieldDefinition.newFieldDefinition()
-                        .name("pageSize").type(GraphQLInt).build())
-                .field(GraphQLFieldDefinition.newFieldDefinition()
-                        .name("totalCount").type(GraphQLInt).build())
-                .field(GraphQLFieldDefinition.newFieldDefinition()
-                        .name("pageMaxIndex").type(GraphQLInt).build())
-                .field(GraphQLFieldDefinition.newFieldDefinition()
-                        .name("pageRangeLow").type(GraphQLInt).build())
-                .field(GraphQLFieldDefinition.newFieldDefinition()
-                        .name("pageRangeHigh").type(GraphQLInt).build())
+                .field(createPredefinedField("pageIndex", GraphQLInt, ""))
+                .field(createPredefinedField("pageSize", GraphQLInt, ""))
+                .field(createPredefinedField("totalCount", GraphQLInt, ""))
+                .field(createPredefinedField("pageMaxIndex", GraphQLInt, ""))
+                .field(createPredefinedField("pageRangeLow", GraphQLInt, ""))
+                .field(createPredefinedField("pageRangeHigh", GraphQLInt, ""))
                 .build()
 
         this.paginationInputType = GraphQLInputObjectType.newInputObject().name("PaginationInputType")
-                .field(GraphQLInputObjectField.newInputObjectField()
-                        .name("type").type(GraphQLString).defaultValue("PaginationInputType").build())
-                .field(GraphQLInputObjectField.newInputObjectField()
-                        .name("pageIndex").type(GraphQLInt).defaultValue(0)
-                        .description("Page index for pagination, default 0").build())
-                .field(GraphQLInputObjectField.newInputObjectField()
-                        .name("pageSize").type(GraphQLInt).defaultValue(20)
-                        .description("Page size for pagination, default 20").build())
-                .field(GraphQLInputObjectField.newInputObjectField()
-                        .name("pageNoLimit").type(GraphQLBoolean).defaultValue(false)
-                        .description("Page no limit for pagination, default false").build())
-                .field(GraphQLInputObjectField.newInputObjectField()
-                        .name("orderByField").type(GraphQLString)
-                        .description("OrderBy field for pagination. \ne.g. \n" +
-                                     "productName \n" + "productName,statusId \n" + "-statusId,productName")
-                        .build())
+                .field(createPredefinedInputField("type", GraphQLString, "PaginationInputType", ""))
+                .field(createPredefinedInputField("pageIndex", GraphQLInt, 0, "Page index for pagination, default 0"))
+                .field(createPredefinedInputField("pageSize", GraphQLInt, 20, "Page size for pagination, default 20"))
+                .field(createPredefinedInputField("pageNoLimit", GraphQLBoolean, false, "Page no limit for pagination, default false"))
+                .field(createPredefinedInputField("orderByField", GraphQLString, null, "OrderBy field for pagination. \ne.g. \n" +
+                                     "productName \n" + "productName,statusId \n" + "-statusId,productName"))
                 .build()
 
         this.operationInputType = GraphQLInputObjectType.newInputObject().name("OperationInputType")
-                .field(GraphQLInputObjectField.newInputObjectField()
-                        .name("type").type(GraphQLString).defaultValue("OperationInputType").build())
-                .field(GraphQLInputObjectField.newInputObjectField().name("op").type(GraphQLString)
-                        .description("Operation on field, one of [ equals | like | contains | begins | empty | in ]")
-                        .build())
-                .field(GraphQLInputObjectField.newInputObjectField().name("value").type(GraphQLString)
-                        .description("Argument value").build())
-                .field(GraphQLInputObjectField.newInputObjectField().name("not").type(GraphQLString)
-                        .description("Not operation, one of [ Y | true ] represents true").build())
-                .field(GraphQLInputObjectField.newInputObjectField().name("ic").type(GraphQLString)
-                        .description("Case insensitive, one of [ Y | true ] represents true").build())
+                .field(createPredefinedInputField("type", GraphQLString, "OperationInputType", ""))
+                .field(createPredefinedInputField("op", GraphQLString, null, "Operation on field, one of [ equals | like | contains | begins | empty | in ]"))
+                .field(createPredefinedInputField("value", GraphQLString, null, "Argument value"))
+                .field(createPredefinedInputField("not", GraphQLString, null, "Not operation, one of [ Y | true ] represents true"))
+                .field(createPredefinedInputField("ic", GraphQLString, null, "Case insensitive, one of [ Y | true ] represents true"))
                 .build()
 
         this.dateRangeInputType = GraphQLInputObjectType.newInputObject().name("DateRangeInputType")
-                .field(GraphQLInputObjectField.newInputObjectField()
-                        .name("type").type(GraphQLString).defaultValue("DateRangeInputType").build())
-                .field(GraphQLInputObjectField.newInputObjectField().name("period").type(GraphQLChar)
-                        .description("").build())
-                .field(GraphQLInputObjectField.newInputObjectField().name("poffset").type(GraphQLChar)
-                        .description("").build())
-                .field(GraphQLInputObjectField.newInputObjectField().name("from").type(GraphQLChar)
-                        .description("").build())
-                .field(GraphQLInputObjectField.newInputObjectField().name("thru").type(GraphQLChar)
-                        .description("").build())
+                .field(createPredefinedInputField("type", GraphQLString, "DateRangeInputType", ""))
+                .field(createPredefinedInputField("period", GraphQLChar, null, ""))
+                .field(createPredefinedInputField("poffset", GraphQLChar, null, ""))
+                .field(createPredefinedInputField("from", GraphQLChar, null, ""))
+                .field(createPredefinedInputField("thru", GraphQLChar, null, ""))
                 .build()
+    }
 
+    private GraphQLFieldDefinition createPredefinedField(String name, GraphQLOutputType type, String description) {
+        GraphQLFieldDefinition.Builder fieldBuilder = GraphQLFieldDefinition.newFieldDefinition()
+                .name(name).type(type).description(description)
+        for (Map.Entry<String, GraphQLArgument> entry in directiveArgumentMap)
+            fieldBuilder.argument(entry.getValue())
+        return fieldBuilder.build()
+    }
+
+    static private GraphQLInputObjectField createPredefinedInputField(String name, GraphQLInputType type,
+                                                              Object defaultValue, String description) {
+        GraphQLInputObjectField.Builder fieldBuilder = GraphQLInputObjectField.newInputObjectField()
+            .name(name).type(type).defaultValue(defaultValue).description(description)
+        return fieldBuilder.build()
     }
 
     private void addGraphQLUnionType(UnionTypeDefinition unionTypeDef) {
@@ -607,10 +603,8 @@ public class GraphQLSchemaDefinition {
                     wrappedListFieldType = new GraphQLList(fieldRawType)
                 }
                 fieldType = GraphQLObjectType.newObject().name(listFieldTypeName)
-                        .field(GraphQLFieldDefinition.newFieldDefinition().name("data")
-                                .type(wrappedListFieldType).build())
-                        .field(GraphQLFieldDefinition.newFieldDefinition().name("pageInfo")
-                                .type(pageInfoType).build())
+                        .field(createPredefinedField("data", wrappedListFieldType, "Actual data list"))
+                        .field(createPredefinedField("pageInfo", pageInfoType, "Pagination information"))
                         .build()
                 graphQLTypeMap.put(listFieldTypeName, fieldType)
             }
@@ -630,9 +624,11 @@ public class GraphQLSchemaDefinition {
         graphQLFieldDef.type((GraphQLOutputType) fieldType)
 
         // build arguments for field
-        for (ArgumentDefinition argNode in fieldDef.argumentList) {
+        for (ArgumentDefinition argNode in fieldDef.argumentList)
             graphQLFieldDef.argument(buildArgument(argNode))
-        }
+        // Add directive arguments
+        for (Map.Entry<String, GraphQLArgument> entry in directiveArgumentMap)
+            graphQLFieldDef.argument((GraphQLArgument) entry.getValue())
 
         if (fieldDef.dataFetcher != null) {
             graphQLFieldDef.dataFetcher(new DataFetcher() {
