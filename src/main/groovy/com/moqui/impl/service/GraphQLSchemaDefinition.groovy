@@ -33,12 +33,15 @@ import graphql.schema.GraphQLType
 import graphql.schema.GraphQLTypeReference
 import graphql.schema.GraphQLUnionType
 import graphql.schema.TypeResolver
+import org.apache.commons.collections.map.HashedMap
 import org.apache.shiro.authz.AuthorizationException
 import org.moqui.context.ArtifactAuthorizationException
 import org.moqui.context.ArtifactTarpitException
 import org.moqui.context.AuthenticationRequiredException
 import org.moqui.context.ExecutionContext
+import org.moqui.entity.EntityCondition
 import org.moqui.entity.EntityFind
+import org.moqui.entity.EntityList
 import org.moqui.entity.EntityValue
 import org.moqui.impl.context.ExecutionContextFactoryImpl
 import org.moqui.impl.context.ExecutionContextImpl
@@ -1237,17 +1240,29 @@ public class GraphQLSchemaDefinition {
     }
 
     static class DataFetcherEntity extends DataFetcherHandler{
-        String entityName, operation
+        String entityName, interfaceEntityName, operation
         String requireAuthentication
+        String interfaceEntityPkField
         Map<String, String> relKeyMap = new HashMap<>()
 
         DataFetcherEntity(MNode node, FieldDefinition fieldDef, ExecutionContext ec) {
             super(fieldDef, ec)
             this.requireAuthentication = fieldDef.requireAuthentication ?: "true"
             this.entityName = node.attribute("entity-name")
+            this.interfaceEntityName = node.attribute("interface-entity-name")
 
             if ("true".equals(fieldDef.isList)) this.operation = "list"
             else this.operation = "one"
+
+            if (interfaceEntityName) {
+                EntityDefinition ed = ((ExecutionContextImpl) ec).getEntityFacade().getEntityDefinition(interfaceEntityName)
+                ec.logger.info("getting interface entity ${interfaceEntityName} definition...")
+                ec.logger.info("${ed.entityName}")
+                ec.logger.info("${ed.getFieldNames(true, false)}")
+                if (ed.getFieldNames(true, false).size() != 1)
+                    throw new IllegalArgumentException("Entity ${interfaceEntityName} for interface should have one primary key")
+                interfaceEntityPkField = ed.getFieldNames(true, false).first()
+            }
         }
 
         DataFetcherEntity(ExecutionContext ec, FieldDefinition fieldDef, String entityName, Map<String, String> relKeyMap) {
@@ -1266,6 +1281,7 @@ public class GraphQLSchemaDefinition {
             logger.info("source     - ${environment.source}")
             logger.info("context    - ${environment.context}")
             logger.info("relKeyMap  - ${relKeyMap}")
+            logger.info("interfaceEntityName    - ${interfaceEntityName}")
 
             boolean loggedInAnonymous = false
             if ("anonymous-all".equals(requireAuthentication)) {
@@ -1284,8 +1300,22 @@ public class GraphQLSchemaDefinition {
                         ef = ef.condition(entry.getValue(), ((Map) environment.source).get(entry.getKey()))
                     }
                     EntityValue one = ef.one()
-                    if (one != null) return one.getMap()
-                    return one
+                    if (one == null) return  null
+                    if (interfaceEntityName == null || interfaceEntityName.isEmpty()) {
+                         return one.getMap()
+                    } else {
+
+                        logger.info("entity find interface EntityName - ${interfaceEntityName}")
+                        logger.info("entity find one.getPrimaryKeys - ${one.getPrimaryKeys()}")
+                        ef = ec.entity.find(interfaceEntityName)
+                                .condition(ec.getEntity().getConditionFactory().makeCondition(one.getPrimaryKeys()))
+                        EntityValue interfaceOne = ef.one()
+                        Map jointOneMap = new HashMap()
+                        if (interfaceOne != null) jointOneMap.putAll(interfaceOne.getMap())
+                        jointOneMap.putAll(one.getMap())
+
+                        return jointOneMap
+                    }
                 } else if (operation == "list") {
                     putArgsIntoContext(environment.arguments, ec)
 
@@ -1305,10 +1335,32 @@ public class GraphQLSchemaDefinition {
                     if (pageRangeHigh > count) pageRangeHigh = count
 
                     Map<String, Object> resultMap = new HashMap<>()
-                    resultMap.put("data", ef.list().getPlainValueList(0))
                     resultMap.put("pageInfo", ['pageIndex': pageIndex, 'pageSize': pageSize, 'totalCount': count,
                            'pageMaxIndex': pageMaxIndex, 'pageRangeLow': pageRangeLow, 'pageRangeHigh': pageRangeHigh]) as Map<String, Object>
 
+                    List<Map<String, Object>> list = ef.list().getPlainValueList(0)
+                    if (list == null || list.size() == 0) {
+                        resultMap.put("data", null)
+                    } else {
+                        if (interfaceEntityName == null || interfaceEntityName.isEmpty()) {
+                            resultMap.put("data", list)
+                        } else {
+                            List<Object> pkValues = new ArrayList<>()
+                            for (Map<String, Object> one in list) pkValues.add(one.get(interfaceEntityPkField))
+                            ef = ec.entity.find(interfaceEntityName).condition(interfaceEntityPkField, EntityCondition.ComparisonOperator.IN, pkValues)
+                            List<Map<String, Object>> interfaceValueList = ef.list().getPlainValueList(0)
+                            List<Map<String, Object>> jointOneList = new ArrayList<>(list.size())
+                            Map<String, Object> jointOneMap, matchedOne
+                            for (Map<String, Object> interfaceValue in interfaceValueList) {
+                                jointOneMap = new HashedMap()
+                                jointOneMap.putAll(interfaceValue)
+                                matchedOne = list.find({ interfaceValue.get(interfaceEntityPkField).equals(it.get(interfaceEntityPkField)) })
+                                if (matchedOne != null) jointOneMap.putAll(matchedOne)
+                                jointOneList.add(jointOneMap)
+                            }
+                            resultMap.put("data", jointOneList)
+                        }
+                    }
                     return resultMap
                 }
             }
