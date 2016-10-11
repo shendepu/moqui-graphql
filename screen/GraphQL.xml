@@ -4,14 +4,17 @@
 
     <transition name="v1" read-only="true">
         <parameter name="query"/>
+        <parameter name="variables"/>
         <path-parameter name="schemaName"/>
         <actions>
+            <set field="graphQLVariables" from="[:]"/>
+            <if condition="variables"><script>graphQLVariables.putAll(variables)</script></if>
             <script><![CDATA[
                 import com.moqui.graphql.GraphQLApi
                 import com.moqui.graphql.GraphQLApi.GraphQLResult
 
                 GraphQLApi graphQLApi = ec.getTool("GraphQL", GraphQLApi.class)
-                GraphQLResult result = graphQLApi.execute(schemaName, "${query}")
+                GraphQLResult result = graphQLApi.execute(schemaName, "${query}", graphQLVariables)
 
                 ec.web.sendJsonResponse(result.responseObj)
             ]]></script>
