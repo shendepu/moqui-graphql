@@ -1077,6 +1077,8 @@ public class GraphQLSchemaDefinition {
                         break
                 }
             }
+            if (dataFetcher == null && !graphQLScalarTypes.keySet().contains(type))
+                dataFetcher = new EmptyDataFetcher(this)
 
             updateFieldDefOnArgumentDefs()
         }
@@ -1438,6 +1440,10 @@ public class GraphQLSchemaDefinition {
 
     static class EmptyDataFetcher extends DataFetcherHandler {
         EmptyDataFetcher (MNode node, FieldDefinition fieldDef) {
+            super(fieldDef, null)
+        }
+
+        EmptyDataFetcher(FieldDefinition fieldDef) {
             super(fieldDef, null)
         }
 
