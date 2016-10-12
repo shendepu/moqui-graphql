@@ -65,10 +65,7 @@ class GraphQLSchemaUtil {
         String objectTypeName = ed.getEntityName()
 
         // Check if the type already exist in the map
-        if (allTypeDefMap.get(objectTypeName)) {
-//            logger.error("Object type [${objectTypeName}] is already defined. So auto object type for entity [${ed.getFullEntityName()}] can't be created.")
-            return
-        }
+        if (allTypeDefMap.get(objectTypeName)) return
 
         Map<String, FieldDefinition> fieldDefMap = new LinkedHashMap<>()
 
@@ -113,43 +110,10 @@ class GraphQLSchemaUtil {
                 fieldPropertyMap.put("isList", "true")
             }
 
-            List<ArgumentDefinition> argumentDefList = new LinkedList<>()
-
-            if (!relInfo.isTypeOne) {
-                logger.info("Adding ArgumentNodes for [${fieldName} - ${fieldType}]")
-                for (String fieldNameRel in relEd.getAllFieldNames()) {
-                    // Skip the relationship fields
-                    if (relInfo.keyMap.values().contains(fieldNameRel)) continue
-
-                    FieldInfo fir = relEd.getFieldInfo(fieldNameRel)
-                    String fieldDescription = ""
-                    for (MNode descriptionMNode in fir.fieldNode.children("description")) {
-                        fieldDescription = fieldDescription + descriptionMNode.text + "\n"
-                    }
-
-                    // Add fields in entity as argument
-                    ArgumentDefinition argumentDef
-                    if (moquiDateTypes.contains(fir.type)) {
-                        argumentDef = new ArgumentDefinition(fir.name, "DateRangeInputType", null, null, fieldDescription)
-//                        argumentDefList.add(argumentDef)
-                    } else if (moquiStringTypes.contains(fir.type) || moquiNumericTypes.contains(fir.type) || moquiBoolTypes.contains(fir.type)) {
-                        argumentDef = new ArgumentDefinition(fir.name, "OperationInputType", null, null, fieldDescription)
-//                        argumentDefList.add(argumentDef)
-                    } else {
-                        argumentDef = new ArgumentDefinition(fir.name, fieldTypeGraphQLMap.get(fir.type), null, null, fieldDescription)
-//                        argumentDefList.add(argumentDef)
-                    }
-
-//                    argumentDef = new ArgumentDefinition("pagination", "PaginationInputType", null, null, "Pagination")
-//                    argumentDefList.add(argumentDef)
-
-                    argumentDefList.add(argumentDef)
-                }
-            }
-
-
-            logger.info("===== Adding FieldDefinition [${fieldName} - ${fieldType}]")
-            FieldDefinition fieldDef = new FieldDefinition(ec, fieldName, fieldType, fieldPropertyMap, argumentDefList)
+            List<String> excludedFields = new ArrayList<>()
+            excludedFields.addAll(relInfo.keyMap.values())
+            if (relInfo.relatedEntityName.equals(ed.getFullEntityName())) excludedFields.addAll(relInfo.keyMap.keySet())
+            FieldDefinition fieldDef = new FieldDefinition(ec, fieldName, fieldType, fieldPropertyMap, excludedFields)
 
             DataFetcherHandler dataFetcher = new DataFetcherEntity(ec, fieldDef, relInfo.relatedEntityName, relInfo.keyMap)
             fieldDef.setDataFetcher(dataFetcher)
@@ -164,7 +128,6 @@ class GraphQLSchemaUtil {
 
         GraphQLSchemaDefinition.ObjectTypeDefinition objectTypeDef = new GraphQLSchemaDefinition.ObjectTypeDefinition(ec, objectTypeName, objectTypeDescription, new ArrayList<String>(), fieldDefMap)
         allTypeDefMap.put(objectTypeName, objectTypeDef)
-        logger.info("Object type [${objectTypeName}] for entity [${ed.getFullEntityName()}] is created.")
     }
 
     static String getEntityFieldGraphQLType(String type) {

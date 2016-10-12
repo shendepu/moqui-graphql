@@ -45,6 +45,7 @@ import org.moqui.impl.context.ExecutionContextFactoryImpl
 import org.moqui.impl.context.ExecutionContextImpl
 import org.moqui.impl.context.UserFacadeImpl
 import org.moqui.impl.entity.EntityDefinition
+import org.moqui.impl.entity.FieldInfo
 import org.moqui.impl.service.ServiceFacadeImpl
 import org.moqui.impl.webapp.ScreenResourceNotFoundException
 import org.moqui.service.ServiceFacade
@@ -106,7 +107,14 @@ public class GraphQLSchemaDefinition {
     protected GraphQLInputObjectType dateRangeInputType
     protected GraphQLArgument paginationArgument
 
-    protected Map<String, GraphQLArgument> directiveArgumentMap = new LinkedHashMap<>()
+    public static final Map<String, GraphQLArgument> directiveArgumentMap = new LinkedHashMap<>()
+
+    static {
+        directiveArgumentMap.put("if", GraphQLArgument.newArgument().name("if")
+                                            .type(GraphQLBoolean)
+                                            .description("Directive @if")
+                                            .build())
+    }
 
 
     public static final Map<String, GraphQLType> graphQLScalarTypes = [
@@ -417,12 +425,6 @@ public class GraphQLSchemaDefinition {
     }
 
     private void createPredefinedGraphQLTypes() {
-        GraphQLArgument ifArgument = GraphQLArgument.newArgument().name("if")
-                .type(GraphQLBoolean)
-                .description("Directive @if")
-                .build()
-        directiveArgumentMap.put("if", ifArgument)
-
         // This GraphQLPageInfo type is used for pagination
         // Pagination structure is
         // {
@@ -998,7 +1000,8 @@ public class GraphQLSchemaDefinition {
             this.attributeMap.putAll(attributeMap)
         }
 
-        ArgumentDefinition(String name, String type, String required, String defaultValue, String description) {
+        ArgumentDefinition(FieldDefinition fieldDef, String name, String type, String required, String defaultValue, String description) {
+            this.fieldDef = fieldDef
             this.name = name
             attributeMap.put("type", type)
             attributeMap.put("required", required)
@@ -1077,6 +1080,7 @@ public class GraphQLSchemaDefinition {
             if (dataFetcher == null && !graphQLScalarTypes.keySet().contains(type))
                 dataFetcher = new EmptyDataFetcher(this)
 
+            addAutoArguments(new ArrayList<String>())
             updateFieldDefOnArgumentDefs()
         }
 
@@ -1088,18 +1092,19 @@ public class GraphQLSchemaDefinition {
             this(ec, name, type, fieldPropertyMap, null, new ArrayList<>())
         }
 
+        // This constructor used by auto creation of master-detail field
         FieldDefinition(ExecutionContext ec, String name, String type, Map<String, String> fieldPropertyMap,
-                        List<ArgumentDefinition> argumentList) {
-            this(ec, name, type, fieldPropertyMap, null, argumentList)
+                        List<String> excludedFields) {
+            this(ec, name, type, fieldPropertyMap, null, excludedFields)
         }
 
+        // This constructor used by auto creation of master-detail field
         FieldDefinition(ExecutionContext ec, String name, String type, Map<String, String> fieldPropertyMap,
-                        DataFetcherHandler dataFetcher, List<ArgumentDefinition> argumentList) {
+                        DataFetcherHandler dataFetcher, List<String> excludedFields) {
             this.ec = ec
             this.name = name
             this.type = type
             this.dataFetcher = dataFetcher
-            this.argumentList.addAll(argumentList)
 
             this.nonNull = fieldPropertyMap.get("nonNull") ?: "false"
             this.isList = fieldPropertyMap.get("isList") ?: "false"
@@ -1109,6 +1114,7 @@ public class GraphQLSchemaDefinition {
             this.description = fieldPropertyMap.get("description")
             this.depreciationReason = fieldPropertyMap.get("depreciationReason")
 
+            addAutoArguments(excludedFields)
             updateFieldDefOnArgumentDefs()
         }
 
@@ -1175,6 +1181,31 @@ public class GraphQLSchemaDefinition {
                 baseArgumentDef.attributeMap.putAll(attributeMap)
             }
             return baseArgumentDef
+        }
+
+        private void addAutoArguments(List<String> excludedFields) {
+            if (graphQLScalarTypes.keySet().contains(type) || directiveArgumentMap.keySet().contains(type)) return
+            if (!((ExecutionContextImpl) ec).getEntityFacade().isEntityDefined(type)) return
+
+            EntityDefinition ed = ((ExecutionContextImpl) ec).getEntityFacade().getEntityDefinition(type)
+
+            List<String> fieldNames = new ArrayList<>()
+            if ("true".equals(isList)) fieldNames.addAll(ed.getFieldNames(true, true))
+            else fieldNames.addAll(ed.getFieldNames(true, false))
+
+            for (String fieldName in fieldNames) {
+                if (excludedFields.contains(fieldName)) continue
+                FieldInfo fi = ed.getFieldInfo(fieldName)
+
+                String fieldDescription = ""
+                for (MNode descriptionMNode in fi.fieldNode.children("description"))
+                    fieldDescription = fieldDescription + descriptionMNode.text + "\n"
+
+                // Add fields in entity as argument
+                ArgumentDefinition argumentDef = new ArgumentDefinition(this, fi.name,
+                        GraphQLSchemaUtil.fieldTypeGraphQLMap.get(fi.type), null, null, fieldDescription)
+                argumentList.add(argumentDef)
+            }
         }
     }
 
