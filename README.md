@@ -10,3 +10,6 @@ The way to use it is just simliar to REST Api in moqui-framework.
 You may try the [demo](https://github.com/shendepu/moqui-graphql-demo)
 
 
+# License
+
+Moqui GraphQL is [CC0-licensed](./LICENSE.md). we also provide an addition [copyright and patent grant](./AUTHORS) 
