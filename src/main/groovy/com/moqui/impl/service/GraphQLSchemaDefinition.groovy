@@ -386,6 +386,7 @@ public class GraphQLSchemaDefinition {
             allTypeDefMap.put(interfaceTypeDef.name, interfaceTypeDef)
             interfaceTypeDefMap.put(interfaceTypeDef.name, interfaceTypeDef)
 
+            objectTypeDef.convertToInterface = true
             objectTypeDef.extend(extendObjectDef, allTypeDefMap)
             // Interface need the object to do resolve
             requiredTypeDefMap.put(objectTypeDef.name, objectTypeDef)
@@ -876,6 +877,7 @@ public class GraphQLSchemaDefinition {
         @SuppressWarnings("GrFinalVariableAccess")
         final ExecutionContext ec
 
+        String convertToInterface
         List<String> interfaceList = new LinkedList<>()
         Map<String, InterfaceTypeDefinition> interfacesMap
         Map<String, FieldDefinition> fieldDefMap = new LinkedHashMap<>()
@@ -946,9 +948,8 @@ public class GraphQLSchemaDefinition {
 
         private void extendInterface(InterfaceTypeDefinition interfaceTypeDefinition, MNode interfaceNode) {
             for (Map.Entry<String, FieldDefinition> entry in interfaceTypeDefinition.fieldDefMap) {
-                // Ignore already defined field in object type, behave like field in object type override interface type
-                if (fieldDefMap.containsKey(entry.getKey())) continue
-                fieldDefMap.put(entry.getKey(), ((FieldDefinition) entry.getValue()).clone())
+                // Already use interface field.
+                fieldDefMap.put(entry.getKey(), entry.getValue())
             }
             interfaceTypeDefinition.addResolver(interfaceNode.attribute("resolver-value"), interfaceNode.attribute("resolver-type"))
             logger.info("Object ${name} extending interface ${interfaceTypeDefinition.name}")
