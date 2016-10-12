@@ -107,6 +107,8 @@ public class GraphQLSchemaDefinition {
     protected GraphQLInputObjectType dateRangeInputType
     protected GraphQLArgument paginationArgument
 
+    // The key is encoded as <fieldName>__<type>__<nonNull>__<isList>__<listItemNonNull>__<requireAuthentication>
+    protected static final Map<String, GraphQLFieldDefinition> scalarFieldMap = new HashMap<>()
     public static final Map<String, GraphQLArgument> directiveArgumentMap = new LinkedHashMap<>()
 
     static {
@@ -590,7 +592,16 @@ public class GraphQLSchemaDefinition {
     }
 
     private GraphQLFieldDefinition buildField(FieldDefinition fieldDef) {
-        GraphQLFieldDefinition.Builder graphQLFieldDef = GraphQLFieldDefinition.newFieldDefinition()
+        GraphQLFieldDefinition graphQLFieldDef
+
+        if (graphQLScalarTypes.keySet().contains(fieldDef.type)) {
+            graphQLFieldDef = scalarFieldMap.get(getFieldSearchKey(fieldDef))
+            if (graphQLFieldDef != null) {
+                return graphQLFieldDef
+            }
+        }
+
+        GraphQLFieldDefinition.Builder graphQLFieldDefBuilder = GraphQLFieldDefinition.newFieldDefinition()
                 .name(fieldDef.name)
                 .description(fieldDef.description)
                 .deprecate(fieldDef.depreciationReason)
@@ -636,19 +647,19 @@ public class GraphQLSchemaDefinition {
         if (!(fieldType instanceof GraphQLOutputType))
             throw new IllegalArgumentException("GraphQL type [${fieldDef.type}] for field [${fieldDef.name}] is not derived from GraphQLOutputType")
 
-        graphQLFieldDef.type((GraphQLOutputType) fieldType)
+        graphQLFieldDefBuilder.type((GraphQLOutputType) fieldType)
 
         // build arguments for field
         for (ArgumentDefinition argNode in fieldDef.argumentList)
-            graphQLFieldDef.argument(buildArgument(argNode))
+            graphQLFieldDefBuilder.argument(buildArgument(argNode))
         // Add pagination argument
-        if ("true".equals(fieldDef.isList)) graphQLFieldDef.argument(paginationArgument)
+        if ("true".equals(fieldDef.isList)) graphQLFieldDefBuilder.argument(paginationArgument)
         // Add directive arguments
         for (Map.Entry<String, GraphQLArgument> entry in directiveArgumentMap)
-            graphQLFieldDef.argument((GraphQLArgument) entry.getValue())
+            graphQLFieldDefBuilder.argument((GraphQLArgument) entry.getValue())
 
         if (fieldDef.dataFetcher != null) {
-            graphQLFieldDef.dataFetcher(new DataFetcher() {
+            graphQLFieldDefBuilder.dataFetcher(new DataFetcher() {
                 @Override
                 public Object get(DataFetchingEnvironment environment) {
                     return fieldDef.dataFetcher.get(environment)
@@ -656,7 +667,16 @@ public class GraphQLSchemaDefinition {
             })
         }
 
-        return graphQLFieldDef.build()
+        graphQLFieldDef = graphQLFieldDefBuilder.build()
+        scalarFieldMap.put(getFieldSearchKey(fieldDef), graphQLFieldDef)
+
+        return graphQLFieldDef
+    }
+
+    private String getFieldSearchKey(FieldDefinition fieldDef) {
+        return "${fieldDef.name}__${fieldDef.type}__${'true'.equals(fieldDef.nonNull) ? '1' : '0'}__" +
+                "${'true'.equals(fieldDef.isList) ? '1' : '0'}__${'true'.equals(fieldDef.listItemNonNull) ? '1' : '0'}__" +
+                "${'true'.equals(fieldDef.requireAuthentication) ? '1' : '0'}"
     }
 
     private GraphQLArgument buildArgument(ArgumentDefinition argumentDef) {
