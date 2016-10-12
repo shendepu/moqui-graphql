@@ -107,6 +107,15 @@ public class GraphQLSchemaDefinition {
     protected GraphQLInputObjectType dateRangeInputType
     protected GraphQLArgument paginationArgument
 
+    protected Integer graphQLEnumTypeCount = 0
+    protected Integer graphQLUnionTypeCount = 0
+    protected Integer graphQLInterfaceTypeCount = 0
+    protected Integer graphQLObjectTypeCount = 0
+    protected Integer graphQLFieldCount = 0
+    protected Integer graphQLArgumentCount = 1
+    protected Integer graphQLInputTypeCount = 0
+    protected Integer graphQLInputFieldCount = 0
+
     // The key is encoded as <fieldName>__<type>__<nonNull>__<isList>__<listItemNonNull>__<requireAuthentication>
     protected static final Map<String, GraphQLFieldDefinition> scalarFieldMap = new HashMap<>()
     public static final Map<String, GraphQLArgument> directiveArgumentMap = new LinkedHashMap<>()
@@ -353,7 +362,9 @@ public class GraphQLSchemaDefinition {
         GraphQLSchema schema = schemaBuilder.build(inputTypes)
 
         logger.info("Schema [${schemaName}] loaded: ${unionTypeCount} union type, ${enumTypeCount} enum type, ${interfaceTypeCount} interface type, ${objectTypeCount} object type")
-
+        logger.info("Schema [${schemaName}] created: ${graphQLUnionTypeCount} union type, ${graphQLEnumTypeCount} enum type, " +
+                "${graphQLInterfaceTypeCount} interface type, ${graphQLObjectTypeCount} object type, ${graphQLInputTypeCount} input type, " +
+                "${graphQLInputFieldCount} input field, ${graphQLFieldCount} field, ${graphQLArgumentCount} argument")
         return schema
     }
 
@@ -398,6 +409,7 @@ public class GraphQLSchemaDefinition {
         // Add default GraphQLScalarType
         for (Map.Entry<String, Object> entry in graphQLScalarTypes.entrySet()) {
             inputTypes.add((GraphQLType) entry.getValue())
+            graphQLInputTypeCount++
         }
 
         inputTypes.add(paginationInputType)
@@ -410,6 +422,7 @@ public class GraphQLSchemaDefinition {
             if (type == null)
                 throw new IllegalArgumentException("GraphQL type [${inputTypeName}] for schema input types not found")
             inputTypes.add(type)
+            graphQLInputTypeCount++
         }
     }
 
@@ -419,11 +432,11 @@ public class GraphQLSchemaDefinition {
             graphQLTypeMap.put(name, graphQLScalarTypes.get(name))
         }
 
-        graphQLTypeMap.put("GraphQLPageInfo", pageInfoType)
-        graphQLTypeMap.put("PaginationInputType", paginationInputType)
+        graphQLTypeMap.put("GraphQLPageInfo", pageInfoType); graphQLObjectTypeCount++
+        graphQLTypeMap.put("PaginationInputType", paginationInputType); graphQLInputTypeCount++
 
-        graphQLTypeMap.put("OperationInputType", operationInputType)
-        graphQLTypeMap.put("DateRangeInputType", dateRangeInputType)
+        graphQLTypeMap.put("OperationInputType", operationInputType); graphQLInputTypeCount++
+        graphQLTypeMap.put("DateRangeInputType", dateRangeInputType); graphQLInputTypeCount++
     }
 
     private void createPredefinedGraphQLTypes() {
@@ -443,6 +456,7 @@ public class GraphQLSchemaDefinition {
                 .field(createPredefinedField("pageRangeLow", GraphQLInt, ""))
                 .field(createPredefinedField("pageRangeHigh", GraphQLInt, ""))
                 .build()
+        graphQLObjectTypeCount++
 
         this.paginationInputType = GraphQLInputObjectType.newInputObject().name("PaginationInputType")
                 .field(createPredefinedInputField("type", GraphQLString, "PaginationInputType", ""))
@@ -452,6 +466,7 @@ public class GraphQLSchemaDefinition {
                 .field(createPredefinedInputField("orderByField", GraphQLString, null, "OrderBy field for pagination. \ne.g. \n" +
                                      "productName \n" + "productName,statusId \n" + "-statusId,productName"))
                 .build()
+        graphQLInputTypeCount++
 
         this.operationInputType = GraphQLInputObjectType.newInputObject().name("OperationInputType")
                 .field(createPredefinedInputField("type", GraphQLString, "OperationInputType", ""))
@@ -460,6 +475,7 @@ public class GraphQLSchemaDefinition {
                 .field(createPredefinedInputField("not", GraphQLString, null, "Not operation, one of [ Y | true ] represents true"))
                 .field(createPredefinedInputField("ic", GraphQLString, null, "Case insensitive, one of [ Y | true ] represents true"))
                 .build()
+        graphQLInputTypeCount++
 
         this.dateRangeInputType = GraphQLInputObjectType.newInputObject().name("DateRangeInputType")
                 .field(createPredefinedInputField("type", GraphQLString, "DateRangeInputType", ""))
@@ -468,10 +484,12 @@ public class GraphQLSchemaDefinition {
                 .field(createPredefinedInputField("from", GraphQLChar, null, ""))
                 .field(createPredefinedInputField("thru", GraphQLChar, null, ""))
                 .build()
+        graphQLInputTypeCount++
 
         this.paginationArgument = GraphQLArgument.newArgument().name("pagination")
                 .type(paginationInputType)
                 .description("pagination").build()
+        graphQLArgumentCount++
     }
 
     private GraphQLFieldDefinition createPredefinedField(String name, GraphQLOutputType type, String description) {
@@ -479,13 +497,17 @@ public class GraphQLSchemaDefinition {
                 .name(name).type(type).description(description)
         for (Map.Entry<String, GraphQLArgument> entry in directiveArgumentMap)
             fieldBuilder.argument(entry.getValue())
+
+        graphQLFieldCount++
         return fieldBuilder.build()
     }
 
-    static private GraphQLInputObjectField createPredefinedInputField(String name, GraphQLInputType type,
+    private GraphQLInputObjectField createPredefinedInputField(String name, GraphQLInputType type,
                                                               Object defaultValue, String description) {
         GraphQLInputObjectField.Builder fieldBuilder = GraphQLInputObjectField.newInputObjectField()
             .name(name).type(type).defaultValue(defaultValue).description(description)
+
+        graphQLInputFieldCount++
         return fieldBuilder.build()
     }
 
@@ -510,6 +532,7 @@ public class GraphQLSchemaDefinition {
 
         // TODO: Add typeResolver for type, one way is to add a service as resolver
 
+        graphQLUnionTypeCount++
         graphQLTypeMap.put(unionTypeDef.name, unionType.build())
     }
 
@@ -523,6 +546,7 @@ public class GraphQLSchemaDefinition {
             enumType = enumType.value(valueNode.name, valueNode.value, valueNode.description, valueNode.depreciationReason)
         }
 
+        graphQLEnumTypeCount++
         graphQLTypeMap.put(enumTypeDef.name, enumType.build())
     }
 
@@ -539,25 +563,15 @@ public class GraphQLSchemaDefinition {
 
         // TODO: Add typeResolver for type, one way is to add a service as resolver
         if (!interfaceTypeDef.convertFromObjectTypeName.isEmpty()) {
-            logger.info("~~~~~~~~~~~~~~~~ Interface typeResolver Adding")
             if (interfaceTypeDef.resolverField == null || interfaceTypeDef.resolverField.isEmpty())
                 throw new IllegalArgumentException("Interface definition of ${interfaceTypeDef.name} resolverField not set")
 
             interfaceType.typeResolver(new TypeResolver() {
                 @Override
                 GraphQLObjectType getType(Object object) {
-
-                    logger.info("~~~~~~~~~~~~~~~~ Interface typeResolver interfaceTypeDef ${interfaceTypeDef.name}")
-                    logger.info("~~~~~~~~~~~~~~~~ Interface typeResolver interfaceTypeDef ${interfaceTypeDef.resolverField}")
-                    logger.info("~~~~~~~~~~~~~~~~ Interface typeResolver interfaceTypeDef ${interfaceTypeDef.resolverMap}")
-                    logger.info("~~~~~~~~~~~~~~~~ Interface typeResolver interfaceTypeDef ${interfaceTypeDef.defaultResolvedTypeName}")
-                    logger.info("~~~~~~~~~~~~~~~~ Interface typeResolver getType ${object}")
-                    logger.info("~~~~~~~~~~~~~~~~ Interface typeResolver getType ${object.getClass()}")
                     String resolverFieldValue = ((Map) object).get(interfaceTypeDef.resolverField)
                     String resolvedTypeName = interfaceTypeDef.resolverMap.get(resolverFieldValue)
 
-                    logger.info("~~~~~~~~~~~~~~~~ Interface typeResolver getType ${resolverFieldValue}")
-                    logger.info("~~~~~~~~~~~~~~~~ Interface typeResolver getType ${resolvedTypeName}")
                     GraphQLType resolvedType = graphQLTypeMap.get(resolvedTypeName)
                     if (resolvedType == null) resolvedType = graphQLTypeMap.get(interfaceTypeDef.defaultResolvedTypeName)
                     return (GraphQLObjectType) resolvedType
@@ -565,6 +579,7 @@ public class GraphQLSchemaDefinition {
             })
         }
 
+        graphQLInterfaceTypeCount++
         graphQLTypeMap.put(interfaceTypeDef.name, interfaceType.build())
     }
 
@@ -581,13 +596,13 @@ public class GraphQLSchemaDefinition {
                 throw new IllegalArgumentException("GraphQL interface type ${interfaceName} for [${objectTypeDef.name}] not found.")
 
             objectType = objectType.withInterface((GraphQLInterfaceType) interfaceType)
-            logger.info("==== addGraphQLObjectType ${objectTypeDef.name} interface ${interfaceType.name}")
         }
 
         for (FieldDefinition fieldDef in objectTypeDef.fieldList) {
             objectType = objectType.field(buildField(fieldDef))
         }
 
+        graphQLObjectTypeCount++
         graphQLTypeMap.put(objectTypeDef.name, objectType.build())
     }
 
@@ -669,7 +684,7 @@ public class GraphQLSchemaDefinition {
 
         graphQLFieldDef = graphQLFieldDefBuilder.build()
         scalarFieldMap.put(getFieldSearchKey(fieldDef), graphQLFieldDef)
-
+        graphQLFieldCount++
         return graphQLFieldDef
     }
 
@@ -702,6 +717,7 @@ public class GraphQLSchemaDefinition {
 
         argument = argument.type((GraphQLInputType) argType)
 
+        graphQLArgumentCount++
         return argument.build()
     }
 
