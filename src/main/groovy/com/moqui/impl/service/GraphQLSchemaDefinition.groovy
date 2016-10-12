@@ -235,11 +235,11 @@ public class GraphQLSchemaDefinition {
             allTypeDefSortedList.add((GraphQLTypeDefinition) entry.getValue())
         }
 
-        logger.info("==== allTypeNodeSortedList begin ====")
-        for (GraphQLTypeDefinition typeDef in allTypeDefSortedList) {
-            logger.info("[${typeDef.name} - ${typeDef.type}]")
-        }
-        logger.info("==== allTypeNodeSortedList end ====")
+//        logger.info("==== allTypeNodeSortedList begin ====")
+//        for (GraphQLTypeDefinition typeDef in allTypeDefSortedList) {
+//            logger.info("[${typeDef.name} - ${typeDef.type}]")
+//        }
+//        logger.info("==== allTypeNodeSortedList end ====")
     }
 
     private void traverseByLevelOrder(TreeNode<GraphQLTypeDefinition> startNode, LinkedList<GraphQLTypeDefinition> sortedList) {
@@ -248,7 +248,7 @@ public class GraphQLSchemaDefinition {
         while(!queue.isEmpty()) {
             TreeNode<GraphQLTypeDefinition> tempNode = queue.poll()
             if (tempNode.data) {
-                logger.info("Traversing node [${tempNode.data.name}]")
+//                logger.info("Traversing node [${tempNode.data.name}]")
                 if (!sortedList.contains(tempNode.data)) {
                     sortedList.addFirst(tempNode.data)
                 }
@@ -267,7 +267,7 @@ public class GraphQLSchemaDefinition {
         }
 
         if (startNode.data == null) return
-        logger.info("Post order traversing node [${startNode.data.name}]")
+//        logger.info("Post order traversing node [${startNode.data.name}]")
         if (!sortedList.contains(startNode.data)) {
             sortedList.add(startNode.data)
         }
@@ -287,7 +287,7 @@ public class GraphQLSchemaDefinition {
                     TreeNode<GraphQLTypeDefinition> typeTreeNode = new TreeNode<>(typeDef)
                     node.children.add(typeTreeNode)
                     objectTypeNames.push(type)
-                    logger.info("Adding tree node for GraphQLTypeDefinition [${typeDef.name}]")
+//                    logger.info("Adding tree node for GraphQLTypeDefinition [${typeDef.name}]")
                     createTreeNodeRecursive(typeTreeNode, objectTypeNames, includeInterface)
                 } else {
                     logger.error("No GraphQL Type [${type}] defined")
@@ -353,11 +353,11 @@ public class GraphQLSchemaDefinition {
         inputTypes.clear()
         addSchemaInputTypes()
 
-        logger.info("==== graphQLTypeMap begin ====")
-        for (Map.Entry<String, GraphQLType> entry in graphQLTypeMap){
-            logger.info(("GraphQLType [${entry.getKey()} - ${((GraphQLType) entry.getValue()).name} - ${entry.getValue().getClass()}]"))
-        }
-        logger.info("==== graphQLTypeMap end ====")
+//        logger.info("==== graphQLTypeMap begin ====")
+//        for (Map.Entry<String, GraphQLType> entry in graphQLTypeMap){
+//            logger.info(("GraphQLType [${entry.getKey()} - ${((GraphQLType) entry.getValue()).name} - ${entry.getValue().getClass()}]"))
+//        }
+//        logger.info("==== graphQLTypeMap end ====")
 
         GraphQLSchema schema = schemaBuilder.build(inputTypes)
 
@@ -623,8 +623,6 @@ public class GraphQLSchemaDefinition {
 
         GraphQLType fieldRawType = graphQLTypeMap.get(fieldDef.type)
         if (fieldRawType == null) {
-            logger.info("${fieldDef.name}")
-            logger.info("${fieldDef.type}")
             fieldRawType = new GraphQLTypeReference(fieldDef.type)
             graphQLTypeMap.put(fieldDef.type, fieldRawType)
             graphQLTypeReferences.add(fieldDef.type)
@@ -908,7 +906,7 @@ public class GraphQLSchemaDefinition {
             this.name = name
             this.description = description
             this.type = "object"
-            this.interfaceList = interfaceList
+            this.interfaceList.addAll(interfaceList)
             this.fieldDefMap.putAll(fieldDefMap)
         }
 
@@ -953,6 +951,7 @@ public class GraphQLSchemaDefinition {
                 fieldDefMap.put(entry.getKey(), ((FieldDefinition) entry.getValue()).clone())
             }
             interfaceTypeDefinition.addResolver(interfaceNode.attribute("resolver-value"), interfaceNode.attribute("resolver-type"))
+            logger.info("Object ${name} extending interface ${interfaceTypeDefinition.name}")
             if (!interfaceList.contains(interfaceTypeDefinition.name)) interfaceList.add(interfaceTypeDefinition.name)
         }
     }
@@ -1070,7 +1069,8 @@ public class GraphQLSchemaDefinition {
         DataFetcherHandler dataFetcher
         String preDataFetcher, postDataFetcher
 
-        List<ArgumentDefinition> argumentList = new LinkedList<>()
+//        List<ArgumentDefinition> argumentList = new LinkedList<>()
+        Map<String, ArgumentDefinition> argumentDefMap = new LinkedHashMap<>()
 
         FieldDefinition(MNode node, ExecutionContext ec) {
             this.ec = ec
@@ -1136,7 +1136,7 @@ public class GraphQLSchemaDefinition {
 
         // This constructor used by auto creation of master-detail field
         FieldDefinition(ExecutionContext ec, String name, String type, Map<String, String> fieldPropertyMap,
-                        DataFetcherHandler dataFetcher, List<String> excludedFields) {
+                        DataFetcherHandler dataFetcher, List<String> excludedArguments) {
             this.ec = ec
             this.name = name
             this.type = type
@@ -1150,8 +1150,16 @@ public class GraphQLSchemaDefinition {
             this.description = fieldPropertyMap.get("description")
             this.depreciationReason = fieldPropertyMap.get("depreciationReason")
 
-            addAutoArguments(excludedFields)
+            addAutoArguments(excludedArguments)
             updateFieldDefOnArgumentDefs()
+        }
+
+        public List<ArgumentDefinition> getArgumentList() {
+            List<ArgumentDefinition> argumentList = new LinkedList<>()
+            for (Map.Entry<String, ArgumentDefinition> entry in argumentDefMap) {
+                argumentList.add(entry.getValue())
+            }
+            return argumentList
         }
 
         @Override
@@ -1209,10 +1217,10 @@ public class GraphQLSchemaDefinition {
         }
 
         public ArgumentDefinition mergeArgument(final String argumentName, Map<String, String> attributeMap) {
-            ArgumentDefinition baseArgumentDef = argumentList.find({ it.name == argumentName })
+            ArgumentDefinition baseArgumentDef = argumentDefMap.get(argumentName)
             if (baseArgumentDef == null) {
                 baseArgumentDef = new ArgumentDefinition(this, argumentName, attributeMap)
-                argumentList.add(baseArgumentDef)
+                argumentDefMap.put(argumentName, baseArgumentDef)
             } else {
                 baseArgumentDef.attributeMap.putAll(attributeMap)
             }
@@ -1240,7 +1248,7 @@ public class GraphQLSchemaDefinition {
                 // Add fields in entity as argument
                 ArgumentDefinition argumentDef = new ArgumentDefinition(this, fi.name,
                         GraphQLSchemaUtil.fieldTypeGraphQLMap.get(fi.type), null, null, fieldDescription)
-                argumentList.add(argumentDef)
+                argumentDefMap.put(fi.name, argumentDef)
             }
         }
     }
@@ -1330,9 +1338,6 @@ public class GraphQLSchemaDefinition {
 
             if (interfaceEntityName) {
                 EntityDefinition ed = ((ExecutionContextImpl) ec).getEntityFacade().getEntityDefinition(interfaceEntityName)
-                ec.logger.info("getting interface entity ${interfaceEntityName} definition...")
-                ec.logger.info("${ed.entityName}")
-                ec.logger.info("${ed.getFieldNames(true, false)}")
                 if (ed.getFieldNames(true, false).size() != 1)
                     throw new IllegalArgumentException("Entity ${interfaceEntityName} for interface should have one primary key")
                 interfaceEntityPkField = ed.getFieldNames(true, false).first()
@@ -1376,7 +1381,7 @@ public class GraphQLSchemaDefinition {
                     }
                     EntityValue one = ef.one()
                     if (one == null) return  null
-                    if (interfaceEntityName == null || interfaceEntityName.isEmpty()) {
+                    if (interfaceEntityName == null || interfaceEntityName.isEmpty() || entityName.equals(interfaceEntityName)) {
                          return one.getMap()
                     } else {
 
@@ -1392,7 +1397,7 @@ public class GraphQLSchemaDefinition {
                         return jointOneMap
                     }
                 } else if (operation == "list") {
-                    EntityFind ef = ec.entity.find(entityName).searchFormMap(inputFieldsMap, null, null, false)
+                    EntityFind ef = ec.entity.find(entityName).searchFormMap(inputFieldsMap, null, null, true)
                     for (Map.Entry<String, String> entry in relKeyMap.entrySet()) {
                         ef = ef.condition(entry.getValue(), ((Map) environment.source).get(entry.getKey()))
                     }
@@ -1415,7 +1420,7 @@ public class GraphQLSchemaDefinition {
                     if (list == null || list.size() == 0) {
                         resultMap.put("data", null)
                     } else {
-                        if (interfaceEntityName == null || interfaceEntityName.isEmpty()) {
+                        if (interfaceEntityName == null || interfaceEntityName.isEmpty() || entityName.equals(interfaceEntityName)) {
                             resultMap.put("data", list)
                         } else {
                             List<Object> pkValues = new ArrayList<>()
@@ -1450,10 +1455,6 @@ public class GraphQLSchemaDefinition {
                 if ("if".equals(argName)) continue
                 Object argValue = entry.getValue()
                 if (argValue == null) continue
-                logger.info("------- argument ${argName} value [${argValue}]")
-                logger.info("------- argument ${argName} class [${argValue.getClass()}]")
-                logger.info("------- argument ${argName} instanceof Map [${argValue instanceof Map}]")
-                logger.info("------- argument ${argName} instanceof LinkedHashMap [${argValue instanceof LinkedHashMap}]")
 
                 if (argValue instanceof LinkedHashMap) {
                     // currently the defaultValue on GraphQLInputObjectField does not work

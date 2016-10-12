@@ -110,10 +110,11 @@ class GraphQLSchemaUtil {
                 fieldPropertyMap.put("isList", "true")
             }
 
-            List<String> excludedFields = new ArrayList<>()
-            excludedFields.addAll(relInfo.keyMap.values())
-            if (relInfo.relatedEntityName.equals(ed.getFullEntityName())) excludedFields.addAll(relInfo.keyMap.keySet())
-            FieldDefinition fieldDef = new FieldDefinition(ec, fieldName, fieldType, fieldPropertyMap, excludedFields)
+            List<String> excludedArguments = new ArrayList<>()
+            excludedArguments.addAll(relInfo.keyMap.values())
+//            if (relInfo.relatedEntityName.equals(ed.getFullEntityName())) excludedArguments.addAll(relInfo.keyMap.keySet())
+            if (relInfo.type.startsWith("one")) excludedArguments.addAll(relEd.getPkFieldNames())
+            FieldDefinition fieldDef = new FieldDefinition(ec, fieldName, fieldType, fieldPropertyMap, excludedArguments)
 
             DataFetcherHandler dataFetcher = new DataFetcherEntity(ec, fieldDef, relInfo.relatedEntityName, relInfo.keyMap)
             fieldDef.setDataFetcher(dataFetcher)
