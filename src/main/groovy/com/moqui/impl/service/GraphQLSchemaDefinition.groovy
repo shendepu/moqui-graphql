@@ -460,7 +460,6 @@ public class GraphQLSchemaDefinition {
         graphQLObjectTypeCount++
 
         this.paginationInputType = GraphQLInputObjectType.newInputObject().name("PaginationInputType")
-                .field(createPredefinedInputField("type", GraphQLString, "PaginationInputType", ""))
                 .field(createPredefinedInputField("pageIndex", GraphQLInt, 0, "Page index for pagination, default 0"))
                 .field(createPredefinedInputField("pageSize", GraphQLInt, 20, "Page size for pagination, default 20"))
                 .field(createPredefinedInputField("pageNoLimit", GraphQLBoolean, false, "Page no limit for pagination, default false"))
@@ -470,7 +469,6 @@ public class GraphQLSchemaDefinition {
         graphQLInputTypeCount++
 
         this.operationInputType = GraphQLInputObjectType.newInputObject().name("OperationInputType")
-                .field(createPredefinedInputField("type", GraphQLString, "OperationInputType", ""))
                 .field(createPredefinedInputField("op", GraphQLString, null, "Operation on field, one of [ equals | like | contains | begins | empty | in ]"))
                 .field(createPredefinedInputField("value", GraphQLString, null, "Argument value"))
                 .field(createPredefinedInputField("not", GraphQLString, null, "Not operation, one of [ Y | true ] represents true"))
@@ -479,7 +477,6 @@ public class GraphQLSchemaDefinition {
         graphQLInputTypeCount++
 
         this.dateRangeInputType = GraphQLInputObjectType.newInputObject().name("DateRangeInputType")
-                .field(createPredefinedInputField("type", GraphQLString, "DateRangeInputType", ""))
                 .field(createPredefinedInputField("period", GraphQLChar, null, ""))
                 .field(createPredefinedInputField("poffset", GraphQLChar, null, ""))
                 .field(createPredefinedInputField("from", GraphQLChar, null, ""))
