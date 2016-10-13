@@ -636,7 +636,7 @@ public class GraphQLSchemaDefinition {
         // build type for field which could be one of: type, type!, [type], [type!], [type!]!
         GraphQLType fieldType
         if ("true".equals(fieldDef.isList)) {
-            String listFieldTypeName = fieldDef.type + '__Pagination'
+            String listFieldTypeName = fieldDef.type + 'Connection'
             fieldType = graphQLTypeMap.get(listFieldTypeName)
             if (fieldType == null) {
                 // Create pagination object type for field.
@@ -647,7 +647,7 @@ public class GraphQLSchemaDefinition {
                     wrappedListFieldType = new GraphQLList(fieldRawType)
                 }
                 fieldType = GraphQLObjectType.newObject().name(listFieldTypeName)
-                        .field(createPredefinedField("data", wrappedListFieldType, "Actual data list"))
+                        .field(createPredefinedField("edges", wrappedListFieldType, "Actual data list"))
                         .field(createPredefinedField("pageInfo", pageInfoType, "Pagination information"))
                         .build()
                 graphQLTypeMap.put(listFieldTypeName, fieldType)
@@ -1423,10 +1423,10 @@ public class GraphQLSchemaDefinition {
 
                     List<Map<String, Object>> list = ef.list().getPlainValueList(0)
                     if (list == null || list.size() == 0) {
-                        resultMap.put("data", null)
+                        resultMap.put("edges", null)
                     } else {
                         if (interfaceEntityName == null || interfaceEntityName.isEmpty() || entityName.equals(interfaceEntityName)) {
-                            resultMap.put("data", list)
+                            resultMap.put("edges", list)
                         } else {
                             List<Object> pkValues = new ArrayList<>()
                             for (Map<String, Object> one in list) pkValues.add(one.get(interfaceEntityPkField))
@@ -1441,7 +1441,7 @@ public class GraphQLSchemaDefinition {
                                 if (matchedOne != null) jointOneMap.putAll(matchedOne)
                                 jointOneList.add(jointOneMap)
                             }
-                            resultMap.put("data", jointOneList)
+                            resultMap.put("edges", jointOneList)
                         }
                     }
                     return resultMap
