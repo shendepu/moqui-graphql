@@ -33,6 +33,7 @@ import graphql.schema.GraphQLType
 import graphql.schema.GraphQLTypeReference
 import graphql.schema.GraphQLUnionType
 import graphql.schema.TypeResolver
+import org.antlr.v4.misc.Graph
 import org.apache.commons.collections.map.HashedMap
 import org.moqui.context.ArtifactAuthorizationException
 import org.moqui.context.ArtifactTarpitException
@@ -456,6 +457,8 @@ public class GraphQLSchemaDefinition {
                 .field(createPredefinedField("pageMaxIndex", GraphQLInt, ""))
                 .field(createPredefinedField("pageRangeLow", GraphQLInt, ""))
                 .field(createPredefinedField("pageRangeHigh", GraphQLInt, ""))
+                .field(createPredefinedField("hasPreviousPage", GraphQLBoolean, "hasPreviousPage will be false if the client is not paginating with last, or if the client is paginating with last, and the server has determined that the client has reached the end of the set of edges defined by their cursors."))
+                .field(createPredefinedField("hasNextPage", GraphQLBoolean, "hasNextPage will be false if the client is not paginating with first, or if the client is paginating with first, and the server has determined that the client has reached the end of the set of edges defined by their cursors"))
                 .build()
         graphQLObjectTypeCount++
 
@@ -465,6 +468,10 @@ public class GraphQLSchemaDefinition {
                 .field(createPredefinedInputField("pageNoLimit", GraphQLBoolean, false, "Page no limit for pagination, default false"))
                 .field(createPredefinedInputField("orderByField", GraphQLString, null, "OrderBy field for pagination. \ne.g. \n" +
                                      "productName \n" + "productName,statusId \n" + "-statusId,productName"))
+                .field(createPredefinedInputField("first", GraphQLInt, 20, "Forward pagination argument takes a non‐negative integer, default 20"))
+                .field(createPredefinedInputField("after", GraphQLString, null, "Forward pagination argument takes the cursor, default null"))
+                .field(createPredefinedInputField("last", GraphQLInt, 20, "Backward pagination argument takes a non‐negative integer, default 20"))
+                .field(createPredefinedInputField("before", GraphQLString, null, "Backward pagination argument takes the cursor, default null"))
                 .build()
         graphQLInputTypeCount++
 
