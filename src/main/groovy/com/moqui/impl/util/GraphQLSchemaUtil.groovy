@@ -14,6 +14,7 @@
 package com.moqui.impl.util
 
 import com.moqui.impl.service.GraphQLSchemaDefinition
+import org.moqui.entity.EntityValue
 import org.moqui.impl.context.ExecutionContextImpl
 import org.moqui.impl.entity.FieldInfo
 import org.moqui.context.ExecutionContext
@@ -177,5 +178,11 @@ class GraphQLSchemaUtil {
             fieldDef = new FieldDefinition(fieldNode, ec)
             fieldDefMap.put(fieldDef.name, fieldDef)
         }
+    }
+
+    public static String base64EncodeCursor(EntityValue ev, String fieldRawType, List<String> pkFieldNames) {
+        String cursor = fieldRawType
+        for (String pk in pkFieldNames) cursor = cursor + '|' + ev.get(pk)
+        return Base64.getEncoder().encodeToString(cursor.bytes)
     }
 }

@@ -15,6 +15,7 @@ package com.moqui.impl.service
 
 import com.moqui.graphql.DataFetchingException
 import com.moqui.impl.util.GraphQLSchemaUtil
+import graphql.language.ObjectValue
 import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment
 import graphql.schema.GraphQLArgument
@@ -182,6 +183,8 @@ public class GraphQLSchemaDefinition {
                 .field(getGraphQLFieldWithNoArgs("pageRangeHigh", GraphQLInt, ""))
                 .field(getGraphQLFieldWithNoArgs("hasPreviousPage", GraphQLBoolean, "hasPreviousPage will be false if the client is not paginating with last, or if the client is paginating with last, and the server has determined that the client has reached the end of the set of edges defined by their cursors."))
                 .field(getGraphQLFieldWithNoArgs("hasNextPage", GraphQLBoolean, "hasNextPage will be false if the client is not paginating with first, or if the client is paginating with first, and the server has determined that the client has reached the end of the set of edges defined by their cursors"))
+                .field(getGraphQLFieldWithNoArgs("startCursor", GraphQLString, ""))
+                .field(getGraphQLFieldWithNoArgs("endCursor", GraphQLString, ""))
                 .build()
         graphQLObjectTypeMap.put("GraphQLPageInfo", pageInfoType)
         graphQLOutputTypeMap.put("GraphQLPageInfo", pageInfoType)
@@ -1569,10 +1572,13 @@ public class GraphQLSchemaDefinition {
                     int pageRangeLow = pageIndex * pageSize + 1
                     int pageRangeHigh = (pageIndex * pageSize) + pageSize
                     if (pageRangeHigh > count) pageRangeHigh = count
+                    boolean hasPreviousPage = pageIndex > 0
+                    boolean hasNextPage = pageMaxIndex > pageIndex
 
                     Map<String, Object> resultMap = new HashMap<>()
-                    resultMap.put("pageInfo", ['pageIndex': pageIndex, 'pageSize': pageSize, 'totalCount': count,
-                           'pageMaxIndex': pageMaxIndex, 'pageRangeLow': pageRangeLow, 'pageRangeHigh': pageRangeHigh]) as Map<String, Object>
+                    Map<String, Object> pageInfo = ['pageIndex'   : pageIndex, 'pageSize': pageSize, 'totalCount': count,
+                            'pageMaxIndex': pageMaxIndex, 'pageRangeLow': pageRangeLow, 'pageRangeHigh': pageRangeHigh,
+                            'hasPreviousPage': hasPreviousPage, 'hasNextPage': hasNextPage] as Map<String, Object>
 
                     EntityList el = ef.list()
                     List<Map<String, Object>> edgesDataList = new ArrayList(el.size())
@@ -1583,11 +1589,11 @@ public class GraphQLSchemaDefinition {
                         // Do nothing
                     } else {
                         if (interfaceEntityName == null || interfaceEntityName.isEmpty() || entityName.equals(interfaceEntityName)) {
+                            pageInfo.put("startCursor", GraphQLSchemaUtil.base64EncodeCursor(el.get(0), fieldRawType, pkFieldNames))
+                            pageInfo.put("endCursor", GraphQLSchemaUtil.base64EncodeCursor(el.get(el.size() - 1), fieldRawType, pkFieldNames))
                             for (EntityValue ev in el) {
                                 edgesData = new HashMap<>(2)
-                                cursor = fieldRawType
-                                for (String pk in pkFieldNames) cursor = cursor + '|' + ev.get(pk)
-                                cursor = Base64.getEncoder().encodeToString(cursor.bytes)
+                                cursor = GraphQLSchemaUtil.base64EncodeCursor(ev, fieldRawType, pkFieldNames)
                                 edgesData.put("cursor", cursor)
                                 edgesData.put("node", ev.getPlainValueMap(0))
                                 edgesDataList.add(edgesData)
@@ -1600,11 +1606,11 @@ public class GraphQLSchemaDefinition {
 
                             Map<String, Object> jointOneMap, matchedOne
 
+                            pageInfo.put("startCursor", GraphQLSchemaUtil.base64EncodeCursor(el.get(0), fieldRawType, pkFieldNames))
+                            pageInfo.put("endCursor", GraphQLSchemaUtil.base64EncodeCursor(el.get(el.size() - 1), fieldRawType, pkFieldNames))
                             for (EntityValue ev in el) {
                                 edgesData = new HashMap<>(2)
-                                cursor = fieldRawType
-                                for (String pk in pkFieldNames) cursor = cursor + '|' + ev.get(pk)
-                                cursor = Base64.getEncoder().encodeToString(cursor.bytes)
+                                cursor = GraphQLSchemaUtil.base64EncodeCursor(ev, fieldRawType, pkFieldNames)
                                 edgesData.put("cursor", cursor)
                                 jointOneMap = ev.getPlainValueMap(0)
                                 matchedOne = efInterface.list().find({ it.get(interfaceEntityPkField).equals(ev.get(interfaceEntityPkField)) })
@@ -1615,6 +1621,7 @@ public class GraphQLSchemaDefinition {
                         }
                     }
                     resultMap.put("edges", edgesDataList)
+                    resultMap.put("pageInfo", pageInfo)
                     return resultMap
                 }
             }
