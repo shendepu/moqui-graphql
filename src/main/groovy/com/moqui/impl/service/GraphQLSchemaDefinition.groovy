@@ -28,19 +28,19 @@ import graphql.schema.GraphQLList
 import graphql.schema.GraphQLNonNull
 import graphql.schema.GraphQLObjectType
 import graphql.schema.GraphQLOutputType
+import graphql.schema.GraphQLScalarType
 import graphql.schema.GraphQLSchema
 import graphql.schema.GraphQLType
 import graphql.schema.GraphQLTypeReference
 import graphql.schema.GraphQLUnionType
 import graphql.schema.TypeResolver
-import org.antlr.v4.misc.Graph
-import org.apache.commons.collections.map.HashedMap
 import org.moqui.context.ArtifactAuthorizationException
 import org.moqui.context.ArtifactTarpitException
 import org.moqui.context.AuthenticationRequiredException
 import org.moqui.context.ExecutionContext
 import org.moqui.entity.EntityCondition
 import org.moqui.entity.EntityFind
+import org.moqui.entity.EntityList
 import org.moqui.entity.EntityValue
 import org.moqui.impl.context.ExecutionContextFactoryImpl
 import org.moqui.impl.context.ExecutionContextImpl
@@ -85,11 +85,22 @@ public class GraphQLSchemaDefinition {
     @SuppressWarnings("GrFinalVariableAccess")
     protected final String mutationType
 
-    protected final Map<String, GraphQLType> graphQLTypeMap = new LinkedHashMap<>()
-    protected final Set<String> graphQLTypeReferences = new HashSet<>()
-    protected final Set<GraphQLType> inputTypes = new HashSet<GraphQLType>()
+    protected static final Map<String, GraphQLOutputType> graphQLOutputTypeMap = new HashMap<>()
+    protected static final Map<String, GraphQLInputType> graphQLInputTypeMap = new HashMap<>()
+    protected static final Map<String, GraphQLEnumType> graphQLEnumTypeMap = new HashMap<>()
+    protected static final Map<String, GraphQLUnionType> graphQLUnionTypeMap = new HashMap<>()
+    protected static final Map<String, GraphQLInterfaceType> graphQLInterfaceTypeMap = new HashMap<>()
+    protected static final Map<String, GraphQLObjectType> graphQLObjectTypeMap = new HashMap<>()
+    protected static final Map<String, GraphQLFieldDefinition> graphQLFieldMap = new HashMap<>()
+    protected static final Map<String, GraphQLArgument> graphQLArgumentMap = new HashMap<>()
+    protected static final Map<String, GraphQLArgument> directiveArgumentMap = new LinkedHashMap<>()
+    protected static final Map<String, GraphQLTypeReference> graphQLTypeReferenceMap = new HashMap<>()
 
-    protected final ArrayList<String> inputTypeList = new ArrayList<>()
+    protected static final Map<String, GraphQLFieldDefinition> graphQLFieldDefMap = new HashMap<>()
+
+    protected final Set<GraphQLType> schemaInputTypes = new HashSet<GraphQLType>()
+
+    protected final ArrayList<String> schemaInputTypeNameList = new ArrayList<>()
     protected final List<String> preLoadObjectTypes = new LinkedList<>()
 
     protected Map<String, GraphQLTypeDefinition> allTypeDefMap = new LinkedHashMap<>()
@@ -102,11 +113,13 @@ public class GraphQLSchemaDefinition {
 //    protected Map<String, ObjectTypeDefinition> objectTypeDefMap = new HashMap<>()
     protected Map<String, ExtendObjectDefinition> extendObjectDefMap = new LinkedHashMap<>()
 
-    protected GraphQLObjectType pageInfoType
-    protected GraphQLInputObjectType paginationInputType
-    protected GraphQLInputObjectType operationInputType
-    protected GraphQLInputObjectType dateRangeInputType
-    protected GraphQLArgument paginationArgument
+    protected static GraphQLObjectType pageInfoType
+    protected static GraphQLInputObjectType paginationInputType
+    protected static GraphQLInputObjectType operationInputType
+    protected static GraphQLInputObjectType dateRangeInputType
+    protected static GraphQLFieldDefinition cursorField
+    protected static GraphQLArgument paginationArgument
+    protected static GraphQLArgument ifArgument
 
     protected Integer graphQLEnumTypeCount = 0
     protected Integer graphQLUnionTypeCount = 0
@@ -119,17 +132,18 @@ public class GraphQLSchemaDefinition {
 
     // The key is encoded as <fieldName>__<type>__<nonNull>__<isList>__<listItemNonNull>__<requireAuthentication>
     protected static final Map<String, GraphQLFieldDefinition> scalarFieldMap = new HashMap<>()
-    public static final Map<String, GraphQLArgument> directiveArgumentMap = new LinkedHashMap<>()
+
+    protected static final String KEY_SPLITTER = "__"
+    protected static final String NON_NULL_SUFFIX = "_1"
+    protected static final String IS_LIST_SUFFIX = "_2"
+    protected static final String LIST_ITEM_NON_NULL_SUFFIX = "_3"
 
     static {
-        directiveArgumentMap.put("if", GraphQLArgument.newArgument().name("if")
-                                            .type(GraphQLBoolean)
-                                            .description("Directive @if")
-                                            .build())
+        createPredefinedGraphQLTypes()
     }
 
 
-    public static final Map<String, GraphQLType> graphQLScalarTypes = [
+    public static final Map<String, GraphQLScalarType> graphQLScalarTypes = [
             "Int"       : GraphQLInt,           "Long"      : GraphQLLong,
             "Float"     : GraphQLFloat,         "String"    : GraphQLString,
             "Boolean"   : GraphQLBoolean,       "ID"        : GraphQLID,
@@ -142,6 +156,71 @@ public class GraphQLSchemaDefinition {
     static final List<String> graphQLNumericTypes = ["Int", "Long", "Float", "BigInteger", "BigDecimal", "Short"]
     static final List<String> graphQLBoolTypes = ["Boolean"]
 
+    private static void createPredefinedGraphQLTypes() {
+        // Add default GraphQLScalarType
+        for (Map.Entry<String, GraphQLScalarType> entry in graphQLScalarTypes.entrySet()) {
+            graphQLInputTypeMap.put(entry.getKey(), entry.getValue())
+            graphQLOutputTypeMap.put(entry.getKey(), entry.getValue())
+        }
+
+        // Predefined GraphQLFieldDefinition
+        cursorField = GraphQLFieldDefinition.newFieldDefinition().name("cursor")
+                .type(GraphQLString).build()
+        graphQLFieldMap.put("cursor", cursorField)
+
+        // Predefined GraphQLArgument
+        ifArgument = GraphQLArgument.newArgument().name("if")
+                .type(GraphQLBoolean).description("Directive @if").build()
+        directiveArgumentMap.put("if", ifArgument)
+
+        pageInfoType = GraphQLObjectType.newObject().name("GraphQLPageInfo")
+                .field(getGraphQLFieldWithNoArgs("pageIndex", GraphQLInt, ""))
+                .field(getGraphQLFieldWithNoArgs("pageSize", GraphQLInt, ""))
+                .field(getGraphQLFieldWithNoArgs("totalCount", GraphQLInt, ""))
+                .field(getGraphQLFieldWithNoArgs("pageMaxIndex", GraphQLInt, ""))
+                .field(getGraphQLFieldWithNoArgs("pageRangeLow", GraphQLInt, ""))
+                .field(getGraphQLFieldWithNoArgs("pageRangeHigh", GraphQLInt, ""))
+                .field(getGraphQLFieldWithNoArgs("hasPreviousPage", GraphQLBoolean, "hasPreviousPage will be false if the client is not paginating with last, or if the client is paginating with last, and the server has determined that the client has reached the end of the set of edges defined by their cursors."))
+                .field(getGraphQLFieldWithNoArgs("hasNextPage", GraphQLBoolean, "hasNextPage will be false if the client is not paginating with first, or if the client is paginating with first, and the server has determined that the client has reached the end of the set of edges defined by their cursors"))
+                .build()
+        graphQLObjectTypeMap.put("GraphQLPageInfo", pageInfoType)
+        graphQLOutputTypeMap.put("GraphQLPageInfo", pageInfoType)
+
+        paginationInputType = GraphQLInputObjectType.newInputObject().name("PaginationInputType")
+                .field(createPredefinedInputField("pageIndex", GraphQLInt, 0, "Page index for pagination, default 0"))
+                .field(createPredefinedInputField("pageSize", GraphQLInt, 20, "Page size for pagination, default 20"))
+                .field(createPredefinedInputField("pageNoLimit", GraphQLBoolean, false, "Page no limit for pagination, default false"))
+                .field(createPredefinedInputField("orderByField", GraphQLString, null, "OrderBy field for pagination. \ne.g. \n" +
+                                     "productName \n" + "productName,statusId \n" + "-statusId,productName"))
+                .field(createPredefinedInputField("first", GraphQLInt, 20, "Forward pagination argument takes a non‐negative integer, default 20"))
+                .field(createPredefinedInputField("after", GraphQLString, null, "Forward pagination argument takes the cursor, default null"))
+                .field(createPredefinedInputField("last", GraphQLInt, 20, "Backward pagination argument takes a non‐negative integer, default 20"))
+                .field(createPredefinedInputField("before", GraphQLString, null, "Backward pagination argument takes the cursor, default null"))
+                .build()
+        graphQLInputTypeMap.put("PaginationInputType", paginationInputType)
+
+        operationInputType = GraphQLInputObjectType.newInputObject().name("OperationInputType")
+                .field(createPredefinedInputField("op", GraphQLString, null, "Operation on field, one of [ equals | like | contains | begins | empty | in ]"))
+                .field(createPredefinedInputField("value", GraphQLString, null, "Argument value"))
+                .field(createPredefinedInputField("not", GraphQLString, null, "Not operation, one of [ Y | true ] represents true"))
+                .field(createPredefinedInputField("ic", GraphQLString, null, "Case insensitive, one of [ Y | true ] represents true"))
+                .build()
+        graphQLInputTypeMap.put("OperationInputType", operationInputType)
+
+        dateRangeInputType = GraphQLInputObjectType.newInputObject().name("DateRangeInputType")
+                .field(createPredefinedInputField("period", GraphQLChar, null, ""))
+                .field(createPredefinedInputField("poffset", GraphQLChar, null, ""))
+                .field(createPredefinedInputField("from", GraphQLChar, null, ""))
+                .field(createPredefinedInputField("thru", GraphQLChar, null, ""))
+                .build()
+        graphQLInputTypeMap.put("DateRangeInputType", dateRangeInputType)
+
+        paginationArgument = GraphQLArgument.newArgument().name("pagination")
+                .type(paginationInputType)
+                .description("pagination").build()
+        graphQLArgumentMap.put("pagination", paginationArgument)
+    }
+
     public GraphQLSchemaDefinition(ServiceFacade sf, MNode schemaNode) {
         this.sf = sf
         this.ecfi = ((ServiceFacadeImpl) sf).ecfi
@@ -151,13 +230,12 @@ public class GraphQLSchemaDefinition {
         this.queryType = schemaNode.attribute("query")
         this.mutationType = schemaNode.attribute("mutation")
 
-        createPredefinedGraphQLTypes()
         GraphQLSchemaUtil.createObjectTypeNodeForAllEntities(this.ecfi.getExecutionContext(), allTypeDefMap)
 
         for (MNode childNode in schemaNode.children) {
             switch (childNode.name) {
                 case "input-type":
-                    inputTypeList.add(childNode.attribute("name"))
+                    schemaInputTypeNameList.add(childNode.attribute("name"))
                     break
                 case "interface":
                     InterfaceTypeDefinition interfaceTypeDef = new InterfaceTypeDefinition(childNode, this.ecfi.getExecutionContext())
@@ -304,9 +382,6 @@ public class GraphQLSchemaDefinition {
     public GraphQLSchema getSchema() {
         populateSortedTypes()
 
-        graphQLTypeMap.clear()
-        addGraphQLPredefinedTypes()
-
         Integer unionTypeCount = 0, enumTypeCount = 0, interfaceTypeCount = 0, objectTypeCount = 0
 
         // Initialize interface type first to prevent null reference when initialize object type
@@ -338,29 +413,22 @@ public class GraphQLSchemaDefinition {
         }
 
         // Create GraphQLSchema
-        GraphQLType schemaQueryType = graphQLTypeMap.get(this.queryType)
+        GraphQLObjectType schemaQueryType = graphQLObjectTypeMap.get(this.queryType)
         if (schemaQueryType == null)
-            throw new IllegalArgumentException("GraphQL query type [${this.queryType}] for schema [${this.schemaName}] not found")
+            throw new IllegalArgumentException("GraphQLObjectType [${this.queryType}] as query type for schema [${this.schemaName}] not found")
 
-        GraphQLSchema.Builder schemaBuilder = GraphQLSchema.newSchema().query((GraphQLObjectType)schemaQueryType)
+        GraphQLSchema.Builder schemaBuilder = GraphQLSchema.newSchema().query(schemaQueryType)
 
         if (this.mutationType) {
-            GraphQLType schemaMutationType = graphQLTypeMap.get(this.mutationType)
-            if (schemaQueryType == null)
-                throw new IllegalArgumentException("GraphQL mutation type [${this.mutationType}] for schema [${this.schemaName}] not found")
-            schemaBuilder = schemaBuilder.mutation((GraphQLObjectType) schemaMutationType)
+            GraphQLObjectType schemaMutationType = graphQLObjectTypeMap.get(this.mutationType)
+            if (schemaMutationType == null)
+                throw new IllegalArgumentException("GraphQLObjectType [${this.mutationType}] as mutation type for schema [${this.schemaName}] not found")
+            schemaBuilder = schemaBuilder.mutation(schemaMutationType)
         }
 
-        inputTypes.clear()
         addSchemaInputTypes()
 
-//        logger.info("==== graphQLTypeMap begin ====")
-//        for (Map.Entry<String, GraphQLType> entry in graphQLTypeMap){
-//            logger.info(("GraphQLType [${entry.getKey()} - ${((GraphQLType) entry.getValue()).name} - ${entry.getValue().getClass()}]"))
-//        }
-//        logger.info("==== graphQLTypeMap end ====")
-
-        GraphQLSchema schema = schemaBuilder.build(inputTypes)
+        GraphQLSchema schema = schemaBuilder.build(schemaInputTypes)
 
         logger.info("Schema [${schemaName}] loaded: ${unionTypeCount} union type, ${enumTypeCount} enum type, ${interfaceTypeCount} interface type, ${objectTypeCount} object type")
         logger.info("Schema [${schemaName}] created: ${graphQLUnionTypeCount} union type, ${graphQLEnumTypeCount} enum type, " +
@@ -410,266 +478,349 @@ public class GraphQLSchemaDefinition {
     private void addSchemaInputTypes() {
         // Add default GraphQLScalarType
         for (Map.Entry<String, Object> entry in graphQLScalarTypes.entrySet()) {
-            inputTypes.add((GraphQLType) entry.getValue())
-            graphQLInputTypeCount++
+            schemaInputTypes.add((GraphQLType) entry.getValue())
         }
 
-        inputTypes.add(paginationInputType)
-        inputTypes.add(operationInputType)
-        inputTypes.add(dateRangeInputType)
+        schemaInputTypes.add(paginationInputType)
+        schemaInputTypes.add(operationInputType)
+        schemaInputTypes.add(dateRangeInputType)
 
         // Add explicitly defined input types from *.graphql.xml
-        for (String inputTypeName in inputTypeList) {
-            GraphQLType type = graphQLTypeMap.get(inputTypeName)
+        for (String inputTypeName in schemaInputTypeNameList) {
+            GraphQLType type = graphQLInputTypeMap.get(inputTypeName)
             if (type == null)
-                throw new IllegalArgumentException("GraphQL type [${inputTypeName}] for schema input types not found")
-            inputTypes.add(type)
-            graphQLInputTypeCount++
+                throw new IllegalArgumentException("GraphQLInputType [${inputTypeName}] for schema [${this.schemaName}] not found")
+            schemaInputTypes.add(type)
         }
     }
 
-    private void addGraphQLPredefinedTypes() {
-        // Add Scalar types
-        for (String name in graphQLScalarTypes.keySet()) {
-            graphQLTypeMap.put(name, graphQLScalarTypes.get(name))
+    private static GraphQLOutputType getConnectionObjectType(String rawTypeName, String nonNull, String listItemNonNull) {
+        GraphQLOutputType rawType = graphQLOutputTypeMap.get(rawTypeName)
+        if (rawType == null) {
+            rawType = graphQLTypeReferenceMap.get(rawTypeName)
+            if (rawType == null) {
+                rawType = new GraphQLTypeReference(rawTypeName)
+                graphQLTypeReferenceMap.put(rawTypeName, rawType)
+            }
+        }
+        return getConnectionObjectType(rawType, nonNull, listItemNonNull)
+    }
+
+    private static GraphQLOutputType getConnectionObjectType(GraphQLOutputType rawType, String nonNull, String listItemNonNull) {
+        String connectionTypeName = rawType.name + "Connection"
+        String connectionTypeKey = rawType.name
+        if ("true".equals(nonNull)) connectionTypeKey = connectionTypeKey + NON_NULL_SUFFIX
+        connectionTypeKey = connectionTypeKey + IS_LIST_SUFFIX
+        if ("true".equals(listItemNonNull)) connectionTypeKey = connectionTypeKey + LIST_ITEM_NON_NULL_SUFFIX
+
+        GraphQLOutputType wrappedConnectionType = graphQLOutputTypeMap.get(connectionTypeKey)
+        if (wrappedConnectionType != null) return wrappedConnectionType
+
+        GraphQLOutputType connectionType = graphQLOutputTypeMap.get(connectionTypeName)
+        if (connectionType == null) {
+            connectionType = GraphQLObjectType.newObject().name(connectionTypeName)
+                    .field(getEdgesField(rawType, nonNull, listItemNonNull))
+                    .field(getGraphQLFieldWithNoArgs("pageInfo", pageInfoType, "true", "false", "false", null))
+                    .build()
+            graphQLOutputTypeMap.put(connectionTypeName, connectionType)
         }
 
-        graphQLTypeMap.put("GraphQLPageInfo", pageInfoType); graphQLObjectTypeCount++
-        graphQLTypeMap.put("PaginationInputType", paginationInputType); graphQLInputTypeCount++
+        wrappedConnectionType = connectionType
+        if ("true".equals(nonNull)) wrappedConnectionType = new GraphQLNonNull(connectionType)
 
-        graphQLTypeMap.put("OperationInputType", operationInputType); graphQLInputTypeCount++
-        graphQLTypeMap.put("DateRangeInputType", dateRangeInputType); graphQLInputTypeCount++
+        if (!connectionTypeKey.equals(connectionTypeName)) graphQLOutputTypeMap.put(connectionTypeKey, wrappedConnectionType)
+
+        return wrappedConnectionType
     }
 
-    private void createPredefinedGraphQLTypes() {
-        // This GraphQLPageInfo type is used for pagination
-        // Pagination structure is
-        // {
-        //      data: [type],
-        //      pageInfo: {     // GraphQLPageInfo type
-        //          pageIndex, pageSize, totalCount, pageMaxIndex, pageRangeLow, pageRangeHigh
-        //      }
-        // }
-        this.pageInfoType = GraphQLObjectType.newObject().name("GraphQLPageInfo")
-                .field(createPredefinedField("pageIndex", GraphQLInt, ""))
-                .field(createPredefinedField("pageSize", GraphQLInt, ""))
-                .field(createPredefinedField("totalCount", GraphQLInt, ""))
-                .field(createPredefinedField("pageMaxIndex", GraphQLInt, ""))
-                .field(createPredefinedField("pageRangeLow", GraphQLInt, ""))
-                .field(createPredefinedField("pageRangeHigh", GraphQLInt, ""))
-                .field(createPredefinedField("hasPreviousPage", GraphQLBoolean, "hasPreviousPage will be false if the client is not paginating with last, or if the client is paginating with last, and the server has determined that the client has reached the end of the set of edges defined by their cursors."))
-                .field(createPredefinedField("hasNextPage", GraphQLBoolean, "hasNextPage will be false if the client is not paginating with first, or if the client is paginating with first, and the server has determined that the client has reached the end of the set of edges defined by their cursors"))
-                .build()
-        graphQLObjectTypeCount++
+    private static GraphQLFieldDefinition getEdgesField(GraphQLOutputType rawType, String nonNull, String listItemNonNull) {
+        String edgesFieldName = "edges"
+        String edgeFieldKey = edgesFieldName + KEY_SPLITTER + rawType.name + "Edge"
+        if ("true".equals(nonNull)) edgeFieldKey = edgeFieldKey + NON_NULL_SUFFIX
+        edgeFieldKey = edgeFieldKey + IS_LIST_SUFFIX
+        if ("true".equals(listItemNonNull)) edgeFieldKey = edgeFieldKey + LIST_ITEM_NON_NULL_SUFFIX
 
-        this.paginationInputType = GraphQLInputObjectType.newInputObject().name("PaginationInputType")
-                .field(createPredefinedInputField("pageIndex", GraphQLInt, 0, "Page index for pagination, default 0"))
-                .field(createPredefinedInputField("pageSize", GraphQLInt, 20, "Page size for pagination, default 20"))
-                .field(createPredefinedInputField("pageNoLimit", GraphQLBoolean, false, "Page no limit for pagination, default false"))
-                .field(createPredefinedInputField("orderByField", GraphQLString, null, "OrderBy field for pagination. \ne.g. \n" +
-                                     "productName \n" + "productName,statusId \n" + "-statusId,productName"))
-                .field(createPredefinedInputField("first", GraphQLInt, 20, "Forward pagination argument takes a non‐negative integer, default 20"))
-                .field(createPredefinedInputField("after", GraphQLString, null, "Forward pagination argument takes the cursor, default null"))
-                .field(createPredefinedInputField("last", GraphQLInt, 20, "Backward pagination argument takes a non‐negative integer, default 20"))
-                .field(createPredefinedInputField("before", GraphQLString, null, "Backward pagination argument takes the cursor, default null"))
-                .build()
-        graphQLInputTypeCount++
+        GraphQLFieldDefinition edgesField = graphQLFieldMap.get(edgeFieldKey)
+        if (edgesField != null) return edgesField
 
-        this.operationInputType = GraphQLInputObjectType.newInputObject().name("OperationInputType")
-                .field(createPredefinedInputField("op", GraphQLString, null, "Operation on field, one of [ equals | like | contains | begins | empty | in ]"))
-                .field(createPredefinedInputField("value", GraphQLString, null, "Argument value"))
-                .field(createPredefinedInputField("not", GraphQLString, null, "Not operation, one of [ Y | true ] represents true"))
-                .field(createPredefinedInputField("ic", GraphQLString, null, "Case insensitive, one of [ Y | true ] represents true"))
+        edgesField = GraphQLFieldDefinition.newFieldDefinition().name(edgesFieldName)
+                .type(getEdgesObjectType(rawType, nonNull, listItemNonNull))
                 .build()
-        graphQLInputTypeCount++
+        graphQLFieldMap.put(edgeFieldKey, edgesField)
 
-        this.dateRangeInputType = GraphQLInputObjectType.newInputObject().name("DateRangeInputType")
-                .field(createPredefinedInputField("period", GraphQLChar, null, ""))
-                .field(createPredefinedInputField("poffset", GraphQLChar, null, ""))
-                .field(createPredefinedInputField("from", GraphQLChar, null, ""))
-                .field(createPredefinedInputField("thru", GraphQLChar, null, ""))
-                .build()
-        graphQLInputTypeCount++
-
-        this.paginationArgument = GraphQLArgument.newArgument().name("pagination")
-                .type(paginationInputType)
-                .description("pagination").build()
-        graphQLArgumentCount++
+        return edgesField
     }
 
-    private GraphQLFieldDefinition createPredefinedField(String name, GraphQLOutputType type, String description) {
+    // Should not be invoked, but getEdgesField
+    private static GraphQLOutputType getEdgesObjectType(GraphQLOutputType rawType, String nonNull, String listItemNonNull) {
+        String edgeRawTypeName = rawType.name + "Edge"
+        String edgesTypeKey = edgeRawTypeName
+        if ("true".equals(nonNull)) edgesTypeKey = edgesTypeKey + NON_NULL_SUFFIX
+        edgesTypeKey = edgesTypeKey + IS_LIST_SUFFIX
+        if ("true".equals(listItemNonNull)) edgesTypeKey = edgesTypeKey + LIST_ITEM_NON_NULL_SUFFIX
+
+        GraphQLOutputType edgesType = graphQLOutputTypeMap.get(edgesTypeKey)
+        if (edgesType != null) return edgesType
+
+        GraphQLObjectType edgeRawType = graphQLObjectTypeMap.get(edgeRawTypeName)
+        if (edgeRawType == null) {
+            GraphQLFieldDefinition nodeField = getGraphQLFieldWithNoArgs("node", rawType, nonNull, "false", listItemNonNull, null)
+
+            edgeRawType = GraphQLObjectType.newObject().name(edgeRawTypeName)
+                    .field(cursorField)
+                    .field(nodeField).build()
+            graphQLObjectTypeMap.put(edgeRawTypeName, edgeRawType)
+            graphQLOutputTypeMap.put(edgeRawTypeName, edgeRawType)
+        }
+
+        edgesType = edgeRawType
+
+        if ("true".equals(listItemNonNull)) edgesType = new GraphQLNonNull(edgesType)
+        edgesType = new GraphQLList(edgesType)
+        if ("true".equals(nonNull)) edgesType = new GraphQLNonNull(edgesType)
+        
+        if (!edgesTypeKey.equals(edgeRawTypeName)) {
+            graphQLOutputTypeMap.put(edgesTypeKey, edgesType)
+        }
+
+        return edgesType
+    }
+
+    private static GraphQLOutputType getGraphQLOutputType(FieldDefinition fieldDef) {
+        return getGraphQLOutputType(fieldDef.type, fieldDef.nonNull, fieldDef.isList, fieldDef.listItemNonNull)
+    }
+
+    private static GraphQLOutputType getGraphQLOutputType(String rawTypeName, String nonNull, String isList, String listItemNonNull) {
+        GraphQLOutputType rawType = graphQLOutputTypeMap.get(rawTypeName)
+        if (rawType == null)
+            throw new IllegalArgumentException("GraphQLOutputType [${rawTypeName}] not found")
+        return getGraphQLOutputType(rawType, nonNull, isList, listItemNonNull)
+    }
+
+    private static GraphQLOutputType getGraphQLOutputType(GraphQLOutputType rawType, String nonNull, String isList, String listItemNonNull) {
+        String outputTypeKey = rawType.name
+        if ("true".equals(nonNull)) outputTypeKey = outputTypeKey + NON_NULL_SUFFIX
+        if ("true".equals(isList)) {
+            outputTypeKey = outputTypeKey + IS_LIST_SUFFIX
+            if ("true".equals(listItemNonNull)) outputTypeKey = outputTypeKey + LIST_ITEM_NON_NULL_SUFFIX
+        }
+
+        GraphQLOutputType wrappedType = graphQLOutputTypeMap.get(outputTypeKey)
+        if (wrappedType != null) return wrappedType
+
+        wrappedType = rawType
+        if ("true".equals(isList)) {
+            if ("true".equals(listItemNonNull)) wrappedType = new GraphQLNonNull(wrappedType)
+            wrappedType = new GraphQLList(wrappedType)
+        }
+        if ("true".equals(nonNull)) wrappedType = new GraphQLNonNull(wrappedType)
+
+        if (!outputTypeKey.equals(rawType.name)) graphQLOutputTypeMap.put(outputTypeKey, wrappedType)
+
+        return wrappedType
+    }
+
+    private static GraphQLFieldDefinition getGraphQLFieldWithNoArgs(FieldDefinition fieldDef) {
+        if (fieldDef.argumentList.size() > 0)
+            throw new IllegalArgumentException("FieldDefinition [${fieldDef.name}] with type [${fieldDef.type}] has arguments, which should not be cached")
+        return getGraphQLFieldWithNoArgs(fieldDef.name, fieldDef.type, fieldDef.nonNull, fieldDef.isList,
+                                         fieldDef.listItemNonNull, fieldDef.description, fieldDef.dataFetcher)
+    }
+
+    private static GraphQLFieldDefinition getGraphQLFieldWithNoArgs(String name, GraphQLOutputType rawType, String description) {
+        return getGraphQLFieldWithNoArgs(name, rawType, "false", "false", "false", description, null)
+    }
+
+    private static GraphQLFieldDefinition getGraphQLFieldWithNoArgs(String name, String rawTypeName, String nonNull, String isList,
+                    String listItemNonNull, String description, DataFetcherHandler dataFetcherHandler) {
+        GraphQLOutputType rawType = graphQLOutputTypeMap.get(rawTypeName)
+//        if (rawType == null) throw new IllegalArgumentException("GraphQLOutputType [${rawTypeName}] for field [${name}] not found")
+        if (rawType == null) {
+            rawType = graphQLTypeReferenceMap.get(rawTypeName)
+            if (rawType == null) {
+                rawType = new GraphQLTypeReference(rawTypeName)
+                graphQLTypeReferenceMap.put(rawTypeName, rawType)
+            }
+        }
+        return getGraphQLFieldWithNoArgs(name, rawType, nonNull, isList, listItemNonNull, description, dataFetcherHandler)
+    }
+
+    private static GraphQLFieldDefinition getGraphQLFieldWithNoArgs(String name, GraphQLOutputType rawType, String nonNull, String isList,
+                    String listItemNonNull, DataFetcherHandler dataFetcherHandler) {
+        return getGraphQLFieldWithNoArgs(name, rawType, nonNull, isList, listItemNonNull, "", dataFetcherHandler)
+    }
+
+    private static GraphQLFieldDefinition getGraphQLFieldWithNoArgs(String name, GraphQLOutputType rawType, String nonNull, String isList,
+                                                                    String listItemNonNull, String description, DataFetcherHandler dataFetcherHandler) {
+        String fieldKey = name + KEY_SPLITTER + rawType.name
+
+        if ("true".equals(nonNull)) fieldKey = fieldKey + NON_NULL_SUFFIX
+        if ("true".equals(isList)) {
+            fieldKey = fieldKey + IS_LIST_SUFFIX
+            if ("true".equals(listItemNonNull)) fieldKey = fieldKey + LIST_ITEM_NON_NULL_SUFFIX
+        }
+
+        GraphQLFieldDefinition field = graphQLFieldMap.get(fieldKey)
+        if (field != null) return field
+
+
+        GraphQLOutputType fieldType
+
+        if ("true".equals(isList)) fieldType = getConnectionObjectType(rawType, nonNull, listItemNonNull)
+        else fieldType = getGraphQLOutputType(rawType, nonNull, "false", listItemNonNull)
+
         GraphQLFieldDefinition.Builder fieldBuilder = GraphQLFieldDefinition.newFieldDefinition()
-                .name(name).type(type).description(description)
-        for (Map.Entry<String, GraphQLArgument> entry in directiveArgumentMap)
-            fieldBuilder.argument(entry.getValue())
+                .name(name).description(description)
+        for (Map.Entry<String, GraphQLArgument> entry in directiveArgumentMap) fieldBuilder.argument(entry.getValue())
 
-        graphQLFieldCount++
-        return fieldBuilder.build()
+        fieldBuilder.type(fieldType)
+
+        if ("true".equals(isList)) fieldBuilder.argument(paginationArgument)
+        for (Map.Entry<String, GraphQLArgument> entry in directiveArgumentMap) fieldBuilder.argument((GraphQLArgument) entry.getValue())
+
+        if (dataFetcherHandler != null) {
+            fieldBuilder.dataFetcher(new DataFetcher() {
+                @Override
+                public Object get(DataFetchingEnvironment environment) {
+                    return dataFetcherHandler.get(environment)
+                }
+            })
+        }
+
+        field = fieldBuilder.build()
+        graphQLFieldMap.put(fieldKey, field)
+
+        return field
     }
 
-    private GraphQLInputObjectField createPredefinedInputField(String name, GraphQLInputType type,
+    private static GraphQLInputObjectField createPredefinedInputField(String name, GraphQLInputType type,
                                                               Object defaultValue, String description) {
         GraphQLInputObjectField.Builder fieldBuilder = GraphQLInputObjectField.newInputObjectField()
             .name(name).type(type).defaultValue(defaultValue).description(description)
 
-        graphQLInputFieldCount++
         return fieldBuilder.build()
     }
 
-    private void addGraphQLUnionType(UnionTypeDefinition unionTypeDef) {
-        if (graphQLTypeMap.containsKey(unionTypeDef.name)) return
+    private static void addGraphQLUnionType(UnionTypeDefinition unionTypeDef) {
+        String unionTypeName = unionTypeDef.name
+        GraphQLUnionType unionType = graphQLUnionTypeMap.get(unionTypeName)
+        if (unionType != null) return
 
-        GraphQLUnionType.Builder unionType = GraphQLUnionType.newUnionType()
-                .name(unionTypeDef.name)
+        GraphQLUnionType.Builder unionTypeBuilder = GraphQLUnionType.newUnionType()
+                .name(unionTypeName)
                 .description(unionTypeDef.description)
-        Map<String, GraphQLType> unionTypeList = new HashMap<>()
 
         for (String typeName in unionTypeDef.typeList) {
-            GraphQLType type = graphQLTypeMap.get(typeName)
-            if (type == null) {
-                throw new IllegalArgumentException("GraphQL type [${typeName}] for union type [${unionTypeDef.name}] not found")
-            } else if (!(type instanceof GraphQLObjectType)) {
-                throw new ClassCastException("GraphQL type [${typeName}] for union type [${unionTypeDef.name}] is not GraphQLObjectType")
-            }
-            unionTypeList.put(typeName, type)
-            unionType = unionType.possibleType(type)
+            GraphQLObjectType possibleType = graphQLObjectTypeMap.get(typeName)
+            if (possibleType == null)
+                throw new IllegalArgumentException("GraphQLObjectType [${typeName}] as possibleType of GraphQLUnionType [${unionTypeName}] not found")
+
+            unionTypeBuilder.possibleType(possibleType)
         }
 
         // TODO: Add typeResolver for type, one way is to add a service as resolver
 
-        graphQLUnionTypeCount++
-        graphQLTypeMap.put(unionTypeDef.name, unionType.build())
+        unionType = unionTypeBuilder.build()
+        graphQLUnionTypeMap.put(unionTypeName, unionType)
+        graphQLOutputTypeMap.put(unionTypeName, unionType)
     }
 
-    private void addGraphQLEnumType(EnumTypeDefinition enumTypeDef) {
-        if (graphQLTypeMap.containsKey(enumTypeDef.name)) return
+    private static void addGraphQLEnumType(EnumTypeDefinition enumTypeDef) {
+        String enumTypeName = enumTypeDef.name
+        GraphQLEnumType enumType = graphQLEnumTypeMap.get(enumTypeName)
+        if (enumType != null) return
 
-        GraphQLEnumType.Builder enumType = GraphQLEnumType.newEnum().name(enumTypeDef.name)
+        GraphQLEnumType.Builder enumTypeBuilder = GraphQLEnumType.newEnum().name(enumTypeName)
                 .description(enumTypeDef.description)
 
-        for (EnumValue valueNode in enumTypeDef.valueList) {
-            enumType = enumType.value(valueNode.name, valueNode.value, valueNode.description, valueNode.depreciationReason)
-        }
+        for (EnumValue valueNode in enumTypeDef.valueList)
+            enumTypeBuilder = enumTypeBuilder.value(valueNode.name, valueNode.value, valueNode.description, valueNode.depreciationReason)
 
-        graphQLEnumTypeCount++
-        graphQLTypeMap.put(enumTypeDef.name, enumType.build())
+        enumType = enumTypeBuilder.build()
+        graphQLEnumTypeMap.put(enumTypeName, enumType)
+        graphQLInputTypeMap.put(enumTypeName, enumType)
+        graphQLOutputTypeMap.put(enumTypeName, enumType)
     }
 
-    private void addGraphQLInterfaceType(InterfaceTypeDefinition interfaceTypeDef) {
-        if (graphQLTypeMap.containsKey(interfaceTypeDef.name)) return
+    private static void addGraphQLInterfaceType(InterfaceTypeDefinition interfaceTypeDef) {
+        String interfaceTypeName = interfaceTypeDef.name
+        GraphQLInterfaceType interfaceType = graphQLInterfaceTypeMap.get(interfaceTypeName)
+        if (interfaceType != null) return
 
-        GraphQLInterfaceType.Builder interfaceType = GraphQLInterfaceType.newInterface()
-                .name(interfaceTypeDef.name)
+        GraphQLInterfaceType.Builder interfaceTypeBuilder = GraphQLInterfaceType.newInterface()
+                .name(interfaceTypeName)
                 .description(interfaceTypeDef.description)
 
         for (FieldDefinition fieldNode in interfaceTypeDef.fieldList) {
-            interfaceType.field(buildField(fieldNode))
+            interfaceTypeBuilder.field(buildSchemaField(fieldNode))
         }
 
         // TODO: Add typeResolver for type, one way is to add a service as resolver
         if (!interfaceTypeDef.convertFromObjectTypeName.isEmpty()) {
             if (interfaceTypeDef.resolverField == null || interfaceTypeDef.resolverField.isEmpty())
-                throw new IllegalArgumentException("Interface definition of ${interfaceTypeDef.name} resolverField not set")
+                throw new IllegalArgumentException("Interface definition of ${interfaceTypeName} resolverField not set")
 
-            interfaceType.typeResolver(new TypeResolver() {
+            interfaceTypeBuilder.typeResolver(new TypeResolver() {
                 @Override
                 GraphQLObjectType getType(Object object) {
                     String resolverFieldValue = ((Map) object).get(interfaceTypeDef.resolverField)
                     String resolvedTypeName = interfaceTypeDef.resolverMap.get(resolverFieldValue)
 
-                    GraphQLType resolvedType = graphQLTypeMap.get(resolvedTypeName)
-                    if (resolvedType == null) resolvedType = graphQLTypeMap.get(interfaceTypeDef.defaultResolvedTypeName)
-                    return (GraphQLObjectType) resolvedType
+                    GraphQLObjectType resolvedType = graphQLObjectTypeMap.get(resolvedTypeName)
+                    if (resolvedType == null) resolvedType = graphQLObjectTypeMap.get(interfaceTypeDef.defaultResolvedTypeName)
+                    return resolvedType
                 }
             })
         }
 
-        graphQLInterfaceTypeCount++
-        graphQLTypeMap.put(interfaceTypeDef.name, interfaceType.build())
+        interfaceType = interfaceTypeBuilder.build()
+        graphQLInterfaceTypeMap.put(interfaceTypeName, interfaceType)
+        graphQLOutputTypeMap.put(interfaceTypeName, interfaceType)
     }
 
-    private void addGraphQLObjectType(ObjectTypeDefinition objectTypeDef) {
-        if (graphQLTypeMap.containsKey(objectTypeDef.name)) return
+    private static void addGraphQLObjectType(ObjectTypeDefinition objectTypeDef) {
+        String objectTypeName = objectTypeDef.name
+        GraphQLObjectType objectType = graphQLObjectTypeMap.get(objectTypeName)
+        if (objectType != null) return
 
-        GraphQLObjectType.Builder objectType = GraphQLObjectType.newObject()
-                .name(objectTypeDef.name)
+        GraphQLObjectType.Builder objectTypeBuilder = GraphQLObjectType.newObject()
+                .name(objectTypeName)
                 .description(objectTypeDef.description)
 
         for (String interfaceName in objectTypeDef.interfaceList) {
-            GraphQLType interfaceType = graphQLTypeMap.get(interfaceName)
+            GraphQLInterfaceType interfaceType = graphQLInterfaceTypeMap.get(interfaceName)
             if (interfaceType == null)
-                throw new IllegalArgumentException("GraphQL interface type ${interfaceName} for [${objectTypeDef.name}] not found.")
+                throw new IllegalArgumentException("GraphQLInterfaceType [${interfaceName}] for GraphQLObjectType [${objectTypeName}] not found.")
 
-            objectType = objectType.withInterface((GraphQLInterfaceType) interfaceType)
+            objectTypeBuilder = objectTypeBuilder.withInterface(interfaceType)
         }
 
-        for (FieldDefinition fieldDef in objectTypeDef.fieldList) {
-            objectType = objectType.field(buildField(fieldDef))
-        }
+        for (FieldDefinition fieldDef in objectTypeDef.fieldList)
+            objectTypeBuilder = objectTypeBuilder.field(buildSchemaField(fieldDef))
 
-        graphQLObjectTypeCount++
-        graphQLTypeMap.put(objectTypeDef.name, objectType.build())
+        objectType = objectTypeBuilder.build()
+        graphQLObjectTypeMap.put(objectTypeName, objectType)
+        graphQLOutputTypeMap.put(objectTypeName, objectType)
     }
 
-    private GraphQLFieldDefinition buildField(FieldDefinition fieldDef) {
+    private static GraphQLFieldDefinition buildSchemaField(FieldDefinition fieldDef) {
         GraphQLFieldDefinition graphQLFieldDef
 
-        if (graphQLScalarTypes.keySet().contains(fieldDef.type)) {
-            graphQLFieldDef = scalarFieldMap.get(getFieldSearchKey(fieldDef))
-            if (graphQLFieldDef != null) {
-                return graphQLFieldDef
-            }
-        }
+        if (fieldDef.argumentList.size() == 0) return getGraphQLFieldWithNoArgs(fieldDef)
+
+        GraphQLOutputType fieldType
+        if ("true".equals(fieldDef.isList)) fieldType = getConnectionObjectType(fieldDef.type, fieldDef.nonNull, fieldDef.listItemNonNull)
+        else fieldType = getGraphQLOutputType(fieldDef)
 
         GraphQLFieldDefinition.Builder graphQLFieldDefBuilder = GraphQLFieldDefinition.newFieldDefinition()
                 .name(fieldDef.name)
+                .type(fieldType)
                 .description(fieldDef.description)
                 .deprecate(fieldDef.depreciationReason)
 
-        GraphQLType fieldRawType = graphQLTypeMap.get(fieldDef.type)
-        if (fieldRawType == null) {
-            fieldRawType = new GraphQLTypeReference(fieldDef.type)
-            graphQLTypeMap.put(fieldDef.type, fieldRawType)
-            graphQLTypeReferences.add(fieldDef.type)
-        }
-
-        // build type for field which could be one of: type, type!, [type], [type!], [type!]!
-        GraphQLType fieldType
-        if ("true".equals(fieldDef.isList)) {
-            String listFieldTypeName = fieldDef.type + 'Connection'
-            fieldType = graphQLTypeMap.get(listFieldTypeName)
-            if (fieldType == null) {
-                // Create pagination object type for field.
-                GraphQLType wrappedListFieldType
-                if ("true".equals(fieldDef.listItemNonNull)) {
-                    wrappedListFieldType = new GraphQLList(new GraphQLNonNull(fieldRawType))
-                } else {
-                    wrappedListFieldType = new GraphQLList(fieldRawType)
-                }
-                fieldType = GraphQLObjectType.newObject().name(listFieldTypeName)
-                        .field(createPredefinedField("edges", wrappedListFieldType, "Actual data list"))
-                        .field(createPredefinedField("pageInfo", pageInfoType, "Pagination information"))
-                        .build()
-                graphQLTypeMap.put(listFieldTypeName, fieldType)
-            }
-        }
-        if ("true".equals(fieldDef.nonNull)) {
-            if (fieldType == null) {
-                fieldType = new GraphQLNonNull(fieldRawType)
-            } else {
-                fieldType = new GraphQLNonNull(fieldType)
-            }
-        }
-        if (fieldType == null) fieldType = fieldRawType
-
-        if (!(fieldType instanceof GraphQLOutputType))
-            throw new IllegalArgumentException("GraphQL type [${fieldDef.type}] for field [${fieldDef.name}] is not derived from GraphQLOutputType")
-
-        graphQLFieldDefBuilder.type((GraphQLOutputType) fieldType)
-
         // build arguments for field
         for (ArgumentDefinition argNode in fieldDef.argumentList)
-            graphQLFieldDefBuilder.argument(buildArgument(argNode))
+            graphQLFieldDefBuilder.argument(buildSchemaArgument(argNode))
         // Add pagination argument
         if ("true".equals(fieldDef.isList)) graphQLFieldDefBuilder.argument(paginationArgument)
         // Add directive arguments
@@ -686,41 +837,31 @@ public class GraphQLSchemaDefinition {
         }
 
         graphQLFieldDef = graphQLFieldDefBuilder.build()
-        scalarFieldMap.put(getFieldSearchKey(fieldDef), graphQLFieldDef)
-        graphQLFieldCount++
+
         return graphQLFieldDef
     }
 
-    private String getFieldSearchKey(FieldDefinition fieldDef) {
-        return "${fieldDef.name}__${fieldDef.type}__${'true'.equals(fieldDef.nonNull) ? '1' : '0'}__" +
-                "${'true'.equals(fieldDef.isList) ? '1' : '0'}__${'true'.equals(fieldDef.listItemNonNull) ? '1' : '0'}__" +
-                "${'true'.equals(fieldDef.requireAuthentication) ? '1' : '0'}"
-    }
-
-    private GraphQLArgument buildArgument(ArgumentDefinition argumentDef) {
+    private static GraphQLArgument buildSchemaArgument(ArgumentDefinition argumentDef) {
+        String argumentName = argumentDef.name
         GraphQLArgument.Builder argument = GraphQLArgument.newArgument()
-                .name(argumentDef.name)
+                .name(argumentName)
                 .description(argumentDef.description)
                 .defaultValue(argumentDef.defaultValue)
 
-        GraphQLType argType = graphQLTypeMap.get(argumentDef.type)
+        GraphQLInputType argType = graphQLInputTypeMap.get(argumentDef.type)
         if (argType == null)
-            throw new IllegalArgumentException("GraphQL type [${argumentDef.type}] for argument [${argumentDef.name}] not found")
-
-        if (!(argType instanceof GraphQLInputType))
-            throw new IllegalArgumentException("GraphQL type [${argumentDef.type}] for argument [${argumentDef.name}] is not derived from GraphQLInputObjectType")
+            throw new IllegalArgumentException("GraphQLInputType [${argumentDef.type}] for argument [${argumentName}] not found")
 
         if ("true".equals(argumentDef.fieldDef.isList)) {
             if (graphQLDateTypes.contains(argumentDef.type)) {
-                argType = graphQLTypeMap.get("DateRangeInputType")
+                argType = graphQLInputTypeMap.get("DateRangeInputType")
             } else if (graphQLStringTypes.contains(argumentDef.type) || graphQLNumericTypes.contains(argumentDef.type)) {
-                argType = graphQLTypeMap.get("OperationInputType")
+                argType = graphQLInputTypeMap.get("OperationInputType")
             }
         }
 
-        argument = argument.type((GraphQLInputType) argType)
+        argument = argument.type(argType)
 
-        graphQLArgumentCount++
         return argument.build()
     }
 
@@ -1421,29 +1562,41 @@ public class GraphQLSchemaDefinition {
                     resultMap.put("pageInfo", ['pageIndex': pageIndex, 'pageSize': pageSize, 'totalCount': count,
                            'pageMaxIndex': pageMaxIndex, 'pageRangeLow': pageRangeLow, 'pageRangeHigh': pageRangeHigh]) as Map<String, Object>
 
-                    List<Map<String, Object>> list = ef.list().getPlainValueList(0)
-                    if (list == null || list.size() == 0) {
-                        resultMap.put("edges", null)
+                    EntityList el = ef.list()
+                    List<Map<String, Object>> edgesDataList = new ArrayList(el.size())
+                    Map<String, Object> edgesData
+
+                    if (el == null || el.size() == 0) {
+                        // Do nothing
                     } else {
                         if (interfaceEntityName == null || interfaceEntityName.isEmpty() || entityName.equals(interfaceEntityName)) {
-                            resultMap.put("edges", list)
+                            for (EntityValue ev in el) {
+                                edgesData = new HashMap<>(2)
+                                edgesData.put("cursor", "test cursor which should be type+primary_id")
+                                edgesData.put("node", ev.getPlainValueMap(0))
+                                edgesDataList.add(edgesData)
+                            }
                         } else {
                             List<Object> pkValues = new ArrayList<>()
-                            for (Map<String, Object> one in list) pkValues.add(one.get(interfaceEntityPkField))
-                            ef = ec.entity.find(interfaceEntityName).condition(interfaceEntityPkField, EntityCondition.ComparisonOperator.IN, pkValues)
-                            List<Map<String, Object>> interfaceValueList = ef.list().getPlainValueList(0)
-                            List<Map<String, Object>> jointOneList = new ArrayList<>(list.size())
+                            for (EntityValue ev in el) pkValues.add(ev.get(interfaceEntityPkField))
+
+                            EntityFind efInterface = ec.entity.find(interfaceEntityName).condition(interfaceEntityPkField, EntityCondition.ComparisonOperator.IN, pkValues)
+
                             Map<String, Object> jointOneMap, matchedOne
-                            for (Map<String, Object> interfaceValue in interfaceValueList) {
-                                jointOneMap = new HashedMap()
-                                jointOneMap.putAll(interfaceValue)
-                                matchedOne = list.find({ interfaceValue.get(interfaceEntityPkField).equals(it.get(interfaceEntityPkField)) })
+
+                            for (EntityValue evInterface in efInterface.list()) {
+                                edgesData = new HashMap<>(2)
+                                edgesData.put("cursor", "test cursor which should be type+primary_id")
+                                jointOneMap = evInterface.getPlainValueMap(0)
+                                matchedOne = el.find({ evInterface.get(interfaceEntityPkField).equals(it.get(interfaceEntityPkField)) })
                                 if (matchedOne != null) jointOneMap.putAll(matchedOne)
-                                jointOneList.add(jointOneMap)
+                                edgesData.put("node", jointOneMap)
+                                edgesDataList.add(edgesData)
                             }
-                            resultMap.put("edges", jointOneList)
+
                         }
                     }
+                    resultMap.put("edges", edgesDataList)
                     return resultMap
                 }
             }
