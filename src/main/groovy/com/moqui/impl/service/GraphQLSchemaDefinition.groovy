@@ -1467,10 +1467,12 @@ public class GraphQLSchemaDefinition {
         }
     }
 
-    static class DataFetcherEntity extends DataFetcherHandler{
+    static class DataFetcherEntity extends DataFetcherHandler {
         String entityName, interfaceEntityName, operation
         String requireAuthentication
         String interfaceEntityPkField
+        List<String> pkFieldNames = new ArrayList<>(1)
+        String fieldRawType
         Map<String, String> relKeyMap = new HashMap<>()
 
         DataFetcherEntity(MNode node, FieldDefinition fieldDef, ExecutionContext ec) {
@@ -1478,6 +1480,7 @@ public class GraphQLSchemaDefinition {
             this.requireAuthentication = fieldDef.requireAuthentication ?: "true"
             this.entityName = node.attribute("entity-name")
             this.interfaceEntityName = node.attribute("interface-entity-name")
+            this.fieldRawType = fieldDef.type
 
             if ("true".equals(fieldDef.isList)) this.operation = "list"
             else this.operation = "one"
@@ -1488,15 +1491,24 @@ public class GraphQLSchemaDefinition {
                     throw new IllegalArgumentException("Entity ${interfaceEntityName} for interface should have one primary key")
                 interfaceEntityPkField = ed.getFieldNames(true, false).first()
             }
+            getPrimaryFields()
         }
 
         DataFetcherEntity(ExecutionContext ec, FieldDefinition fieldDef, String entityName, Map<String, String> relKeyMap) {
             super(fieldDef, ec)
             this.requireAuthentication = fieldDef.requireAuthentication ?: "true"
             this.entityName = entityName
+            this.fieldRawType = fieldDef.type
             this.relKeyMap.putAll(relKeyMap)
             if ("true".equals(fieldDef.isList)) { this.operation = "list" }
             else { this.operation = "one" }
+
+            getPrimaryFields()
+        }
+
+        private void getPrimaryFields() {
+            EntityDefinition ed = ((ExecutionContextImpl) ec).getEntityFacade().getEntityDefinition(entityName)
+            pkFieldNames.addAll(ed.pkFieldNames)
         }
 
         @Override
@@ -1565,6 +1577,7 @@ public class GraphQLSchemaDefinition {
                     EntityList el = ef.list()
                     List<Map<String, Object>> edgesDataList = new ArrayList(el.size())
                     Map<String, Object> edgesData
+                    String cursor
 
                     if (el == null || el.size() == 0) {
                         // Do nothing
@@ -1572,7 +1585,10 @@ public class GraphQLSchemaDefinition {
                         if (interfaceEntityName == null || interfaceEntityName.isEmpty() || entityName.equals(interfaceEntityName)) {
                             for (EntityValue ev in el) {
                                 edgesData = new HashMap<>(2)
-                                edgesData.put("cursor", "test cursor which should be type+primary_id")
+                                cursor = fieldRawType
+                                for (String pk in pkFieldNames) cursor = cursor + '|' + ev.get(pk)
+                                cursor = Base64.getEncoder().encodeToString(cursor.bytes)
+                                edgesData.put("cursor", cursor)
                                 edgesData.put("node", ev.getPlainValueMap(0))
                                 edgesDataList.add(edgesData)
                             }
@@ -1584,16 +1600,18 @@ public class GraphQLSchemaDefinition {
 
                             Map<String, Object> jointOneMap, matchedOne
 
-                            for (EntityValue evInterface in efInterface.list()) {
+                            for (EntityValue ev in el) {
                                 edgesData = new HashMap<>(2)
-                                edgesData.put("cursor", "test cursor which should be type+primary_id")
-                                jointOneMap = evInterface.getPlainValueMap(0)
-                                matchedOne = el.find({ evInterface.get(interfaceEntityPkField).equals(it.get(interfaceEntityPkField)) })
-                                if (matchedOne != null) jointOneMap.putAll(matchedOne)
+                                cursor = fieldRawType
+                                for (String pk in pkFieldNames) cursor = cursor + '|' + ev.get(pk)
+                                cursor = Base64.getEncoder().encodeToString(cursor.bytes)
+                                edgesData.put("cursor", cursor)
+                                jointOneMap = ev.getPlainValueMap(0)
+                                matchedOne = efInterface.list().find({ it.get(interfaceEntityPkField).equals(ev.get(interfaceEntityPkField)) })
+                                jointOneMap.putAll(matchedOne)
                                 edgesData.put("node", jointOneMap)
                                 edgesDataList.add(edgesData)
                             }
-
                         }
                     }
                     resultMap.put("edges", edgesDataList)
