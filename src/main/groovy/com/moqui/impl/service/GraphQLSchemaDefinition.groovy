@@ -165,8 +165,10 @@ public class GraphQLSchemaDefinition {
         }
 
         // Predefined GraphQLFieldDefinition
-        cursorField = GraphQLFieldDefinition.newFieldDefinition().name("cursor")
-                .type(GraphQLString).build()
+        GraphQLFieldDefinition.Builder cursorFieldBuilder = GraphQLFieldDefinition.newFieldDefinition().name("cursor")
+                .type(GraphQLString)
+        for (Map.Entry<String, GraphQLArgument> entry in directiveArgumentMap) cursorFieldBuilder.argument(entry.getValue())
+        cursorField = cursorFieldBuilder.build()
         graphQLFieldMap.put("cursor", cursorField)
 
         // Predefined GraphQLArgument
@@ -546,9 +548,12 @@ public class GraphQLSchemaDefinition {
         GraphQLFieldDefinition edgesField = graphQLFieldMap.get(edgeFieldKey)
         if (edgesField != null) return edgesField
 
-        edgesField = GraphQLFieldDefinition.newFieldDefinition().name(edgesFieldName)
+        GraphQLFieldDefinition.Builder edgesFieldBuilder = GraphQLFieldDefinition.newFieldDefinition().name(edgesFieldName)
                 .type(getEdgesObjectType(rawType, nonNull, listItemNonNull))
-                .build()
+
+        for (Map.Entry<String, GraphQLArgument> entry in directiveArgumentMap) edgesFieldBuilder.argument(entry.getValue())
+
+        edgesField = edgesFieldBuilder.build()
         graphQLFieldMap.put(edgeFieldKey, edgesField)
 
         return edgesField
