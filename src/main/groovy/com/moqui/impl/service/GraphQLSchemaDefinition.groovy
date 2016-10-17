@@ -368,7 +368,7 @@ public class GraphQLSchemaDefinition {
         }
     }
 
-    private void createTreeNodeRecursive(TreeNode<GraphQLTypeDefinition> node, List<String> objectTypeNames, Boolean includeInterface) {
+    private void createTreeNodeRecursive(TreeNode<GraphQLTypeDefinition> node, List<String> objectTypeNames, boolean includeInterface) {
         if (node.data) {
             for (String type in node.data.getDependentTypes()) {
                 // If type is GraphQL Scalar types, skip.
@@ -1132,7 +1132,7 @@ public class GraphQLSchemaDefinition {
         List<String> excludeFields = new ArrayList<>()
         Map<String, String> resolverMap = new LinkedHashMap<>()
 
-        Boolean convertToInterface = false
+        boolean convertToInterface = false
 
         ExtendObjectDefinition(MNode node) {
             this.extendObjectNode = node
