@@ -28,6 +28,8 @@ import org.slf4j.LoggerFactory
 
 import graphql.schema.GraphQLObjectType
 
+import java.util.concurrent.locks.ReentrantLock
+
 import static graphql.schema.GraphQLFieldDefinition.newFieldDefinition
 import static graphql.Scalars.GraphQLString
 
@@ -44,6 +46,8 @@ class GraphQLApi {
 
     final String graphQLSchemaDefCacheName = "service.graphql.schema.definition"
     final String graphQLCacheName = "service.graphql.graphql"
+
+    final ReentrantLock graphQLLock = new ReentrantLock()
 
     static GraphQLObjectType queryType = GraphQLObjectType.newObject()
             .name("RootQueryType")
@@ -76,8 +80,16 @@ class GraphQLApi {
         GraphQL graphQL = graphQLCache.get(schemaName)
 
         if (graphQL == null) {
-            loadSchemaNode(schemaName)
-            graphQL = graphQLCache.get(schemaName)
+            graphQLLock.lock()
+            try {
+                if (graphQL == null) {
+                    GraphQLSchemaDefinition.clearAllCachedGraphQLTypes()
+                    loadSchemaNode(null)
+                    graphQL = graphQLCache.get(schemaName)
+                }
+            } finally {
+                graphQLLock.unlock()
+            }
         }
 
         ExecutionResult executionResult = graphQL.execute("${requestString}", operationName, context, arguments)

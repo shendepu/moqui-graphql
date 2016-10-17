@@ -15,7 +15,6 @@ package com.moqui.impl.service
 
 import com.moqui.graphql.DataFetchingException
 import com.moqui.impl.util.GraphQLSchemaUtil
-import graphql.language.ObjectValue
 import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment
 import graphql.schema.GraphQLArgument
@@ -94,10 +93,8 @@ public class GraphQLSchemaDefinition {
     protected static final Map<String, GraphQLObjectType> graphQLObjectTypeMap = new HashMap<>()
     protected static final Map<String, GraphQLFieldDefinition> graphQLFieldMap = new HashMap<>()
     protected static final Map<String, GraphQLArgument> graphQLArgumentMap = new HashMap<>()
-    protected static final Map<String, GraphQLArgument> directiveArgumentMap = new LinkedHashMap<>()
+    protected static final Map<String, GraphQLArgument> graphQLDirectiveArgumentMap = new LinkedHashMap<>()
     protected static final Map<String, GraphQLTypeReference> graphQLTypeReferenceMap = new HashMap<>()
-
-    protected static final Map<String, GraphQLFieldDefinition> graphQLFieldDefMap = new HashMap<>()
 
     protected final Set<GraphQLType> schemaInputTypes = new HashSet<GraphQLType>()
 
@@ -130,9 +127,6 @@ public class GraphQLSchemaDefinition {
     protected Integer graphQLArgumentCount = 1
     protected Integer graphQLInputTypeCount = 0
     protected Integer graphQLInputFieldCount = 0
-
-    // The key is encoded as <fieldName>__<type>__<nonNull>__<isList>__<listItemNonNull>__<requireAuthentication>
-    protected static final Map<String, GraphQLFieldDefinition> scalarFieldMap = new HashMap<>()
 
     protected static final String KEY_SPLITTER = "__"
     protected static final String NON_NULL_SUFFIX = "_1"
@@ -167,14 +161,14 @@ public class GraphQLSchemaDefinition {
         // Predefined GraphQLFieldDefinition
         GraphQLFieldDefinition.Builder cursorFieldBuilder = GraphQLFieldDefinition.newFieldDefinition().name("cursor")
                 .type(GraphQLString)
-        for (Map.Entry<String, GraphQLArgument> entry in directiveArgumentMap) cursorFieldBuilder.argument(entry.getValue())
+        for (Map.Entry<String, GraphQLArgument> entry in graphQLDirectiveArgumentMap) cursorFieldBuilder.argument(entry.getValue())
         cursorField = cursorFieldBuilder.build()
         graphQLFieldMap.put("cursor", cursorField)
 
         // Predefined GraphQLArgument
         ifArgument = GraphQLArgument.newArgument().name("if")
                 .type(GraphQLBoolean).description("Directive @if").build()
-        directiveArgumentMap.put("if", ifArgument)
+        graphQLDirectiveArgumentMap.put("if", ifArgument)
 
         pageInfoType = GraphQLObjectType.newObject().name("GraphQLPageInfo")
                 .field(getGraphQLFieldWithNoArgs("pageIndex", GraphQLInt, ""))
@@ -266,6 +260,21 @@ public class GraphQLSchemaDefinition {
         }
 
         updateAllTypeDefMap()
+    }
+
+    public static void clearAllCachedGraphQLTypes() {
+        graphQLOutputTypeMap.clear()
+        graphQLInputTypeMap.clear()
+        graphQLEnumTypeMap.clear()
+        graphQLUnionTypeMap.clear()
+        graphQLInterfaceTypeMap.clear()
+        graphQLObjectTypeMap.clear()
+        graphQLFieldMap.clear()
+        graphQLArgumentMap.clear()
+        graphQLDirectiveArgumentMap.clear()
+        graphQLTypeReferenceMap.clear()
+
+        createPredefinedGraphQLTypes()
     }
 
     private GraphQLTypeDefinition getTypeDef(String name) {
@@ -551,7 +560,7 @@ public class GraphQLSchemaDefinition {
         GraphQLFieldDefinition.Builder edgesFieldBuilder = GraphQLFieldDefinition.newFieldDefinition().name(edgesFieldName)
                 .type(getEdgesObjectType(rawType, nonNull, listItemNonNull))
 
-        for (Map.Entry<String, GraphQLArgument> entry in directiveArgumentMap) edgesFieldBuilder.argument(entry.getValue())
+        for (Map.Entry<String, GraphQLArgument> entry in graphQLDirectiveArgumentMap) edgesFieldBuilder.argument(entry.getValue())
 
         edgesField = edgesFieldBuilder.build()
         graphQLFieldMap.put(edgeFieldKey, edgesField)
@@ -679,12 +688,12 @@ public class GraphQLSchemaDefinition {
 
         GraphQLFieldDefinition.Builder fieldBuilder = GraphQLFieldDefinition.newFieldDefinition()
                 .name(name).description(description)
-        for (Map.Entry<String, GraphQLArgument> entry in directiveArgumentMap) fieldBuilder.argument(entry.getValue())
+        for (Map.Entry<String, GraphQLArgument> entry in graphQLDirectiveArgumentMap) fieldBuilder.argument(entry.getValue())
 
         fieldBuilder.type(fieldType)
 
         if ("true".equals(isList)) fieldBuilder.argument(paginationArgument)
-        for (Map.Entry<String, GraphQLArgument> entry in directiveArgumentMap) fieldBuilder.argument((GraphQLArgument) entry.getValue())
+        for (Map.Entry<String, GraphQLArgument> entry in graphQLDirectiveArgumentMap) fieldBuilder.argument((GraphQLArgument) entry.getValue())
 
         if (dataFetcherHandler != null) {
             fieldBuilder.dataFetcher(new DataFetcher() {
@@ -832,7 +841,7 @@ public class GraphQLSchemaDefinition {
         // Add pagination argument
         if ("true".equals(fieldDef.isList)) graphQLFieldDefBuilder.argument(paginationArgument)
         // Add directive arguments
-        for (Map.Entry<String, GraphQLArgument> entry in directiveArgumentMap)
+        for (Map.Entry<String, GraphQLArgument> entry in graphQLDirectiveArgumentMap)
             graphQLFieldDefBuilder.argument((GraphQLArgument) entry.getValue())
 
         if (fieldDef.dataFetcher != null) {
@@ -1382,7 +1391,7 @@ public class GraphQLSchemaDefinition {
         }
 
         private void addAutoArguments(List<String> excludedFields) {
-            if (graphQLScalarTypes.keySet().contains(type) || directiveArgumentMap.keySet().contains(type)) return
+            if (graphQLScalarTypes.keySet().contains(type) || graphQLDirectiveArgumentMap.keySet().contains(type)) return
             if (!((ExecutionContextImpl) ec).getEntityFacade().isEntityDefined(type)) return
 
             EntityDefinition ed = ((ExecutionContextImpl) ec).getEntityFacade().getEntityDefinition(type)
