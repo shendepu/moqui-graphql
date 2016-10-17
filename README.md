@@ -10,6 +10,11 @@ The way to use it is just simliar to REST Api in moqui-framework.
 You may try the [demo](https://github.com/shendepu/moqui-graphql-demo)
 
 
+# References
+
+- [Relay Cursor Connection Specification](https://facebook.github.io/relay/graphql/connections.htm)
+- [Relay Input Object Mutations Specification](https://facebook.github.io/relay/graphql/mutations.htm)
+
 # License
 
 Moqui GraphQL is [CC0-licensed](./LICENSE.md). we also provide an addition [copyright and patent grant](./AUTHORS) 
