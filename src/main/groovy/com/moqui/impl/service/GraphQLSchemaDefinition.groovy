@@ -54,6 +54,8 @@ import org.moqui.util.MNode
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
+import java.util.concurrent.locks.ReentrantLock
+
 import static graphql.Scalars.GraphQLBigDecimal
 import static graphql.Scalars.GraphQLBigInteger
 import static graphql.Scalars.GraphQLBoolean
@@ -1494,11 +1496,29 @@ public class GraphQLSchemaDefinition {
 
         DataFetcherEntity(MNode node, FieldDefinition fieldDef, ExecutionContext ec) {
             super(fieldDef, ec)
-            this.requireAuthentication = fieldDef.requireAuthentication ?: "true"
-            this.entityName = node.attribute("entity-name")
-            this.interfaceEntityName = node.attribute("interface-entity-name")
-            this.fieldRawType = fieldDef.type
 
+            Map<String, String> keyMap = new HashMap<>()
+            for (MNode keyMapNode in node.children("key-map"))
+                keyMap.put(keyMapNode.attribute("field-name"), keyMapNode.attribute("related") ?: keyMapNode.attribute("field-name"))
+
+            initializeFields(node.attribute("entity-name"), node.attribute("interface-entity-name"), keyMap)
+        }
+
+        DataFetcherEntity(ExecutionContext ec, FieldDefinition fieldDef, String entityName, Map<String, String> relKeyMap) {
+            this(ec, fieldDef, entityName, null, relKeyMap)
+        }
+
+        DataFetcherEntity(ExecutionContext ec, FieldDefinition fieldDef, String entityName, String interfaceEntityName, Map<String, String> relKeyMap) {
+            super(fieldDef, ec)
+            initializeFields(entityName, interfaceEntityName, relKeyMap)
+        }
+
+        private void initializeFields(String entityName, String interfaceEntityName, Map<String, String> relKeyMap) {
+            this.requireAuthentication = fieldDef.requireAuthentication ?: "true"
+            this.entityName = entityName
+            this.interfaceEntityName = interfaceEntityName
+            this.fieldRawType = fieldDef.type
+            this.relKeyMap.putAll(relKeyMap)
             if ("true".equals(fieldDef.isList)) this.operation = "list"
             else this.operation = "one"
 
@@ -1508,22 +1528,7 @@ public class GraphQLSchemaDefinition {
                     throw new IllegalArgumentException("Entity ${interfaceEntityName} for interface should have one primary key")
                 interfaceEntityPkField = ed.getFieldNames(true, false).first()
             }
-            getPrimaryFields()
-        }
 
-        DataFetcherEntity(ExecutionContext ec, FieldDefinition fieldDef, String entityName, Map<String, String> relKeyMap) {
-            super(fieldDef, ec)
-            this.requireAuthentication = fieldDef.requireAuthentication ?: "true"
-            this.entityName = entityName
-            this.fieldRawType = fieldDef.type
-            this.relKeyMap.putAll(relKeyMap)
-            if ("true".equals(fieldDef.isList)) { this.operation = "list" }
-            else { this.operation = "one" }
-
-            getPrimaryFields()
-        }
-
-        private void getPrimaryFields() {
             EntityDefinition ed = ((ExecutionContextImpl) ec).getEntityFacade().getEntityDefinition(entityName)
             pkFieldNames.addAll(ed.pkFieldNames)
         }

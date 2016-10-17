@@ -165,6 +165,14 @@ along with this software (see the LICENSE.md file). If not, see
     <xs:element name="empty-fetcher"/>
     <xs:element name="entity-fetcher">
         <xs:complexType>
+            <xs:sequence>
+                <xs:element minOccurs="0" maxOccurs="unbounded" name="key-map">
+                    <xs:complexType>
+                        <xs:attribute name="field-name" type="name-field"/>
+                        <xs:attribute name="related" type="name-field"/>
+                    </xs:complexType>
+                </xs:element>
+            </xs:sequence>
             <xs:attribute name="entity-name" type="name-full" use="required"/>
             <xs:attribute name="interface-entity-name" type="name-full"/>
         </xs:complexType>
