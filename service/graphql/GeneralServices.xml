@@ -18,4 +18,13 @@
             </parameter>
         </out-parameters>
     </service>
+    
+    <service verb="mutate" noun="OperationInterface" type="interface">
+        <in-parameters>
+            <parameter name="clientMutationId" type="String"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="clientMutationId" type="String"/>
+        </out-parameters>
+    </service>
 </services>
