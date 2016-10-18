@@ -1392,7 +1392,13 @@ public class GraphQLSchemaDefinition {
                         mergeArgument(new AutoArgumentsDefinition(childNode))
                         break
                     case "argument":
-                        mergeArgument(new ArgumentDefinition(childNode, this))
+                        String argTypeName = getArgumentTypeName(childNode.attribute("type"), this.isList)
+                        ArgumentDefinition argDef = getCachedArgumentDefinition(childNode.attribute("name"), argTypeName, childNode.attribute("required"))
+                        if (argDef == null) {
+                            argDef = new ArgumentDefinition(childNode, this)
+                            putCachedArgumentDefinition(argDef)
+                        }
+                        mergeArgument(argDef)
                         break
                     case "service-fetcher":
                         this.dataFetcher = new DataFetcherService(childNode, this, ec)
@@ -1528,7 +1534,11 @@ public class GraphQLSchemaDefinition {
         public ArgumentDefinition mergeArgument(final String argumentName, Map<String, String> attributeMap) {
             ArgumentDefinition baseArgumentDef = argumentDefMap.get(argumentName)
             if (baseArgumentDef == null) {
-                baseArgumentDef = new ArgumentDefinition(this, argumentName, attributeMap)
+                baseArgumentDef = getCachedArgumentDefinition(argumentName, attributeMap.get("type"), attributeMap.get("required"))
+                if (baseArgumentDef == null) {
+                    baseArgumentDef = new ArgumentDefinition(this, argumentName, attributeMap)
+                    putCachedArgumentDefinition(baseArgumentDef)
+                }
                 argumentDefMap.put(argumentName, baseArgumentDef)
             } else {
                 baseArgumentDef.attributeMap.putAll(attributeMap)
@@ -1556,7 +1566,12 @@ public class GraphQLSchemaDefinition {
 
                 // Add fields in entity as argument
                 String argType = getArgumentTypeName(GraphQLSchemaUtil.fieldTypeGraphQLMap.get(fi.type), isList)
-                ArgumentDefinition argumentDef = new ArgumentDefinition(this, fi.name, argType, null, null, fieldDescription)
+
+                ArgumentDefinition argumentDef = getCachedArgumentDefinition(fi.name, argType, null)
+                if (argumentDef == null) {
+                    argumentDef = new ArgumentDefinition(this, fi.name, argType, null, null, fieldDescription)
+                    putCachedArgumentDefinition(argumentDef)
+                }
                 argumentDefMap.put(fi.name, argumentDef)
             }
         }
