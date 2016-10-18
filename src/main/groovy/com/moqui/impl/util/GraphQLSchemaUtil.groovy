@@ -174,7 +174,14 @@ class GraphQLSchemaUtil {
                         fieldDef.mergeArgument(new AutoArgumentsDefinition(childNode))
                         break
                     case "argument":
-                        fieldDef.mergeArgument(new ArgumentDefinition(childNode, fieldDef))
+                        String argTypeName = GraphQLSchemaDefinition.getArgumentTypeName(childNode.attribute("type"), fieldDef.isList)
+                        ArgumentDefinition argDef = GraphQLSchemaDefinition.getCachedArgumentDefinition(childNode.attribute("name"), argTypeName, childNode.attribute("required"))
+                        if (argDef == null) {
+                            argDef = new ArgumentDefinition(childNode, fieldDef)
+                            GraphQLSchemaDefinition.putCachedArgumentDefinition(argDef)
+                        }
+
+                        fieldDef.mergeArgument(argDef)
                         break
                     case "empty-fetcher":
                         fieldDef.setDataFetcher(new GraphQLSchemaDefinition.EmptyDataFetcher(childNode, fieldDef))

@@ -111,6 +111,9 @@ public class GraphQLSchemaDefinition {
     // Only cache scalar field definition
     protected static Map<String, FieldDefinition> fieldDefMap = new HashMap<>()
 
+    // Cache argument of scalar and OperationInputType, DateRageInputType
+    protected static Map<String, ArgumentDefinition> argumentDefMap = new HashMap<>()
+
 //    protected Map<String, UnionTypeDefinition> unionTypeDefMap = new HashMap<>()
 //    protected Map<String, EnumTypeDefinition> enumTypeDefMap = new HashMap<>()
     protected Map<String, InterfaceTypeDefinition> interfaceTypeDefMap = new LinkedHashMap<>()
@@ -140,6 +143,7 @@ public class GraphQLSchemaDefinition {
     protected static final String NON_NULL_SUFFIX = "_1"
     protected static final String IS_LIST_SUFFIX = "_2"
     protected static final String LIST_ITEM_NON_NULL_SUFFIX = "_3"
+    protected static final String REQUIRED_SUFFIX = "_a"
 
     static {
         createPredefinedGraphQLTypes()
@@ -233,7 +237,7 @@ public class GraphQLSchemaDefinition {
         paginationArgument = GraphQLArgument.newArgument().name("pagination")
                 .type(paginationInputType)
                 .description("pagination").build()
-        graphQLArgumentMap.put("pagination", paginationArgument)
+        graphQLArgumentMap.put(getArgumentKey("pagination", paginationInputType.name), paginationArgument)
 
         clientMutationIdInputField = GraphQLInputObjectField.newInputObjectField().name("clientMutationId")
                 .type(GraphQLString).description("A unique identifier for the client performing the mutation.")
@@ -292,6 +296,40 @@ public class GraphQLSchemaDefinition {
         if (fieldDefMap.get(fieldKey) != null)
             throw new IllegalArgumentException("FieldDefinition [${fieldDef.name} - ${fieldDef.type}] already exists in cache")
         fieldDefMap.put(fieldKey, fieldDef)
+    }
+
+    public static ArgumentDefinition getCachedArgumentDefinition(String name, String type, String required) {
+        return argumentDefMap.get(getArgumentKey(name, type, required))
+    }
+
+    public static String getArgumentTypeName(String type, String fieldIsList) {
+        if (!"true".equals(fieldIsList)) return type
+        if (graphQLStringTypes.contains(type) || graphQLNumericTypes.contains(type) || graphQLDateTypes.contains(type))
+            return operationInputType.name
+        if (graphQLDateTypes.contains(type)) return dateRangeInputType.name
+
+        return type
+    }
+
+    public static void putCachedArgumentDefinition(ArgumentDefinition argDef) {
+        if (!(graphQLScalarTypes.containsKey(argDef.type) ||
+                dateRangeInputType.name.equals(argDef.type) ||
+                operationInputType.name.equals(argDef.type))) return
+
+        String argumentKey = getArgumentKey(argDef.name, argDef.type, argDef.required)
+        if (argumentDefMap.get(argumentKey) != null)
+            throw new IllegalArgumentException("ArgumentDefinition [${argDef.name} - ${argDef.type}] already exists in cache")
+        argumentDefMap.put(argumentKey, argDef)
+    }
+
+    public static String getArgumentKey(String name, String type) {
+        return getArgumentKey(name, type, null)
+    }
+
+    public static String getArgumentKey(String name, String type, String required) {
+        String argumentKey = name + KEY_SPLITTER + type
+        if ("true".equals(required)) argumentKey = argumentKey + REQUIRED_SUFFIX
+        return argumentKey
     }
 
     public static void clearAllCachedGraphQLTypes() {
@@ -972,13 +1010,13 @@ public class GraphQLSchemaDefinition {
         if (argType == null)
             throw new IllegalArgumentException("GraphQLInputType [${argumentDef.type}] for argument [${argumentName}] not found")
 
-        if ("true".equals(argumentDef.fieldDef.isList)) {
-            if (graphQLDateTypes.contains(argumentDef.type)) {
-                argType = graphQLInputTypeMap.get("DateRangeInputType")
-            } else if (graphQLStringTypes.contains(argumentDef.type) || graphQLNumericTypes.contains(argumentDef.type)) {
-                argType = graphQLInputTypeMap.get("OperationInputType")
-            }
-        }
+//        if ("true".equals(argumentDef.isOpOrRange)) {
+//            if (graphQLDateTypes.contains(argumentDef.type)) {
+//                argType = graphQLInputTypeMap.get("DateRangeInputType")
+//            } else if (graphQLStringTypes.contains(argumentDef.type) || graphQLNumericTypes.contains(argumentDef.type)) {
+//                argType = graphQLInputTypeMap.get("OperationInputType")
+//            }
+//        }
 
         argument = argument.type(argType)
 
@@ -1279,10 +1317,8 @@ public class GraphQLSchemaDefinition {
     static class ArgumentDefinition implements Cloneable {
         String name
         Map<String, String> attributeMap = new LinkedHashMap<>()
-        FieldDefinition fieldDef
 
         ArgumentDefinition(MNode node, FieldDefinition fieldDef) {
-            this.fieldDef = fieldDef
             this.name = node.attribute("name")
             attributeMap.put("type", node.attribute("type"))
             attributeMap.put("required", node.attribute("required") ?: "false")
@@ -1296,13 +1332,11 @@ public class GraphQLSchemaDefinition {
         }
 
         ArgumentDefinition(FieldDefinition fieldDef, String name, Map<String, String> attributeMap) {
-            this.fieldDef = fieldDef
             this.name = name
             this.attributeMap.putAll(attributeMap)
         }
 
         ArgumentDefinition(FieldDefinition fieldDef, String name, String type, String required, String defaultValue, String description) {
-            this.fieldDef = fieldDef
             this.name = name
             attributeMap.put("type", type)
             attributeMap.put("required", required)
@@ -1316,13 +1350,9 @@ public class GraphQLSchemaDefinition {
         public String getDefaultValue() { return attributeMap.get("defaultValue") }
         public String getDescription() { return attributeMap.get("description") }
 
-        public void setFieldDef(FieldDefinition fieldDef) {
-            this.fieldDef = fieldDef
-        }
-
         @Override
         public ArgumentDefinition clone() {
-            return new ArgumentDefinition(this.fieldDef, this.name, this.attributeMap)
+            return new ArgumentDefinition(null, this.name, this.attributeMap)
         }
     }
 
@@ -1385,7 +1415,7 @@ public class GraphQLSchemaDefinition {
                 dataFetcher = new EmptyDataFetcher(this)
 
             addAutoArguments(new ArrayList<String>())
-            updateFieldDefOnArgumentDefs()
+            updateArgumentDefs()
             addInputArgument()
         }
 
@@ -1420,7 +1450,7 @@ public class GraphQLSchemaDefinition {
             this.depreciationReason = fieldPropertyMap.get("depreciationReason")
 
             addAutoArguments(excludedArguments)
-            updateFieldDefOnArgumentDefs()
+            updateArgumentDefs()
             addInputArgument()
         }
 
@@ -1460,9 +1490,10 @@ public class GraphQLSchemaDefinition {
             argumentDefMap.put("input", inputArgDef)
         }
 
-        private void updateFieldDefOnArgumentDefs() {
-            for (ArgumentDefinition argumentNode in argumentList)
-                argumentNode.setFieldDef(this)
+        private void updateArgumentDefs() {
+            for (ArgumentDefinition argumentNode in argumentList) {
+                // nothing
+            }
         }
 
         public void setDataFetcher(DataFetcherHandler dataFetcher) {
@@ -1524,8 +1555,8 @@ public class GraphQLSchemaDefinition {
                     fieldDescription = fieldDescription + descriptionMNode.text + "\n"
 
                 // Add fields in entity as argument
-                ArgumentDefinition argumentDef = new ArgumentDefinition(this, fi.name,
-                        GraphQLSchemaUtil.fieldTypeGraphQLMap.get(fi.type), null, null, fieldDescription)
+                String argType = getArgumentTypeName(GraphQLSchemaUtil.fieldTypeGraphQLMap.get(fi.type), isList)
+                ArgumentDefinition argumentDef = new ArgumentDefinition(this, fi.name, argType, null, null, fieldDescription)
                 argumentDefMap.put(fi.name, argumentDef)
             }
         }
