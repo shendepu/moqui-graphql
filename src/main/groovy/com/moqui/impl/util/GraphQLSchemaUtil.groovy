@@ -14,6 +14,7 @@
 package com.moqui.impl.util
 
 import com.moqui.impl.service.GraphQLSchemaDefinition
+import graphql.language.ObjectField
 import org.moqui.entity.EntityValue
 import org.moqui.impl.context.ExecutionContextImpl
 import org.moqui.impl.entity.FieldInfo
@@ -52,6 +53,17 @@ class GraphQLSchemaUtil {
     static final List<String> moquiDateTypes = ["date", "time", "date-time"]
     static final List<String> moquiNumericTypes = ["number-integer", "number-float", "number-decimal", "currency-amount", "currency-precise"]
     static final List<String> moquiBoolTypes = ["text-indicator"]
+
+    protected static final Map<String, String> objectTypeGraphQLMap = [
+            Integer   : "Int", Long: "Long", Short: "Short", Float: "Float", Double: "Float",
+            BigDecimal: "BigDecimal", BigInteger: "BigInteger", Boolean: "Boolean", List: "List",
+            Map       : "Map"]
+
+    static String getGraphQLType(String javaType) {
+        if (!javaType) return "String"
+        if (javaType.contains(".")) javaType = javaType.substring(javaType.lastIndexOf(".") + 1)
+        return objectTypeGraphQLMap.get(javaType) ?: "String"
+    }
 
     static void createObjectTypeNodeForAllEntities(ExecutionContext ec, Map<String, GraphQLSchemaDefinition.GraphQLTypeDefinition> allTypeNodeMap) {
         ExecutionContextImpl eci = (ExecutionContextImpl) ec
@@ -180,9 +192,73 @@ class GraphQLSchemaUtil {
         }
     }
 
+    static void transformArguments(Map<String, Object> arguments, Map<String, Object> inputFieldsMap) {
+        for (Map.Entry<String, Object> entry in arguments.entrySet()) {
+            String argName = entry.getKey()
+            // Ignore if argument which is used for directive @include and @skip
+            if ("if".equals(argName)) continue
+            Object argValue = entry.getValue()
+            if (argValue == null) continue
+
+            if (argValue instanceof LinkedHashMap) {
+                if ("input".equals(argName)) {
+                    for (Map.Entry<Object, Object> inputEntry in ((LinkedHashMap) argValue)) {
+                        inputFieldsMap.put((String) inputEntry.getKey(), inputEntry.getValue())
+                    }
+                    continue
+                }
+                // currently the defaultValue on GraphQLInputObjectField does not work
+                /*
+                if ("OperationInputType".equals(argValue.get("type"))) {
+                    logger.info("------- == checking OperationInputType variable ${argName} to inputFieldsMap with value ${argValue}")
+                    if (argValue.get("value") != null ) inputFieldsMap.put(argName, argValue.get("value"))
+                    if (argValue.get("op") != null) inputFieldsMap.put(argName + "_op", argValue.get("op"))
+                    if (argValue.get("not") != null) inputFieldsMap.put(argName + "_not", argValue.get("not"))
+                    if (argValue.get("ic") != null) inputFieldsMap.put(argName + "_ic", argValue.get("ic"))
+                } else if ("DateRangeInputType".equals(argValue.get("type"))) {
+                    // Add _period, _offset, _from, _thru
+                    for (Map.Entry<String, Object> argEntry in argValue.entrySet()) {
+                        if (argEntry.getValue() == null || "type".equals(argEntry.getKey())) continue
+                        inputFieldsMap.put(argName + "_" + argEntry.getKey(), argEntry.getValue())
+                    }
+                } else if ("PaginationInputType".equals(argValue.get("type"))) {
+                    // Add pageIndex, pageSize, pageNoLimit, orderByField
+                    for (Map.Entry<String, Object> argEntry in argValue.entrySet()) {
+                        if (argEntry.getValue() == null || "type".equals(argEntry.getKey())) continue
+                        logger.info("------- == adding pagination variable ${argEntry.getKey()} to inputFieldsMap with value ${argEntry.getValue()}")
+                        inputFieldsMap.put(argEntry.getKey(), argEntry.getValue())
+                    }
+                }
+                */
+
+                if (argValue.get("value") != null) inputFieldsMap.put(argName, argValue.get("value"))
+                if (argValue.get("op") != null) inputFieldsMap.put(argName + "_op", argValue.get("op"))
+                if (argValue.get("not") != null) inputFieldsMap.put(argName + "_not", argValue.get("not"))
+                if (argValue.get("ic") != null) inputFieldsMap.put(argName + "_ic", argValue.get("ic"))
+                inputFieldsMap.put("pageIndex", argValue.get("pageIndex") ?: 0)
+                inputFieldsMap.put("pageSize", argValue.get("pageSize") ?: 20)
+                if (argValue.get("pageNoLimit") != null) inputFieldsMap.put("pageNoLimit", argValue.get("pageNoLimit"))
+                if (argValue.get("orderByField") != null) inputFieldsMap.put("orderByField", argValue.get("orderByField"))
+
+                if (argValue.get("period") != null) inputFieldsMap.put(argName + "_period", argValue.get("period"))
+                if (argValue.get("poffset") != null) inputFieldsMap.put(argName + "_poffset", argValue.get("poffset"))
+                if (argValue.get("from") != null) inputFieldsMap.put(argName + "_from", argValue.get("from"))
+                if (argValue.get("thru") != null) inputFieldsMap.put(argName + "_thru", argValue.get("thru"))
+
+            } else {
+                inputFieldsMap.put(argName, argValue)
+            }
+        }
+    }
+
     public static String base64EncodeCursor(EntityValue ev, String fieldRawType, List<String> pkFieldNames) {
         String cursor = fieldRawType
         for (String pk in pkFieldNames) cursor = cursor + '|' + ev.get(pk)
         return Base64.getEncoder().encodeToString(cursor.bytes)
+    }
+
+    public static String camelCaseToUpperCamel(String camelCase) {
+        if (camelCase == null || camelCase.length() == 0) return ""
+        return camelCase.replace(camelCase.charAt(0), Character.toUpperCase(camelCase.charAt(0)))
     }
 }

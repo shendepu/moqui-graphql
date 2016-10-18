@@ -47,14 +47,13 @@ import org.moqui.impl.context.ExecutionContextImpl
 import org.moqui.impl.context.UserFacadeImpl
 import org.moqui.impl.entity.EntityDefinition
 import org.moqui.impl.entity.FieldInfo
+import org.moqui.impl.service.ServiceDefinition
 import org.moqui.impl.service.ServiceFacadeImpl
 import org.moqui.impl.webapp.ScreenResourceNotFoundException
 import org.moqui.service.ServiceFacade
 import org.moqui.util.MNode
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
-
-import java.util.concurrent.locks.ReentrantLock
 
 import static graphql.Scalars.GraphQLBigDecimal
 import static graphql.Scalars.GraphQLBigInteger
@@ -94,11 +93,13 @@ public class GraphQLSchemaDefinition {
     protected static final Map<String, GraphQLInterfaceType> graphQLInterfaceTypeMap = new HashMap<>()
     protected static final Map<String, GraphQLObjectType> graphQLObjectTypeMap = new HashMap<>()
     protected static final Map<String, GraphQLFieldDefinition> graphQLFieldMap = new HashMap<>()
+    protected static final Map<String, GraphQLInputObjectType> graphQLInputObjectTypeMap = new HashMap<>()
+    protected static final Map<String, GraphQLInputObjectField> graphQLInputObjectFieldMap = new HashMap<>()
     protected static final Map<String, GraphQLArgument> graphQLArgumentMap = new HashMap<>()
     protected static final Map<String, GraphQLArgument> graphQLDirectiveArgumentMap = new LinkedHashMap<>()
     protected static final Map<String, GraphQLTypeReference> graphQLTypeReferenceMap = new HashMap<>()
 
-    protected final Set<GraphQLType> schemaInputTypes = new HashSet<GraphQLType>()
+    protected final Map<String, GraphQLInputType> schemaInputTypeMap = new HashMap<>()
 
     protected final ArrayList<String> schemaInputTypeNameList = new ArrayList<>()
     protected final List<String> preLoadObjectTypes = new LinkedList<>()
@@ -118,8 +119,10 @@ public class GraphQLSchemaDefinition {
     protected static GraphQLInputObjectType operationInputType
     protected static GraphQLInputObjectType dateRangeInputType
     protected static GraphQLFieldDefinition cursorField
+    protected static GraphQLFieldDefinition clientMutationIdField
     protected static GraphQLArgument paginationArgument
     protected static GraphQLArgument ifArgument
+    protected static GraphQLInputObjectField clientMutationIdInputField
 
     protected Integer graphQLEnumTypeCount = 0
     protected Integer graphQLUnionTypeCount = 0
@@ -165,13 +168,20 @@ public class GraphQLSchemaDefinition {
                 .type(GraphQLString)
         for (Map.Entry<String, GraphQLArgument> entry in graphQLDirectiveArgumentMap) cursorFieldBuilder.argument(entry.getValue())
         cursorField = cursorFieldBuilder.build()
-        graphQLFieldMap.put("cursor", cursorField)
+        graphQLFieldMap.put("cursor" + KEY_SPLITTER + "String", cursorField)
+
+        GraphQLFieldDefinition.Builder clientMutationIdFieldBuilder = GraphQLFieldDefinition.newFieldDefinition()
+                .name("clientMutationId").type(GraphQLString)
+        for (Map.Entry<String, GraphQLArgument> entry in graphQLDirectiveArgumentMap) clientMutationIdFieldBuilder.argument(entry.getValue())
+        clientMutationIdField = clientMutationIdFieldBuilder.build()
+        graphQLFieldMap.put("clientMutationId" + KEY_SPLITTER + "String", clientMutationIdField)
 
         // Predefined GraphQLArgument
         ifArgument = GraphQLArgument.newArgument().name("if")
                 .type(GraphQLBoolean).description("Directive @if").build()
         graphQLDirectiveArgumentMap.put("if", ifArgument)
 
+        // Predefined GraphQLObject
         pageInfoType = GraphQLObjectType.newObject().name("GraphQLPageInfo")
                 .field(getGraphQLFieldWithNoArgs("pageIndex", GraphQLInt, ""))
                 .field(getGraphQLFieldWithNoArgs("pageSize", GraphQLInt, ""))
@@ -187,8 +197,9 @@ public class GraphQLSchemaDefinition {
         graphQLObjectTypeMap.put("GraphQLPageInfo", pageInfoType)
         graphQLOutputTypeMap.put("GraphQLPageInfo", pageInfoType)
 
+        // Predefined GraphQLInputObject
         paginationInputType = GraphQLInputObjectType.newInputObject().name("PaginationInputType")
-                .field(createPredefinedInputField("pageIndex", GraphQLInt, 0, "Page index for pagination, default 0"))
+                .field(createPredefinedInputField("pageIndex", GraphQLInt, "0", "Page index for pagination, default 0"))
                 .field(createPredefinedInputField("pageSize", GraphQLInt, 20, "Page size for pagination, default 20"))
                 .field(createPredefinedInputField("pageNoLimit", GraphQLBoolean, false, "Page no limit for pagination, default false"))
                 .field(createPredefinedInputField("orderByField", GraphQLString, null, "OrderBy field for pagination. \ne.g. \n" +
@@ -220,6 +231,11 @@ public class GraphQLSchemaDefinition {
                 .type(paginationInputType)
                 .description("pagination").build()
         graphQLArgumentMap.put("pagination", paginationArgument)
+
+        clientMutationIdInputField = GraphQLInputObjectField.newInputObjectField().name("clientMutationId")
+                .type(GraphQLString).description("A unique identifier for the client performing the mutation.")
+                .build()
+        graphQLInputObjectFieldMap.put("clientMutationId", clientMutationIdInputField)
     }
 
     public GraphQLSchemaDefinition(ServiceFacade sf, MNode schemaNode) {
@@ -272,6 +288,8 @@ public class GraphQLSchemaDefinition {
         graphQLInterfaceTypeMap.clear()
         graphQLObjectTypeMap.clear()
         graphQLFieldMap.clear()
+        graphQLInputObjectTypeMap.clear()
+        graphQLInputObjectFieldMap.clear()
         graphQLArgumentMap.clear()
         graphQLDirectiveArgumentMap.clear()
         graphQLTypeReferenceMap.clear()
@@ -284,7 +302,85 @@ public class GraphQLSchemaDefinition {
 //        return allTypeNodeList.find({ name.equals(it.name) })
     }
 
-    private populateSortedTypes() {
+    private void addSchemaInputTypes() {
+        // Add default GraphQLScalarType
+        for (Map.Entry<String, GraphQLScalarType> entry in graphQLScalarTypes.entrySet()) {
+            schemaInputTypeMap.put(entry.getKey(), entry.getValue())
+        }
+
+        schemaInputTypeMap.put(paginationInputType.name, paginationInputType)
+        schemaInputTypeMap.put(operationInputType.name, operationInputType)
+        schemaInputTypeMap.put(dateRangeInputType.name, dateRangeInputType)
+
+        // Add explicitly defined input types from *.graphql.xml
+        for (String inputTypeName in schemaInputTypeNameList) {
+            GraphQLType type = graphQLInputTypeMap.get(inputTypeName)
+            if (type == null)
+                throw new IllegalArgumentException("GraphQLInputType [${inputTypeName}] for schema [${this.schemaName}] not found")
+            schemaInputTypeMap.put(inputTypeName, type)
+        }
+
+        addSchemaInputObjectTypes()
+    }
+
+    // Create InputObjectType (Input) for mutation fields
+    private void addSchemaInputObjectTypes() {
+        for (Map.Entry<String, GraphQLTypeDefinition> entry in allTypeDefMap) {
+            if (!(entry.getValue() instanceof ObjectTypeDefinition)) continue
+            for (FieldDefinition fieldDef in ((ObjectTypeDefinition) entry.getValue()).fieldList) {
+                if (!fieldDef.isMutation) continue
+                if (fieldDef.dataFetcher == null)
+                    throw new IllegalArgumentException("FieldDefinition [${fieldDef.name} - ${fieldDef.type}] as mutation must have a data fetcher")
+                if (fieldDef.dataFetcher instanceof EmptyDataFetcher)
+                    throw new IllegalArgumentException("FieldDefinition [${fieldDef.name} - ${fieldDef.type}] as mutation can't have empty data fetcher")
+
+                if (fieldDef.dataFetcher instanceof DataFetcherService) {
+                    String serviceName = ((DataFetcherService) fieldDef.dataFetcher).serviceName
+                    String inputTypeName = GraphQLSchemaUtil.camelCaseToUpperCamel(fieldDef.name) + "Input"
+                    ServiceDefinition sd = ecfi.serviceFacade.getServiceDefinition(serviceName)
+
+                    logger.info("======== inputTypeName - ${inputTypeName}")
+                    Map<String, InputObjectFieldDefinition> inputFieldMap = new LinkedHashMap<>(sd.getInParameterNames().size())
+                    for (String parmName in sd.getInParameterNames()) {
+                        MNode parmNode = sd.getInParameter(parmName)
+                        String inputFieldType = GraphQLSchemaUtil.getGraphQLType(parmNode.attribute("type"))
+                        logger.info("======== inputField ${parmName} - SD type: ${parmNode.attribute("type")}, inputFieldType: ${inputFieldType}")
+                        Object defaultValue = null
+
+                        InputObjectFieldDefinition inputFieldDef = new InputObjectFieldDefinition(parmName, inputFieldType, defaultValue, "")
+                        inputFieldMap.put(parmName, inputFieldDef)
+                    }
+                    GraphQLInputObjectType.Builder inputObjectTypeBuilder = GraphQLInputObjectType.newInputObject()
+                            .name(inputTypeName).description("Autogenerated input type of ${inputTypeName}")
+
+                    for (Map.Entry<String, InputObjectFieldDefinition> inputFieldEntry in inputFieldMap) {
+                        InputObjectFieldDefinition inputFieldDef = inputFieldEntry.getValue()
+
+                        if ("clientMutationId".equals(inputFieldDef.name)) continue
+                        if (!graphQLScalarTypes.keySet().contains(inputFieldDef.type))
+                            throw new IllegalArgumentException("GraphQLInputObjectField [${inputFieldDef.name} - ${inputFieldDef.type}] should be GraphQLScalarType types")
+
+                        String inputFieldKey = inputFieldDef.name + KEY_SPLITTER + inputFieldDef.type
+                        GraphQLInputObjectField inputField = graphQLInputObjectFieldMap.get(inputFieldKey)
+                        if (inputField == null) {
+                            inputField = GraphQLInputObjectField.newInputObjectField()
+                                    .name(inputFieldDef.name)
+                                    .type(graphQLInputTypeMap.get(inputFieldDef.type))
+                                    .defaultValue(inputFieldDef.defaultValue)
+                                    .description(inputFieldDef.description)
+                                    .build()
+                        }
+                        inputObjectTypeBuilder.field(inputField)
+                    }
+                    inputObjectTypeBuilder.field(clientMutationIdInputField)
+                    GraphQLInputObjectType inputObjectType = inputObjectTypeBuilder.build()
+                    graphQLInputTypeMap.put(inputTypeName, inputObjectType)
+                }
+            }
+        }
+    }
+
+    private void populateSortedTypes() {
         allTypeDefSortedList.clear()
 
         GraphQLTypeDefinition queryTypeDef = getTypeDef(queryType)
@@ -396,6 +492,7 @@ public class GraphQLSchemaDefinition {
     }
 
     public GraphQLSchema getSchema() {
+        addSchemaInputTypes()
         populateSortedTypes()
 
         Integer unionTypeCount = 0, enumTypeCount = 0, interfaceTypeCount = 0, objectTypeCount = 0
@@ -442,9 +539,7 @@ public class GraphQLSchemaDefinition {
             schemaBuilder = schemaBuilder.mutation(schemaMutationType)
         }
 
-        addSchemaInputTypes()
-
-        GraphQLSchema schema = schemaBuilder.build(schemaInputTypes)
+        GraphQLSchema schema = schemaBuilder.build(new HashSet<GraphQLType>(schemaInputTypeMap.values()))
 
         logger.info("Schema [${schemaName}] loaded: ${unionTypeCount} union type, ${enumTypeCount} enum type, ${interfaceTypeCount} interface type, ${objectTypeCount} object type")
         logger.info("Schema [${schemaName}] created: ${graphQLUnionTypeCount} union type, ${graphQLEnumTypeCount} enum type, " +
@@ -489,25 +584,6 @@ public class GraphQLSchemaDefinition {
             objectTypeDef.extend(extendObjectDef, allTypeDefMap)
         }
 
-    }
-
-    private void addSchemaInputTypes() {
-        // Add default GraphQLScalarType
-        for (Map.Entry<String, Object> entry in graphQLScalarTypes.entrySet()) {
-            schemaInputTypes.add((GraphQLType) entry.getValue())
-        }
-
-        schemaInputTypes.add(paginationInputType)
-        schemaInputTypes.add(operationInputType)
-        schemaInputTypes.add(dateRangeInputType)
-
-        // Add explicitly defined input types from *.graphql.xml
-        for (String inputTypeName in schemaInputTypeNameList) {
-            GraphQLType type = graphQLInputTypeMap.get(inputTypeName)
-            if (type == null)
-                throw new IllegalArgumentException("GraphQLInputType [${inputTypeName}] for schema [${this.schemaName}] not found")
-            schemaInputTypes.add(type)
-        }
     }
 
     private static GraphQLOutputType getConnectionObjectType(String rawTypeName, String nonNull, String listItemNonNull) {
@@ -858,6 +934,13 @@ public class GraphQLSchemaDefinition {
         graphQLFieldDef = graphQLFieldDefBuilder.build()
 
         return graphQLFieldDef
+    }
+
+    private static GraphQLFieldDefinition buildSchemaMutationField(FieldDefinition fieldDef) {
+        if (!fieldDef.isMutation)
+            throw new IllegalArgumentException("FieldDefinition [${fieldDef.name} - ${fieldDef.type}] is not mutation field")
+
+
     }
 
     private static GraphQLArgument buildSchemaArgument(ArgumentDefinition argumentDef) {
@@ -1230,6 +1313,7 @@ public class GraphQLSchemaDefinition {
         String name, type, description, depreciationReason
         String nonNull, isList, listItemNonNull
         String requireAuthentication
+        boolean isMutation = false
 
         DataFetcherHandler dataFetcher
         String preDataFetcher, postDataFetcher
@@ -1246,6 +1330,7 @@ public class GraphQLSchemaDefinition {
             this.isList = node.attribute("is-list") ?: "false"
             this.listItemNonNull = node.attribute("list-item-non-null") ?: "false"
             this.requireAuthentication = node.attribute("require-authentication") ?: "true"
+            this.isMutation = "mutation".equals(node.attribute("for"))
 
             for (MNode childNode in node.children) {
                 switch (childNode.name) {
@@ -1283,6 +1368,7 @@ public class GraphQLSchemaDefinition {
 
             addAutoArguments(new ArrayList<String>())
             updateFieldDefOnArgumentDefs()
+            addInputArgument()
         }
 
         FieldDefinition(ExecutionContext ec, String name, String type) {
@@ -1317,6 +1403,7 @@ public class GraphQLSchemaDefinition {
 
             addAutoArguments(excludedArguments)
             updateFieldDefOnArgumentDefs()
+            addInputArgument()
         }
 
         public List<ArgumentDefinition> getArgumentList() {
@@ -1345,6 +1432,14 @@ public class GraphQLSchemaDefinition {
             other.argumentList.addAll(otherArgumentList)
 
             return other
+        }
+
+        private void addInputArgument() {
+            if (!isMutation) return
+
+            String inputTypeName = GraphQLSchemaUtil.camelCaseToUpperCamel(this.name) + "Input"
+            ArgumentDefinition inputArgDef = new ArgumentDefinition(this, "input", inputTypeName, "true", null, "")
+            argumentDefMap.put("input", inputArgDef)
         }
 
         private void updateFieldDefOnArgumentDefs() {
@@ -1418,6 +1513,18 @@ public class GraphQLSchemaDefinition {
         }
     }
 
+    static class InputObjectFieldDefinition {
+        String name, type, description
+        Object defaultValue
+
+        InputObjectFieldDefinition(String name, String type, Object defaultValue, String description) {
+            this.name = name
+            this.type = type
+            this.defaultValue = defaultValue
+            this.description = description
+        }
+    }
+
     static abstract class DataFetcherHandler {
         @SuppressWarnings("GrFinalVariableAccess")
         final ExecutionContext ec
@@ -1460,6 +1567,9 @@ public class GraphQLSchemaDefinition {
             this.requireAuthentication = node.attribute("require-authentication") ?: fieldDef.requireAuthentication ?: "true"
 
             this.serviceName = node.attribute("service")
+
+            ServiceDefinition sd = ((ExecutionContextImpl) ec).serviceFacade.getServiceDefinition(serviceName)
+            if (sd == null) throw new IllegalArgumentException("Service ${serviceName} not found")
         }
 
         @Override
@@ -1475,9 +1585,18 @@ public class GraphQLSchemaDefinition {
             }
 
             try {
-                Map result = ec.getService().sync().name(serviceName)
-                        .parameter("environment", environment)
-                        .parameters(ec.context).call()
+                Map<String, Object> inputFieldsMap = new HashMap<>()
+                GraphQLSchemaUtil.transformArguments(environment.arguments, inputFieldsMap)
+                logger.info("inputFieldsMap - ${inputFieldsMap}")
+
+                Map result
+                if (fieldDef.isMutation) {
+                    result = ec.getService().sync().name(serviceName).parameters(inputFieldsMap).call()
+                } else {
+                    result = ec.getService().sync().name(serviceName)
+                            .parameter("environment", environment)
+                            .parameters(inputFieldsMap).call()
+                }
 
                 return result
             } finally {
@@ -1553,7 +1672,9 @@ public class GraphQLSchemaDefinition {
 
             try {
                 Map<String, Object> inputFieldsMap = new HashMap<>()
-                transformArguments(environment.arguments, inputFieldsMap)
+                GraphQLSchemaUtil.transformArguments(environment.arguments, inputFieldsMap)
+                logger.info("pageIndex   - ${inputFieldsMap.get('pageIndex')}")
+                logger.info("pageSize    - ${inputFieldsMap.get('pageSize')}")
                 if (operation == "one") {
                     EntityFind ef = ec.entity.find(entityName).searchFormMap(inputFieldsMap, null, null, false)
                     for (Map.Entry<String, String> entry in relKeyMap.entrySet()) {
@@ -1650,58 +1771,6 @@ public class GraphQLSchemaDefinition {
             return null
         }
 
-        static void transformArguments(Map<String, Object> arguments, Map<String, Object> inputFieldsMap) {
-            for (Map.Entry<String, Object> entry in arguments.entrySet()) {
-                String argName = entry.getKey()
-                // Ignore if argument which is used for directive @include and @skip
-                if ("if".equals(argName)) continue
-                Object argValue = entry.getValue()
-                if (argValue == null) continue
-
-                if (argValue instanceof LinkedHashMap) {
-                    // currently the defaultValue on GraphQLInputObjectField does not work
-                    /*
-                    if ("OperationInputType".equals(argValue.get("type"))) {
-                        logger.info("------- == checking OperationInputType variable ${argName} to inputFieldsMap with value ${argValue}")
-                        if (argValue.get("value") != null ) inputFieldsMap.put(argName, argValue.get("value"))
-                        if (argValue.get("op") != null) inputFieldsMap.put(argName + "_op", argValue.get("op"))
-                        if (argValue.get("not") != null) inputFieldsMap.put(argName + "_not", argValue.get("not"))
-                        if (argValue.get("ic") != null) inputFieldsMap.put(argName + "_ic", argValue.get("ic"))
-                    } else if ("DateRangeInputType".equals(argValue.get("type"))) {
-                        // Add _period, _offset, _from, _thru
-                        for (Map.Entry<String, Object> argEntry in argValue.entrySet()) {
-                            if (argEntry.getValue() == null || "type".equals(argEntry.getKey())) continue
-                            inputFieldsMap.put(argName + "_" + argEntry.getKey(), argEntry.getValue())
-                        }
-                    } else if ("PaginationInputType".equals(argValue.get("type"))) {
-                        // Add pageIndex, pageSize, pageNoLimit, orderByField
-                        for (Map.Entry<String, Object> argEntry in argValue.entrySet()) {
-                            if (argEntry.getValue() == null || "type".equals(argEntry.getKey())) continue
-                            logger.info("------- == adding pagination variable ${argEntry.getKey()} to inputFieldsMap with value ${argEntry.getValue()}")
-                            inputFieldsMap.put(argEntry.getKey(), argEntry.getValue())
-                        }
-                    }
-                    */
-
-                    if (argValue.get("value") != null) inputFieldsMap.put(argName, argValue.get("value"))
-                    if (argValue.get("op") != null) inputFieldsMap.put(argName + "_op", argValue.get("op"))
-                    if (argValue.get("not") != null) inputFieldsMap.put(argName + "_not", argValue.get("not"))
-                    if (argValue.get("ic") != null) inputFieldsMap.put(argName + "_ic", argValue.get("ic"))
-                    inputFieldsMap.put("pageIndex", argValue.get("pageIndex") ?: 0)
-                    inputFieldsMap.put("pageSize", argValue.get("pageSize") ?: 20)
-                    if (argValue.get("pageNoLimit") != null) inputFieldsMap.put("pageNoLimit", argValue.get("pageNoLimit"))
-                    if (argValue.get("orderByField") != null) inputFieldsMap.put("orderByField", argValue.get("orderByField"))
-
-                    if (argValue.get("period") != null) inputFieldsMap.put(argName + "_period", argValue.get("period"))
-                    if (argValue.get("poffset") != null) inputFieldsMap.put(argName + "_poffset", argValue.get("poffset"))
-                    if (argValue.get("from") != null) inputFieldsMap.put(argName + "_from", argValue.get("from"))
-                    if (argValue.get("thru") != null) inputFieldsMap.put(argName + "_thru", argValue.get("thru"))
-
-                } else {
-                    inputFieldsMap.put(argName, argValue)
-                }
-            }
-        }
     }
 
     static class EmptyDataFetcher extends DataFetcherHandler {
