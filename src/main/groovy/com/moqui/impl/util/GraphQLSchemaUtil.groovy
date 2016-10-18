@@ -98,7 +98,12 @@ class GraphQLSchemaUtil {
             }
             fieldPropertyMap.put("description", fieldDescription)
 
-            FieldDefinition fieldDef = new FieldDefinition(ec, fi.name, fieldScalarType, fieldPropertyMap)
+
+            FieldDefinition fieldDef = GraphQLSchemaDefinition.getCachedFieldDefinition(fi.name, fieldScalarType, fieldPropertyMap.get("nonNull"), "false", "false")
+            if (fieldDef == null) {
+                fieldDef = new FieldDefinition(ec, fi.name, fieldScalarType, fieldPropertyMap)
+                GraphQLSchemaDefinition.putCachedFieldDefinition(fieldDef)
+            }
             fieldDefMap.put(fieldName, fieldDef)
         }
 

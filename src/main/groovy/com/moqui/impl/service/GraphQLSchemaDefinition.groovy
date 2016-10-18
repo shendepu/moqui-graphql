@@ -108,6 +108,9 @@ public class GraphQLSchemaDefinition {
     protected LinkedList<GraphQLTypeDefinition> allTypeDefSortedList = new LinkedList<>()
     protected Map<String, GraphQLTypeDefinition> requiredTypeDefMap = new LinkedHashMap<>()
 
+    // Only cache scalar field definition
+    protected static Map<String, FieldDefinition> fieldDefMap = new HashMap<>()
+
 //    protected Map<String, UnionTypeDefinition> unionTypeDefMap = new HashMap<>()
 //    protected Map<String, EnumTypeDefinition> enumTypeDefMap = new HashMap<>()
     protected Map<String, InterfaceTypeDefinition> interfaceTypeDefMap = new LinkedHashMap<>()
@@ -280,6 +283,17 @@ public class GraphQLSchemaDefinition {
         updateAllTypeDefMap()
     }
 
+    public static FieldDefinition getCachedFieldDefinition(String name, String rawTypeName, String nonNull, String isList, String listItemNonNull) {
+        return fieldDefMap.get(getFieldKey(name, rawTypeName, nonNull, isList, listItemNonNull))
+    }
+
+    public static void putCachedFieldDefinition(FieldDefinition fieldDef) {
+        String fieldKey = getFieldKey(fieldDef.name, fieldDef.type, fieldDef.nonNull, fieldDef.isList, fieldDef.listItemNonNull)
+        if (fieldDefMap.get(fieldKey) != null)
+            throw new IllegalArgumentException("FieldDefinition [${fieldDef.name} - ${fieldDef.type}] already exists in cache")
+        fieldDefMap.put(fieldKey, fieldDef)
+    }
+
     public static void clearAllCachedGraphQLTypes() {
         graphQLOutputTypeMap.clear()
         graphQLInputTypeMap.clear()
@@ -293,6 +307,8 @@ public class GraphQLSchemaDefinition {
         graphQLArgumentMap.clear()
         graphQLDirectiveArgumentMap.clear()
         graphQLTypeReferenceMap.clear()
+
+        fieldDefMap.clear()
 
         createPredefinedGraphQLTypes()
     }
@@ -545,6 +561,7 @@ public class GraphQLSchemaDefinition {
         logger.info("Schema [${schemaName}] created: ${graphQLUnionTypeCount} union type, ${graphQLEnumTypeCount} enum type, " +
                 "${graphQLInterfaceTypeCount} interface type, ${graphQLObjectTypeCount} object type, ${graphQLInputTypeCount} input type, " +
                 "${graphQLInputFieldCount} input field, ${graphQLFieldCount} field, ${graphQLArgumentCount} argument")
+        logger.info("Globally ${graphQLFieldMap.size()} fields, ${graphQLOutputTypeMap.size()} output types, ${graphQLInputTypeMap.size()} imput types")
         return schema
     }
 
@@ -747,13 +764,14 @@ public class GraphQLSchemaDefinition {
 
     private static GraphQLFieldDefinition getGraphQLFieldWithNoArgs(String name, GraphQLOutputType rawType, String nonNull, String isList,
                                                                     String listItemNonNull, String description, DataFetcherHandler dataFetcherHandler) {
-        String fieldKey = name + KEY_SPLITTER + rawType.name
-
-        if ("true".equals(nonNull)) fieldKey = fieldKey + NON_NULL_SUFFIX
-        if ("true".equals(isList)) {
-            fieldKey = fieldKey + IS_LIST_SUFFIX
-            if ("true".equals(listItemNonNull)) fieldKey = fieldKey + LIST_ITEM_NON_NULL_SUFFIX
-        }
+//        String fieldKey = name + KEY_SPLITTER + rawType.name
+//
+//        if ("true".equals(nonNull)) fieldKey = fieldKey + NON_NULL_SUFFIX
+//        if ("true".equals(isList)) {
+//            fieldKey = fieldKey + IS_LIST_SUFFIX
+//            if ("true".equals(listItemNonNull)) fieldKey = fieldKey + LIST_ITEM_NON_NULL_SUFFIX
+//        }
+        String fieldKey = getFieldKey(name, rawType.name, nonNull, isList, listItemNonNull)
 
         GraphQLFieldDefinition field = graphQLFieldMap.get(fieldKey)
         if (field != null) return field
@@ -786,6 +804,16 @@ public class GraphQLSchemaDefinition {
         graphQLFieldMap.put(fieldKey, field)
 
         return field
+    }
+
+    protected static String getFieldKey(String name, String rawTypeName, String nonNull, String isList, String listItemNonNull) {
+        String fieldKey = name + KEY_SPLITTER + rawTypeName
+        if ("true".equals(nonNull)) fieldKey = fieldKey + NON_NULL_SUFFIX
+        if ("true".equals(isList)) {
+            fieldKey = fieldKey + IS_LIST_SUFFIX
+            if ("true".equals(listItemNonNull)) fieldKey = fieldKey + LIST_ITEM_NON_NULL_SUFFIX
+        }
+        return fieldKey
     }
 
     private static GraphQLInputObjectField createPredefinedInputField(String name, GraphQLInputType type,
@@ -934,13 +962,6 @@ public class GraphQLSchemaDefinition {
         graphQLFieldDef = graphQLFieldDefBuilder.build()
 
         return graphQLFieldDef
-    }
-
-    private static GraphQLFieldDefinition buildSchemaMutationField(FieldDefinition fieldDef) {
-        if (!fieldDef.isMutation)
-            throw new IllegalArgumentException("FieldDefinition [${fieldDef.name} - ${fieldDef.type}] is not mutation field")
-
-
     }
 
     private static GraphQLArgument buildSchemaArgument(ArgumentDefinition argumentDef) {
