@@ -704,8 +704,11 @@ public class GraphQLSchemaDefinition {
 
     private static GraphQLOutputType getGraphQLOutputType(String rawTypeName, String nonNull, String isList, String listItemNonNull) {
         GraphQLOutputType rawType = graphQLOutputTypeMap.get(rawTypeName)
-        if (rawType == null)
-            throw new IllegalArgumentException("GraphQLOutputType [${rawTypeName}] not found")
+        if (rawType == null) {
+//            throw new IllegalArgumentException("GraphQLOutputType [${rawTypeName}] not found")
+            rawType = new GraphQLTypeReference(rawTypeName)
+            graphQLTypeReferenceMap.put(rawTypeName, rawType)
+        }
         return getGraphQLOutputType(rawType, nonNull, isList, listItemNonNull)
     }
 
@@ -922,7 +925,8 @@ public class GraphQLSchemaDefinition {
     private static GraphQLFieldDefinition buildSchemaField(FieldDefinition fieldDef) {
         GraphQLFieldDefinition graphQLFieldDef
 
-        if (fieldDef.argumentList.size() == 0) return getGraphQLFieldWithNoArgs(fieldDef)
+        if (fieldDef.argumentList.size() == 0 && graphQLScalarTypes.containsKey(fieldDef.type))
+            return getGraphQLFieldWithNoArgs(fieldDef)
 
         GraphQLOutputType fieldType
         if ("true".equals(fieldDef.isList)) fieldType = getConnectionObjectType(fieldDef.type, fieldDef.nonNull, fieldDef.listItemNonNull)
