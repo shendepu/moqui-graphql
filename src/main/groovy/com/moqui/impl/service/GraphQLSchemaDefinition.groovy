@@ -764,13 +764,6 @@ public class GraphQLSchemaDefinition {
 
     private static GraphQLFieldDefinition getGraphQLFieldWithNoArgs(String name, GraphQLOutputType rawType, String nonNull, String isList,
                                                                     String listItemNonNull, String description, DataFetcherHandler dataFetcherHandler) {
-//        String fieldKey = name + KEY_SPLITTER + rawType.name
-//
-//        if ("true".equals(nonNull)) fieldKey = fieldKey + NON_NULL_SUFFIX
-//        if ("true".equals(isList)) {
-//            fieldKey = fieldKey + IS_LIST_SUFFIX
-//            if ("true".equals(listItemNonNull)) fieldKey = fieldKey + LIST_ITEM_NON_NULL_SUFFIX
-//        }
         String fieldKey = getFieldKey(name, rawType.name, nonNull, isList, listItemNonNull)
 
         GraphQLFieldDefinition field = graphQLFieldMap.get(fieldKey)
