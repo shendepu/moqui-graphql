@@ -20,7 +20,7 @@ import graphql.GraphQL
 import graphql.GraphQLError
 import groovy.transform.CompileStatic
 import org.moqui.context.ExecutionContextFactory
-import org.moqui.context.ResourceReference
+import org.moqui.resource.ResourceReference
 import org.moqui.jcache.MCache
 import org.moqui.util.MNode
 import org.slf4j.Logger
