@@ -1740,7 +1740,7 @@ public class GraphQLSchemaDefinition {
                 logger.info("pageIndex   - ${inputFieldsMap.get('pageIndex')}")
                 logger.info("pageSize    - ${inputFieldsMap.get('pageSize')}")
                 if (operation == "one") {
-                    EntityFind ef = ec.entity.find(entityName).searchFormMap(inputFieldsMap, null, null, false)
+                    EntityFind ef = ec.entity.find(entityName).searchFormMap(inputFieldsMap, null, null, null, false)
                     for (Map.Entry<String, String> entry in relKeyMap.entrySet()) {
                         ef = ef.condition(entry.getValue(), ((Map) environment.source).get(entry.getKey()))
                     }
@@ -1762,7 +1762,7 @@ public class GraphQLSchemaDefinition {
                         return jointOneMap
                     }
                 } else if (operation == "list") {
-                    EntityFind ef = ec.entity.find(entityName).searchFormMap(inputFieldsMap, null, null, true)
+                    EntityFind ef = ec.entity.find(entityName).searchFormMap(inputFieldsMap, null, null, null, true)
                     for (Map.Entry<String, String> entry in relKeyMap.entrySet()) {
                         ef = ef.condition(entry.getValue(), ((Map) environment.source).get(entry.getKey()))
                     }
