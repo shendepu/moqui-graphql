@@ -44,12 +44,10 @@ import org.moqui.entity.EntityFind
 import org.moqui.entity.EntityList
 import org.moqui.entity.EntityValue
 import org.moqui.impl.context.ExecutionContextFactoryImpl
-import org.moqui.impl.context.ExecutionContextImpl
 import org.moqui.impl.context.UserFacadeImpl
 import org.moqui.impl.entity.EntityDefinition
 import org.moqui.impl.entity.FieldInfo
 import org.moqui.impl.service.ServiceDefinition
-import org.moqui.impl.service.ServiceFacadeImpl
 import org.moqui.impl.webapp.ScreenResourceNotFoundException
 import org.moqui.service.ServiceFacade
 import org.moqui.util.MNode
@@ -254,7 +252,7 @@ public class GraphQLSchemaDefinition {
         this.queryType = schemaNode.attribute("query")
         this.mutationType = schemaNode.attribute("mutation")
 
-        GraphQLSchemaUtil.createObjectTypeNodeForAllEntities(ecf.getExecutionContext(), allTypeDefMap)
+        GraphQLSchemaUtil.createObjectTypeNodeForAllEntities(ecf, allTypeDefMap)
 
         for (MNode childNode in schemaNode.children) {
             switch (childNode.name) {
@@ -262,12 +260,12 @@ public class GraphQLSchemaDefinition {
                     schemaInputTypeNameList.add(childNode.attribute("name"))
                     break
                 case "interface":
-                    InterfaceTypeDefinition interfaceTypeDef = new InterfaceTypeDefinition(childNode, ecf.getExecutionContext())
+                    InterfaceTypeDefinition interfaceTypeDef = new InterfaceTypeDefinition(childNode, ecf)
                     allTypeDefMap.put(childNode.attribute("name"), interfaceTypeDef)
                     interfaceTypeDefMap.put(childNode.attribute("name"), interfaceTypeDef)
                     break
                 case "object":
-                    allTypeDefMap.put(childNode.attribute("name"), new ObjectTypeDefinition(childNode, ecf.getExecutionContext()))
+                    allTypeDefMap.put(childNode.attribute("name"), new ObjectTypeDefinition(childNode, ecf))
                     break
                 case "union":
                     allTypeDefMap.put(childNode.attribute("name"), new UnionTypeDefinition(childNode))
@@ -618,7 +616,7 @@ public class GraphQLSchemaDefinition {
             if (interfaceTypeDefMap.containsKey(name))
                 throw new IllegalArgumentException("Interface [${name}] to be extended already exists")
 
-            InterfaceTypeDefinition interfaceTypeDef = new InterfaceTypeDefinition(objectTypeDef, extendObjectDef, ecf.getExecutionContext())
+            InterfaceTypeDefinition interfaceTypeDef = new InterfaceTypeDefinition(objectTypeDef, extendObjectDef, ecf)
             allTypeDefMap.put(interfaceTypeDef.name, interfaceTypeDef)
             interfaceTypeDefMap.put(interfaceTypeDef.name, interfaceTypeDef)
 
@@ -1107,7 +1105,7 @@ public class GraphQLSchemaDefinition {
 
     static class InterfaceTypeDefinition extends GraphQLTypeDefinition {
         @SuppressWarnings("GrFinalVariableAccess")
-        final ExecutionContext ec
+        final ExecutionContextFactory ecf
 
         String convertFromObjectTypeName
 
@@ -1117,8 +1115,8 @@ public class GraphQLSchemaDefinition {
         Map<String, String> resolverMap = new LinkedHashMap<>()
         String defaultResolvedTypeName
 
-        InterfaceTypeDefinition(MNode node, ExecutionContext ec) {
-            this.ec = ec
+        InterfaceTypeDefinition(MNode node, ExecutionContextFactory ecf) {
+            this.ecf = ecf
             this.name = node.attribute("name")
             this.type = "interface"
             this.typeResolver = node.attribute("type-resolver")
@@ -1128,16 +1126,16 @@ public class GraphQLSchemaDefinition {
                         this.description = childNode.text
                         break
                     case "field":
-                        fieldDefMap.put(childNode.attribute("name"), new FieldDefinition(childNode, ec))
+                        fieldDefMap.put(childNode.attribute("name"), new FieldDefinition(childNode, ecf))
 //                        typeList.add(childNode.attribute("type"))
                         break
                 }
             }
         }
 
-        InterfaceTypeDefinition(ObjectTypeDefinition objectTypeDef, ExtendObjectDefinition extendObjectDef, ExecutionContext ec) {
+        InterfaceTypeDefinition(ObjectTypeDefinition objectTypeDef, ExtendObjectDefinition extendObjectDef, ExecutionContextFactory ecf) {
             this.convertFromObjectTypeName = objectTypeDef.name
-            this.ec = ec
+            this.ecf = ecf
             this.name = objectTypeDef.name + "Interface"
             this.type = "interface"
             this.defaultResolvedTypeName = objectTypeDef.name
@@ -1146,7 +1144,7 @@ public class GraphQLSchemaDefinition {
 
             fieldDefMap.putAll(objectTypeDef.fieldDefMap)
             for (MNode fieldNode in extendObjectDef.extendObjectNode.children("field")) {
-                GraphQLSchemaUtil.mergeFieldDefinition(fieldNode, fieldDefMap, ec)
+                GraphQLSchemaUtil.mergeFieldDefinition(fieldNode, fieldDefMap, ecf)
             }
 
             for (String excludeFieldName in extendObjectDef.excludeFields)
@@ -1179,15 +1177,15 @@ public class GraphQLSchemaDefinition {
 
     static class ObjectTypeDefinition extends GraphQLTypeDefinition {
         @SuppressWarnings("GrFinalVariableAccess")
-        final ExecutionContext ec
+        final ExecutionContextFactory ecf
 
         String convertToInterface
         List<String> interfaceList = new LinkedList<>()
         Map<String, InterfaceTypeDefinition> interfacesMap
         Map<String, FieldDefinition> fieldDefMap = new LinkedHashMap<>()
 
-        ObjectTypeDefinition(MNode node, ExecutionContext ec) {
-            this.ec = ec
+        ObjectTypeDefinition(MNode node, ExecutionContextFactory ecf) {
+            this.ecf = ecf
             this.name = node.attribute("name")
             this.type = "object"
             for (MNode childNode in node.children) {
@@ -1199,16 +1197,16 @@ public class GraphQLSchemaDefinition {
                         interfaceList.add(childNode.attribute("name"))
                         break
                     case "field":
-                        fieldDefMap.put(childNode.attribute("name"), new FieldDefinition(childNode, ec))
+                        fieldDefMap.put(childNode.attribute("name"), new FieldDefinition(childNode, ecf))
 //                        typeList.add(childNode.attribute("type"))
                         break
                 }
             }
         }
 
-        ObjectTypeDefinition(ExecutionContext ec, String name, String description, List<String> interfaceList,
+        ObjectTypeDefinition(ExecutionContextFactory ecf, String name, String description, List<String> interfaceList,
                              Map<String, FieldDefinition> fieldDefMap) {
-            this.ec = ec
+            this.ecf = ecf
             this.name = name
             this.description = description
             this.type = "object"
@@ -1227,7 +1225,7 @@ public class GraphQLSchemaDefinition {
                 extendInterface((InterfaceTypeDefinition) interfaceTypeDef, childNode)
             }
             for (MNode childNode in extendObjectDef.extendObjectNode.children("field")) {
-                GraphQLSchemaUtil.mergeFieldDefinition(childNode, fieldDefMap, ec)
+                GraphQLSchemaUtil.mergeFieldDefinition(childNode, fieldDefMap, ecf)
             }
 
             for (String excludeFieldName in extendObjectDef.excludeFields)
@@ -1263,7 +1261,7 @@ public class GraphQLSchemaDefinition {
 
     static class ExtendObjectDefinition {
         @SuppressWarnings("GrFinalVariableAccess")
-        final ExecutionContext ec
+        final ExecutionContextFactory ecf
         MNode extendObjectNode
         String name, resolverField
 
@@ -1284,7 +1282,7 @@ public class GraphQLSchemaDefinition {
                         interfaceList.add(childNode.attribute("name"))
                         break
                     case "field":
-                        fieldDefMap.put(childNode.attribute("name"), new FieldDefinition(childNode, ec))
+                        fieldDefMap.put(childNode.attribute("name"), new FieldDefinition(childNode, ecf))
                         break
                     case "exclude-field":
                         excludeFields.add(childNode.attribute("name"))
@@ -1358,7 +1356,7 @@ public class GraphQLSchemaDefinition {
     }
 
     static class FieldDefinition implements Cloneable {
-        ExecutionContext ec
+        ExecutionContextFactory ecf
         String name, type, description, depreciationReason
         String nonNull, isList, listItemNonNull
         String requireAuthentication
@@ -1370,8 +1368,8 @@ public class GraphQLSchemaDefinition {
 //        List<ArgumentDefinition> argumentList = new LinkedList<>()
         Map<String, ArgumentDefinition> argumentDefMap = new LinkedHashMap<>()
 
-        FieldDefinition(MNode node, ExecutionContext ec) {
-            this.ec = ec
+        FieldDefinition(MNode node, ExecutionContextFactory ecf) {
+            this.ecf = ecf
             this.name = node.attribute("name")
             this.type = node.attribute("type")
             this.description = node.attribute("description")
@@ -1402,10 +1400,10 @@ public class GraphQLSchemaDefinition {
                         mergeArgument(argDef)
                         break
                     case "service-fetcher":
-                        this.dataFetcher = new DataFetcherService(childNode, this, ec)
+                        this.dataFetcher = new DataFetcherService(childNode, this, ecf)
                         break
                     case "entity-fetcher":
-                        this.dataFetcher = new DataFetcherEntity(childNode, this, ec)
+                        this.dataFetcher = new DataFetcherEntity(childNode, this, ecf)
                         break
                     case "empty-fetcher":
                         this.dataFetcher = new EmptyDataFetcher(childNode, this)
@@ -1426,24 +1424,24 @@ public class GraphQLSchemaDefinition {
             addInputArgument()
         }
 
-        FieldDefinition(ExecutionContext ec, String name, String type) {
-            this(ec, name, type, new HashMap<>(), null, new ArrayList<>())
+        FieldDefinition(ExecutionContextFactory ecf, String name, String type) {
+            this(ecf, name, type, new HashMap<>(), null, new ArrayList<>())
         }
 
-        FieldDefinition(ExecutionContext ec, String name, String type, Map<String, String> fieldPropertyMap) {
-            this(ec, name, type, fieldPropertyMap, null, new ArrayList<>())
+        FieldDefinition(ExecutionContextFactory ecf, String name, String type, Map<String, String> fieldPropertyMap) {
+            this(ecf, name, type, fieldPropertyMap, null, new ArrayList<>())
         }
 
         // This constructor used by auto creation of master-detail field
-        FieldDefinition(ExecutionContext ec, String name, String type, Map<String, String> fieldPropertyMap,
+        FieldDefinition(ExecutionContextFactory ecf, String name, String type, Map<String, String> fieldPropertyMap,
                         List<String> excludedFields) {
-            this(ec, name, type, fieldPropertyMap, null, excludedFields)
+            this(ecf, name, type, fieldPropertyMap, null, excludedFields)
         }
 
         // This constructor used by auto creation of master-detail field
-        FieldDefinition(ExecutionContext ec, String name, String type, Map<String, String> fieldPropertyMap,
+        FieldDefinition(ExecutionContextFactory ecf, String name, String type, Map<String, String> fieldPropertyMap,
                         DataFetcherHandler dataFetcher, List<String> excludedArguments) {
-            this.ec = ec
+            this.ecf = ecf
             this.name = name
             this.type = type
             this.dataFetcher = dataFetcher
@@ -1471,7 +1469,7 @@ public class GraphQLSchemaDefinition {
 
         @Override
         public FieldDefinition clone() {
-            FieldDefinition other = new FieldDefinition(this.ec, this.name, this.type)
+            FieldDefinition other = new FieldDefinition(this.ecf, this.name, this.type)
             other.description = description
             other.depreciationReason = depreciationReason
             other.nonNull = nonNull
@@ -1515,8 +1513,8 @@ public class GraphQLSchemaDefinition {
             String entityName = autoArgumentsDef.entityName
             if (entityName == null || entityName.isEmpty())
                 throw new IllegalArgumentException("Error in auto-arguments in field ${this.name}, no auto-arguments.@entity-name")
-            ExecutionContextImpl eci = (ExecutionContextImpl) ec
-            EntityDefinition ed = eci.getEntityFacade().getEntityDefinition(entityName)
+
+            EntityDefinition ed = ((ExecutionContextFactoryImpl) ecf).entityFacade.getEntityDefinition(entityName)
             if (ed == null) throw new IllegalArgumentException("Error in auto-arguments in field ${this.name}, the entity-name is not a valid entity name")
 
             String includeStr = autoArgumentsDef.include
@@ -1549,9 +1547,9 @@ public class GraphQLSchemaDefinition {
 
         private void addAutoArguments(List<String> excludedFields) {
             if (graphQLScalarTypes.keySet().contains(type) || graphQLDirectiveArgumentMap.keySet().contains(type)) return
-            if (!((ExecutionContextImpl) ec).getEntityFacade().isEntityDefined(type)) return
+            if (!((ExecutionContextFactoryImpl) ecf).entityFacade.isEntityDefined(type)) return
 
-            EntityDefinition ed = ((ExecutionContextImpl) ec).getEntityFacade().getEntityDefinition(type)
+            EntityDefinition ed = ((ExecutionContextFactoryImpl) ecf).entityFacade.getEntityDefinition(type)
 
             List<String> fieldNames = new ArrayList<>()
             if ("true".equals(isList)) fieldNames.addAll(ed.getFieldNames(true, true))
@@ -1592,12 +1590,12 @@ public class GraphQLSchemaDefinition {
 
     static abstract class DataFetcherHandler {
         @SuppressWarnings("GrFinalVariableAccess")
-        final ExecutionContext ec
+        final ExecutionContextFactory ecf
         @SuppressWarnings("GrFinalVariableAccess")
         final FieldDefinition fieldDef
 
-        DataFetcherHandler(FieldDefinition fieldDef, ExecutionContext ec) {
-            this.ec = ec
+        DataFetcherHandler(FieldDefinition fieldDef, ExecutionContextFactory ecf) {
+            this.ecf = ecf
             this.fieldDef = fieldDef
         }
 
@@ -1627,19 +1625,20 @@ public class GraphQLSchemaDefinition {
         String serviceName
         String requireAuthentication
 
-        DataFetcherService(MNode node, FieldDefinition fieldDef, ExecutionContext ec) {
-            super(fieldDef, ec)
+        DataFetcherService(MNode node, FieldDefinition fieldDef, ExecutionContextFactory ecf) {
+            super(fieldDef, ecf)
             this.requireAuthentication = node.attribute("require-authentication") ?: fieldDef.requireAuthentication ?: "true"
 
             this.serviceName = node.attribute("service")
 
-            ServiceDefinition sd = ((ExecutionContextImpl) ec).serviceFacade.getServiceDefinition(serviceName)
+            ServiceDefinition sd = ((ExecutionContextFactoryImpl) ecf).serviceFacade.getServiceDefinition(serviceName)
             if (sd == null) throw new IllegalArgumentException("Service ${serviceName} not found")
         }
 
         @Override
         Object fetch(DataFetchingEnvironment environment) {
             logger.info("---- running data fetcher service [${serviceName}] ...")
+            ExecutionContext ec = ecf.getExecutionContext()
             boolean loggedInAnonymous = false
             if ("anonymous-all".equals(requireAuthentication)) {
                 ec.artifactExecution.setAnonymousAuthorizedAll()
@@ -1678,8 +1677,8 @@ public class GraphQLSchemaDefinition {
         String fieldRawType
         Map<String, String> relKeyMap = new HashMap<>()
 
-        DataFetcherEntity(MNode node, FieldDefinition fieldDef, ExecutionContext ec) {
-            super(fieldDef, ec)
+        DataFetcherEntity(MNode node, FieldDefinition fieldDef, ExecutionContextFactory ecf) {
+            super(fieldDef, ecf)
 
             Map<String, String> keyMap = new HashMap<>()
             for (MNode keyMapNode in node.children("key-map"))
@@ -1688,12 +1687,12 @@ public class GraphQLSchemaDefinition {
             initializeFields(node.attribute("entity-name"), node.attribute("interface-entity-name"), keyMap)
         }
 
-        DataFetcherEntity(ExecutionContext ec, FieldDefinition fieldDef, String entityName, Map<String, String> relKeyMap) {
-            this(ec, fieldDef, entityName, null, relKeyMap)
+        DataFetcherEntity(ExecutionContextFactory ecf, FieldDefinition fieldDef, String entityName, Map<String, String> relKeyMap) {
+            this(ecf, fieldDef, entityName, null, relKeyMap)
         }
 
-        DataFetcherEntity(ExecutionContext ec, FieldDefinition fieldDef, String entityName, String interfaceEntityName, Map<String, String> relKeyMap) {
-            super(fieldDef, ec)
+        DataFetcherEntity(ExecutionContextFactory ecf, FieldDefinition fieldDef, String entityName, String interfaceEntityName, Map<String, String> relKeyMap) {
+            super(fieldDef, ecf)
             initializeFields(entityName, interfaceEntityName, relKeyMap)
         }
 
@@ -1707,13 +1706,13 @@ public class GraphQLSchemaDefinition {
             else this.operation = "one"
 
             if (interfaceEntityName) {
-                EntityDefinition ed = ((ExecutionContextImpl) ec).getEntityFacade().getEntityDefinition(interfaceEntityName)
+                EntityDefinition ed = ((ExecutionContextFactoryImpl) ecf).entityFacade.getEntityDefinition(interfaceEntityName)
                 if (ed.getFieldNames(true, false).size() != 1)
                     throw new IllegalArgumentException("Entity ${interfaceEntityName} for interface should have one primary key")
                 interfaceEntityPkField = ed.getFieldNames(true, false).first()
             }
 
-            EntityDefinition ed = ((ExecutionContextImpl) ec).getEntityFacade().getEntityDefinition(entityName)
+            EntityDefinition ed = ((ExecutionContextFactoryImpl) ecf).entityFacade.getEntityDefinition(entityName)
             pkFieldNames.addAll(ed.pkFieldNames)
         }
 
@@ -1725,6 +1724,8 @@ public class GraphQLSchemaDefinition {
             logger.info("context    - ${environment.context}")
             logger.info("relKeyMap  - ${relKeyMap}")
             logger.info("interfaceEntityName    - ${interfaceEntityName}")
+
+            ExecutionContext ec = ecf.getExecutionContext()
 
             boolean loggedInAnonymous = false
             if ("anonymous-all".equals(requireAuthentication)) {

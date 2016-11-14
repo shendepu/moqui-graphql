@@ -14,11 +14,10 @@
 package com.moqui.impl.util
 
 import com.moqui.impl.service.GraphQLSchemaDefinition
-import graphql.language.ObjectField
+import org.moqui.context.ExecutionContextFactory
 import org.moqui.entity.EntityValue
-import org.moqui.impl.context.ExecutionContextImpl
+import org.moqui.impl.context.ExecutionContextFactoryImpl
 import org.moqui.impl.entity.FieldInfo
-import org.moqui.context.ExecutionContext
 import org.moqui.impl.entity.EntityDefinition
 import org.moqui.util.MNode
 import org.slf4j.Logger
@@ -65,16 +64,15 @@ class GraphQLSchemaUtil {
         return objectTypeGraphQLMap.get(javaType) ?: "String"
     }
 
-    static void createObjectTypeNodeForAllEntities(ExecutionContext ec, Map<String, GraphQLSchemaDefinition.GraphQLTypeDefinition> allTypeNodeMap) {
-        ExecutionContextImpl eci = (ExecutionContextImpl) ec
-        for (String entityName in eci.getEntityFacade().getAllEntityNames()) {
-            EntityDefinition ed = eci.getEntityFacade().getEntityDefinition(entityName)
-            addObjectTypeNode(ec, ed, true, "default", null, allTypeNodeMap)
+    static void createObjectTypeNodeForAllEntities(ExecutionContextFactory ecf, Map<String, GraphQLSchemaDefinition.GraphQLTypeDefinition> allTypeNodeMap) {
+        for (String entityName in ((ExecutionContextFactoryImpl) ecf).entityFacade.getAllEntityNames()) {
+            EntityDefinition ed = ((ExecutionContextFactoryImpl) ecf).entityFacade.getEntityDefinition(entityName)
+            addObjectTypeNode(ecf, ed, true, "default", null, allTypeNodeMap)
         }
     }
 
-    private static void addObjectTypeNode(ExecutionContext ec, EntityDefinition ed, boolean standalone, String masterName, MasterDetail masterDetail, Map<String, GraphQLSchemaDefinition.GraphQLTypeDefinition> allTypeDefMap) {
-        ExecutionContextImpl eci = (ExecutionContextImpl) ec
+    private static void addObjectTypeNode(ExecutionContextFactory ecf, EntityDefinition ed, boolean standalone, String masterName, MasterDetail masterDetail, Map<String, GraphQLSchemaDefinition
+            .GraphQLTypeDefinition> allTypeDefMap) {
         String objectTypeName = ed.getEntityName()
 
         // Check if the type already exist in the map
@@ -101,7 +99,7 @@ class GraphQLSchemaUtil {
 
             FieldDefinition fieldDef = GraphQLSchemaDefinition.getCachedFieldDefinition(fi.name, fieldScalarType, fieldPropertyMap.get("nonNull"), "false", "false")
             if (fieldDef == null) {
-                fieldDef = new FieldDefinition(ec, fi.name, fieldScalarType, fieldPropertyMap)
+                fieldDef = new FieldDefinition(ecf, fi.name, fieldScalarType, fieldPropertyMap)
                 GraphQLSchemaDefinition.putCachedFieldDefinition(fieldDef)
             }
             fieldDefMap.put(fieldName, fieldDef)
@@ -116,7 +114,7 @@ class GraphQLSchemaUtil {
 
         for (MasterDetail childMasterDetail in detailList) {
             RelationshipInfo relInfo = childMasterDetail.relInfo
-            EntityDefinition relEd = eci.getEntityFacade().getEntityDefinition(relInfo.relatedEntityName)
+            EntityDefinition relEd = ((ExecutionContextFactoryImpl) ecf).entityFacade.getEntityDefinition(relInfo.relatedEntityName)
 
             String fieldName = childMasterDetail.relationshipName
             String fieldType = relEd.getEntityName()
@@ -132,9 +130,9 @@ class GraphQLSchemaUtil {
             excludedArguments.addAll(relInfo.keyMap.values())
 //            if (relInfo.relatedEntityName.equals(ed.getFullEntityName())) excludedArguments.addAll(relInfo.keyMap.keySet())
             if (relInfo.type.startsWith("one")) excludedArguments.addAll(relEd.getPkFieldNames())
-            FieldDefinition fieldDef = new FieldDefinition(ec, fieldName, fieldType, fieldPropertyMap, excludedArguments)
+            FieldDefinition fieldDef = new FieldDefinition(ecf, fieldName, fieldType, fieldPropertyMap, excludedArguments)
 
-            DataFetcherHandler dataFetcher = new DataFetcherEntity(ec, fieldDef, relInfo.relatedEntityName, relInfo.keyMap)
+            DataFetcherHandler dataFetcher = new DataFetcherEntity(ecf, fieldDef, relInfo.relatedEntityName, relInfo.keyMap)
             fieldDef.setDataFetcher(dataFetcher)
 
             fieldDefMap.put(fieldName, fieldDef)
@@ -145,7 +143,7 @@ class GraphQLSchemaUtil {
             objectTypeDescription = objectTypeDescription + descriptionMNode.text + "\n"
         }
 
-        GraphQLSchemaDefinition.ObjectTypeDefinition objectTypeDef = new GraphQLSchemaDefinition.ObjectTypeDefinition(ec, objectTypeName, objectTypeDescription, new ArrayList<String>(), fieldDefMap)
+        GraphQLSchemaDefinition.ObjectTypeDefinition objectTypeDef = new GraphQLSchemaDefinition.ObjectTypeDefinition(ecf, objectTypeName, objectTypeDescription, new ArrayList<String>(), fieldDefMap)
         allTypeDefMap.put(objectTypeName, objectTypeDef)
     }
 
@@ -154,7 +152,7 @@ class GraphQLSchemaUtil {
     }
 
 
-    static void mergeFieldDefinition(MNode fieldNode, Map<String, FieldDefinition> fieldDefMap, ExecutionContext ec) {
+    static void mergeFieldDefinition(MNode fieldNode, Map<String, FieldDefinition> fieldDefMap, ExecutionContextFactory ecf) {
         FieldDefinition fieldDef = fieldDefMap.get(fieldNode.attribute("name"))
         if (fieldDef != null) {
             if (fieldNode.attribute("type")) fieldDef.type = fieldNode.attribute("type")
@@ -187,10 +185,10 @@ class GraphQLSchemaUtil {
                         fieldDef.setDataFetcher(new GraphQLSchemaDefinition.EmptyDataFetcher(childNode, fieldDef))
                         break
                     case "entity-fetcher":
-                        fieldDef.setDataFetcher(new DataFetcherEntity(childNode, fieldDef, ec))
+                        fieldDef.setDataFetcher(new DataFetcherEntity(childNode, fieldDef, ecf))
                         break
                     case "service-fetcher":
-                        fieldDef.setDataFetcher(new DataFetcherService(childNode, fieldDef, ec))
+                        fieldDef.setDataFetcher(new DataFetcherService(childNode, fieldDef, ecf))
                         break
                     case "pre-fetcher":
                         break
@@ -199,7 +197,7 @@ class GraphQLSchemaUtil {
                 }
             }
         } else {
-            fieldDef = new FieldDefinition(fieldNode, ec)
+            fieldDef = new FieldDefinition(fieldNode, ecf)
             fieldDefMap.put(fieldDef.name, fieldDef)
         }
     }
