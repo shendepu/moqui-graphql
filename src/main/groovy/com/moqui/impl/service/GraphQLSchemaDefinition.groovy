@@ -72,8 +72,6 @@ public class GraphQLSchemaDefinition {
     protected final static Logger logger = LoggerFactory.getLogger(GraphQLSchemaDefinition.class)
 
     @SuppressWarnings("GrFinalVariableAccess")
-    protected final ServiceFacade sf
-    @SuppressWarnings("GrFinalVariableAccess")
     protected final ExecutionContextFactory ecf
     @SuppressWarnings("GrFinalVariableAccess")
     protected final MNode schemaNode
