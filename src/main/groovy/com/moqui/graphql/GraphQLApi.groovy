@@ -40,55 +40,34 @@ class GraphQLApi {
     @SuppressWarnings("GrFinalVariableAccess")
     protected final ExecutionContextFactory ecf
     @SuppressWarnings("GrFinalVariableAccess")
-    final MCache<String, GraphQLSchemaDefinition> schemaDefCache
-    @SuppressWarnings("GrFinalVariableAccess")
     final MCache<String, GraphQL> graphQLCache
 
-    final String graphQLSchemaDefCacheName = "service.graphql.schema.definition"
     final String graphQLCacheName = "service.graphql.graphql"
-
-    final ReentrantLock graphQLLock = new ReentrantLock()
-
-    static GraphQLObjectType queryType = GraphQLObjectType.newObject()
-            .name("RootQueryType")
-            .field(newFieldDefinition()
-                    .name("products")
-                    .type(GraphQLString)
-                    .staticValue("product list")
-                    .build())
-            .build()
-    static GraphQLObjectType mutationType = GraphQLObjectType.newObject().name("RootMutationType").build()
-
+    final String schemaCacheKey = "schema"
 
     GraphQLApi(ExecutionContextFactory ecf) {
         this.ecf = ecf
-        schemaDefCache = ecf.getCache().getLocalCache(graphQLSchemaDefCacheName)
         graphQLCache = ecf.getCache().getLocalCache(graphQLCacheName)
-
-        loadSchemaNode(null)
     }
 
-    GraphQLResult execute(String schemaName, String requestString) {
-        return execute(schemaName, requestString, null, (Object) null, Collections.<String, Object> emptyMap())
+    GraphQLResult execute(String requestString) {
+        return execute(requestString, null, (Object) null, Collections.<String, Object> emptyMap())
     }
 
-    GraphQLResult execute(String schemaName, String requestString, Map<String, Object> arguments) {
-        return execute(schemaName, requestString, null, (Object) null, arguments)
+    GraphQLResult execute(String requestString, Map<String, Object> arguments) {
+        return execute(requestString, null, (Object) null, arguments)
     }
 
-    GraphQLResult execute(String schemaName, String requestString, String operationName, Object context, Map<String, Object> arguments) {
-        GraphQL graphQL = graphQLCache.get(schemaName)
+    GraphQLResult execute(String requestString, String operationName, Object context, Map<String, Object> arguments) {
+        GraphQL graphQL = graphQLCache.get(schemaCacheKey)
 
         if (graphQL == null) {
-            graphQLLock.lock()
-            try {
+            synchronized (this) {
                 if (graphQL == null) {
                     GraphQLSchemaDefinition.clearAllCachedGraphQLTypes()
-                    loadSchemaNode(null)
-                    graphQL = graphQLCache.get(schemaName)
+                    loadSchemaNode()
+                    graphQL = graphQLCache.get(schemaCacheKey)
                 }
-            } finally {
-                graphQLLock.unlock()
             }
         }
 
@@ -96,16 +75,10 @@ class GraphQLApi {
         return new GraphQLResult(executionResult)
     }
 
-    synchronized void loadSchemaNode(String schemaName) {
-        if (schemaName != null) {
-            GraphQLSchemaDefinition schemaDef = schemaDefCache.get(schemaName)
-            if (schemaDef != null) {
-                GraphQL graphQL = graphQLCache.get(schemaName)
-                if (graphQL != null) return
-            }
-        }
-
+    synchronized void loadSchemaNode() {
         long startTime = System.currentTimeMillis()
+        List<MNode> schemaNodeList = new ArrayList<>()
+
         // find *.graphql.xml files in component/service directories
         for (String location in this.ecf.getComponentBaseLocations().values()) {
             ResourceReference serviceDirRr = this.ecf.getResource().getLocationReference(location + "/service")
@@ -118,17 +91,16 @@ class GraphQLApi {
                     logger.info("Loading ${rr.fileName}")
                     // Parse .graphql.xml, add schema to cache
                     MNode schemaNode = MNode.parse(rr)
-                    if (schemaName == null || schemaName.equals(schemaNode.attribute("name"))) {
-                        GraphQLSchemaDefinition schemaDef = new GraphQLSchemaDefinition(ecf, schemaNode)
-                        schemaDefCache.put(schemaDef.schemaName, schemaDef)
-                        graphQLCache.put(schemaDef.schemaName, new GraphQL(schemaDef.getSchema()))
-                    }
+                    schemaNodeList.add(schemaNode)
                 }
             } else {
                 logger.warn("Can't load GraphQL APIs from component at [${serviceDirRr.location}] because it doesn't support exists/directory/etc")
             }
         }
-        logger.info("Loaded GraphQL API files, ${graphQLCache.size()} schemas, in ${System.currentTimeMillis() - startTime}ms")
+        GraphQLSchemaDefinition schemaDef = new GraphQLSchemaDefinition(ecf, schemaNodeList)
+        graphQLCache.put(schemaCacheKey, new GraphQL(schemaDef.getSchema()))
+
+        logger.info("Loaded GraphQL schema, in ${System.currentTimeMillis() - startTime}ms")
     }
 
     static class GraphQLResult {

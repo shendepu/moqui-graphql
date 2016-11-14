@@ -94,7 +94,7 @@
       // Defines a GraphQL fetcher using the fetch API.
       function graphQLFetcher(graphQLParams) {
         graphQLParams["moquiSessionToken"] = "${ec.web.sessionToken}"
-        return fetch(window.location.origin + "/graphql/v1/${ec.context.schemaName}", {
+        return fetch(window.location.origin + "/graphql/v1", {
           method: 'post',
           headers: {
             'Accept': 'application/json',

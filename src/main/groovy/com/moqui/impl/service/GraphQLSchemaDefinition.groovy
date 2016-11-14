@@ -49,7 +49,6 @@ import org.moqui.impl.entity.EntityDefinition
 import org.moqui.impl.entity.FieldInfo
 import org.moqui.impl.service.ServiceDefinition
 import org.moqui.impl.webapp.ScreenResourceNotFoundException
-import org.moqui.service.ServiceFacade
 import org.moqui.util.MNode
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -73,15 +72,16 @@ public class GraphQLSchemaDefinition {
 
     @SuppressWarnings("GrFinalVariableAccess")
     protected final ExecutionContextFactory ecf
-    @SuppressWarnings("GrFinalVariableAccess")
-    protected final MNode schemaNode
 
     @SuppressWarnings("GrFinalVariableAccess")
-    public final String schemaName
-    @SuppressWarnings("GrFinalVariableAccess")
-    protected final String queryType
-    @SuppressWarnings("GrFinalVariableAccess")
-    protected final String mutationType
+    protected final List<MNode> schemaNodeList
+
+    protected final String queryRootObjectTypeName = "QueryRootObjectType"
+    protected final String mutationRootObjectTypeName = "MutationRootObjectType"
+
+    protected final Map<String, String> queryRootFieldMap = new LinkedHashMap<>()
+    protected final Map<String, String> mutationRootFieldMap = new LinkedHashMap<>()
+
 
     protected static final Map<String, GraphQLOutputType> graphQLOutputTypeMap = new HashMap<>()
     protected static final Map<String, GraphQLInputType> graphQLInputTypeMap = new HashMap<>()
@@ -242,45 +242,74 @@ public class GraphQLSchemaDefinition {
         graphQLInputObjectFieldMap.put("clientMutationId", clientMutationIdInputField)
     }
 
-    public GraphQLSchemaDefinition(ExecutionContextFactory ecf, MNode schemaNode) {
+    public GraphQLSchemaDefinition(ExecutionContextFactory ecf, List<MNode> schemaNodeList) {
         this.ecf = ecf
-        this.schemaNode = schemaNode
-
-        this.schemaName = schemaNode.attribute("name")
-        this.queryType = schemaNode.attribute("query")
-        this.mutationType = schemaNode.attribute("mutation")
+        this.schemaNodeList = schemaNodeList
 
         GraphQLSchemaUtil.createObjectTypeNodeForAllEntities(ecf, allTypeDefMap)
 
-        for (MNode childNode in schemaNode.children) {
-            switch (childNode.name) {
-                case "input-type":
-                    schemaInputTypeNameList.add(childNode.attribute("name"))
-                    break
-                case "interface":
-                    InterfaceTypeDefinition interfaceTypeDef = new InterfaceTypeDefinition(childNode, ecf)
-                    allTypeDefMap.put(childNode.attribute("name"), interfaceTypeDef)
-                    interfaceTypeDefMap.put(childNode.attribute("name"), interfaceTypeDef)
-                    break
-                case "object":
-                    allTypeDefMap.put(childNode.attribute("name"), new ObjectTypeDefinition(childNode, ecf))
-                    break
-                case "union":
-                    allTypeDefMap.put(childNode.attribute("name"), new UnionTypeDefinition(childNode))
-                    break
-                case "enum":
-                    allTypeDefMap.put(childNode.attribute("name"), new EnumTypeDefinition(childNode))
-                    break
-                case "extend-object":
-                    extendObjectDefMap.put(childNode.attribute("name"), new ExtendObjectDefinition(childNode))
-                    break
-                case "pre-load-object":
-                    preLoadObjectTypes.add(childNode.attribute("name"))
-                    break
+        for (MNode schemaNode in schemaNodeList) {
+            String rootFieldName = schemaNode.attribute("name")
+            String rootQueryTypeName = schemaNode.attribute("query")
+            String rootMutationTypeName = schemaNode.attribute("mutation")
+
+            if (rootQueryTypeName) queryRootFieldMap.put(rootFieldName, rootQueryTypeName)
+
+            if (rootMutationTypeName) mutationRootFieldMap.put(rootFieldName, rootMutationTypeName)
+
+            for (MNode childNode in schemaNode.children) {
+                switch (childNode.name) {
+                    case "input-type":
+                        schemaInputTypeNameList.add(childNode.attribute("name"))
+                        break
+                    case "interface":
+                        InterfaceTypeDefinition interfaceTypeDef = new InterfaceTypeDefinition(childNode, ecf)
+                        allTypeDefMap.put(childNode.attribute("name"), interfaceTypeDef)
+                        interfaceTypeDefMap.put(childNode.attribute("name"), interfaceTypeDef)
+                        break
+                    case "object":
+                        allTypeDefMap.put(childNode.attribute("name"), new ObjectTypeDefinition(childNode, ecf))
+                        break
+                    case "union":
+                        allTypeDefMap.put(childNode.attribute("name"), new UnionTypeDefinition(childNode))
+                        break
+                    case "enum":
+                        allTypeDefMap.put(childNode.attribute("name"), new EnumTypeDefinition(childNode))
+                        break
+                    case "extend-object":
+                        extendObjectDefMap.put(childNode.attribute("name"), new ExtendObjectDefinition(childNode))
+                        break
+                    case "pre-load-object":
+                        preLoadObjectTypes.add(childNode.attribute("name"))
+                        break
+                }
             }
         }
 
+        createRootObjectTypeDef(queryRootObjectTypeName, queryRootFieldMap)
+        createRootObjectTypeDef(mutationRootObjectTypeName, mutationRootFieldMap)
+
         updateAllTypeDefMap()
+    }
+
+    private void createRootObjectTypeDef(String rootObjectTypeName, Map<String, String> rootFieldMap) {
+        Map<String, FieldDefinition> fieldDefMap = new LinkedHashMap<>()
+        for (Map.Entry<String, String> entry in rootFieldMap) {
+            String fieldName = entry.getKey()
+            String fieldTypeName = entry.getValue()
+            Map<String, String> fieldPropertyMap =  [nonNull: "true"]
+
+            FieldDefinition fieldDef = getCachedFieldDefinition(fieldName, fieldTypeName, fieldPropertyMap.nonNull, "false", "false")
+            if (fieldDef == null) {
+                fieldDef = new FieldDefinition(ecf, fieldName, fieldTypeName, fieldPropertyMap)
+                fieldDef.setDataFetcher(new EmptyDataFetcher(fieldDef))
+                putCachedFieldDefinition(fieldDef)
+            }
+            fieldDefMap.put(fieldName, fieldDef)
+        }
+
+        ObjectTypeDefinition objectTypeDef = new ObjectTypeDefinition(ecf, rootObjectTypeName, "", new ArrayList<String>(), fieldDefMap)
+        allTypeDefMap.put(rootObjectTypeName,  objectTypeDef)
     }
 
     public static FieldDefinition getCachedFieldDefinition(String name, String rawTypeName, String nonNull, String isList, String listItemNonNull) {
@@ -434,13 +463,8 @@ public class GraphQLSchemaDefinition {
     private void populateSortedTypes() {
         allTypeDefSortedList.clear()
 
-        GraphQLTypeDefinition queryTypeDef = getTypeDef(queryType)
-        GraphQLTypeDefinition mutationTypeDef = getTypeDef(mutationType)
-
-        if (queryTypeDef == null) {
-            logger.error("No query type [${queryType}] defined for GraphQL schema")
-            return
-        }
+        GraphQLTypeDefinition queryTypeDef = getTypeDef(queryRootObjectTypeName)
+        GraphQLTypeDefinition mutationTypeDef = getTypeDef(mutationRootObjectTypeName)
 
         for (String preLoadObjectType in preLoadObjectTypes) {
             GraphQLTypeDefinition preLoadObjectTypeDef = getTypeDef(preLoadObjectType)
@@ -456,7 +480,7 @@ public class GraphQLSchemaDefinition {
         TreeNode<GraphQLTypeDefinition> queryTypeNode = new TreeNode<GraphQLTypeDefinition>(queryTypeDef)
         rootNode.children.add(queryTypeNode)
 
-        List<String> objectTypeNames = [queryType, mutationType]
+        List<String> objectTypeNames = [queryRootObjectTypeName, mutationRootObjectTypeName]
 
         createTreeNodeRecursive(interfaceNode, objectTypeNames, true)
         traverseByPostOrder(interfaceNode, allTypeDefSortedList)
@@ -577,23 +601,19 @@ public class GraphQLSchemaDefinition {
         }
 
         // Create GraphQLSchema
-        GraphQLObjectType schemaQueryType = graphQLObjectTypeMap.get(this.queryType)
-        if (schemaQueryType == null)
-            throw new IllegalArgumentException("GraphQLObjectType [${this.queryType}] as query type for schema [${this.schemaName}] not found")
+        GraphQLObjectType schemaQueryType = graphQLObjectTypeMap.get(this.queryRootObjectTypeName)
 
         GraphQLSchema.Builder schemaBuilder = GraphQLSchema.newSchema().query(schemaQueryType)
 
-        if (this.mutationType) {
-            GraphQLObjectType schemaMutationType = graphQLObjectTypeMap.get(this.mutationType)
-            if (schemaMutationType == null)
-                throw new IllegalArgumentException("GraphQLObjectType [${this.mutationType}] as mutation type for schema [${this.schemaName}] not found")
+        if (mutationRootFieldMap.size() > 0) {
+            GraphQLObjectType schemaMutationType = graphQLObjectTypeMap.get(this.mutationRootObjectTypeName)
             schemaBuilder = schemaBuilder.mutation(schemaMutationType)
         }
 
         GraphQLSchema schema = schemaBuilder.build(new HashSet<GraphQLType>(schemaInputTypeMap.values()))
 
-        logger.info("Schema [${schemaName}] loaded: ${unionTypeCount} union type, ${enumTypeCount} enum type, ${interfaceTypeCount} interface type, ${objectTypeCount} object type")
-        logger.info("Schema [${schemaName}] created: ${graphQLUnionTypeCount} union type, ${graphQLEnumTypeCount} enum type, " +
+        logger.info("Schema loaded: ${unionTypeCount} union type, ${enumTypeCount} enum type, ${interfaceTypeCount} interface type, ${objectTypeCount} object type")
+        logger.info("Schema created: ${graphQLUnionTypeCount} union type, ${graphQLEnumTypeCount} enum type, " +
                 "${graphQLInterfaceTypeCount} interface type, ${graphQLObjectTypeCount} object type, ${graphQLInputTypeCount} input type, " +
                 "${graphQLInputFieldCount} input field, ${graphQLFieldCount} field, ${graphQLArgumentCount} argument")
         logger.info("Globally ${graphQLFieldMap.size()} fields, ${graphQLOutputTypeMap.size()} output types, ${graphQLInputTypeMap.size()} imput types")
@@ -1545,7 +1565,8 @@ public class GraphQLSchemaDefinition {
 
         private void addAutoArguments(List<String> excludedFields) {
             if (graphQLScalarTypes.keySet().contains(type) || graphQLDirectiveArgumentMap.keySet().contains(type)) return
-            if (!((ExecutionContextFactoryImpl) ecf).entityFacade.isEntityDefined(type)) return
+
+            if (!(((ExecutionContextFactoryImpl) ecf).entityFacade.isEntityDefined(type))) return
 
             EntityDefinition ed = ((ExecutionContextFactoryImpl) ecf).entityFacade.getEntityDefinition(type)
 
