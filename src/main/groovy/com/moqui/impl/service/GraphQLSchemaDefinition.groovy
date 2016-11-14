@@ -38,6 +38,7 @@ import org.moqui.context.ArtifactAuthorizationException
 import org.moqui.context.ArtifactTarpitException
 import org.moqui.context.AuthenticationRequiredException
 import org.moqui.context.ExecutionContext
+import org.moqui.context.ExecutionContextFactory
 import org.moqui.entity.EntityCondition
 import org.moqui.entity.EntityFind
 import org.moqui.entity.EntityList
@@ -75,7 +76,7 @@ public class GraphQLSchemaDefinition {
     @SuppressWarnings("GrFinalVariableAccess")
     protected final ServiceFacade sf
     @SuppressWarnings("GrFinalVariableAccess")
-    protected final ExecutionContextFactoryImpl ecfi
+    protected final ExecutionContextFactory ecf
     @SuppressWarnings("GrFinalVariableAccess")
     protected final MNode schemaNode
 
@@ -245,16 +246,15 @@ public class GraphQLSchemaDefinition {
         graphQLInputObjectFieldMap.put("clientMutationId", clientMutationIdInputField)
     }
 
-    public GraphQLSchemaDefinition(ServiceFacade sf, MNode schemaNode) {
-        this.sf = sf
-        this.ecfi = ((ServiceFacadeImpl) sf).ecfi
+    public GraphQLSchemaDefinition(ExecutionContextFactory ecf, MNode schemaNode) {
+        this.ecf = ecf
         this.schemaNode = schemaNode
 
         this.schemaName = schemaNode.attribute("name")
         this.queryType = schemaNode.attribute("query")
         this.mutationType = schemaNode.attribute("mutation")
 
-        GraphQLSchemaUtil.createObjectTypeNodeForAllEntities(this.ecfi.getExecutionContext(), allTypeDefMap)
+        GraphQLSchemaUtil.createObjectTypeNodeForAllEntities(ecf.getExecutionContext(), allTypeDefMap)
 
         for (MNode childNode in schemaNode.children) {
             switch (childNode.name) {
@@ -262,12 +262,12 @@ public class GraphQLSchemaDefinition {
                     schemaInputTypeNameList.add(childNode.attribute("name"))
                     break
                 case "interface":
-                    InterfaceTypeDefinition interfaceTypeDef = new InterfaceTypeDefinition(childNode, this.ecfi.getExecutionContext())
+                    InterfaceTypeDefinition interfaceTypeDef = new InterfaceTypeDefinition(childNode, ecf.getExecutionContext())
                     allTypeDefMap.put(childNode.attribute("name"), interfaceTypeDef)
                     interfaceTypeDefMap.put(childNode.attribute("name"), interfaceTypeDef)
                     break
                 case "object":
-                    allTypeDefMap.put(childNode.attribute("name"), new ObjectTypeDefinition(childNode, this.ecfi.getExecutionContext()))
+                    allTypeDefMap.put(childNode.attribute("name"), new ObjectTypeDefinition(childNode, ecf.getExecutionContext()))
                     break
                 case "union":
                     allTypeDefMap.put(childNode.attribute("name"), new UnionTypeDefinition(childNode))
@@ -379,6 +379,7 @@ public class GraphQLSchemaDefinition {
 
     // Create InputObjectType (Input) for mutation fields
     private void addSchemaInputObjectTypes() {
+
         for (Map.Entry<String, GraphQLTypeDefinition> entry in allTypeDefMap) {
             if (!(entry.getValue() instanceof ObjectTypeDefinition)) continue
             for (FieldDefinition fieldDef in ((ObjectTypeDefinition) entry.getValue()).fieldList) {
@@ -391,7 +392,7 @@ public class GraphQLSchemaDefinition {
                 if (fieldDef.dataFetcher instanceof DataFetcherService) {
                     String serviceName = ((DataFetcherService) fieldDef.dataFetcher).serviceName
                     String inputTypeName = GraphQLSchemaUtil.camelCaseToUpperCamel(fieldDef.name) + "Input"
-                    ServiceDefinition sd = ecfi.serviceFacade.getServiceDefinition(serviceName)
+                    ServiceDefinition sd = ((ExecutionContextFactoryImpl) ecf).serviceFacade.getServiceDefinition(serviceName)
 
                     logger.info("======== inputTypeName - ${inputTypeName}")
                     Map<String, InputObjectFieldDefinition> inputFieldMap = new LinkedHashMap<>(sd.getInParameterNames().size())
@@ -617,7 +618,7 @@ public class GraphQLSchemaDefinition {
             if (interfaceTypeDefMap.containsKey(name))
                 throw new IllegalArgumentException("Interface [${name}] to be extended already exists")
 
-            InterfaceTypeDefinition interfaceTypeDef = new InterfaceTypeDefinition(objectTypeDef, extendObjectDef, ecfi.getExecutionContext())
+            InterfaceTypeDefinition interfaceTypeDef = new InterfaceTypeDefinition(objectTypeDef, extendObjectDef, ecf.getExecutionContext())
             allTypeDefMap.put(interfaceTypeDef.name, interfaceTypeDef)
             interfaceTypeDefMap.put(interfaceTypeDef.name, interfaceTypeDef)
 
