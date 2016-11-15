@@ -816,12 +816,7 @@ public class GraphQLSchemaDefinition {
         for (Map.Entry<String, GraphQLArgument> entry in graphQLDirectiveArgumentMap) fieldBuilder.argument((GraphQLArgument) entry.getValue())
 
         if (dataFetcher != null) {
-            fieldBuilder.dataFetcher(new DataFetcher() {
-                @Override
-                public Object get(DataFetchingEnvironment environment) {
-                    return dataFetcher.get(environment)
-                }
-            })
+            fieldBuilder.dataFetcher(dataFetcher)
         }
 
         field = fieldBuilder.build()
@@ -976,12 +971,7 @@ public class GraphQLSchemaDefinition {
             graphQLFieldDefBuilder.argument((GraphQLArgument) entry.getValue())
 
         if (fieldDef.dataFetcher != null) {
-            graphQLFieldDefBuilder.dataFetcher(new DataFetcher() {
-                @Override
-                public Object get(DataFetchingEnvironment environment) {
-                    return fieldDef.dataFetcher.get(environment)
-                }
-            })
+            graphQLFieldDefBuilder.dataFetcher(fieldDef.dataFetcher)
         }
 
         graphQLFieldDef = graphQLFieldDefBuilder.build()

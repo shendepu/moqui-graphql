@@ -18,7 +18,7 @@ class EmptyDataFetcher extends BaseDataFetcher {
     }
 
     @Override
-    Object get(DataFetchingEnvironment environment) {
+    Object fetch(DataFetchingEnvironment environment) {
         if (!GraphQLSchemaUtil.graphQLScalarTypes.containsKey(fieldDef.type)) {
             if ("true".equals(fieldDef.isList)) {
                 return new ArrayList<Object>()

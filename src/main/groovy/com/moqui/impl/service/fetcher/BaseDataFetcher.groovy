@@ -1,6 +1,7 @@
 package com.moqui.impl.service.fetcher
 
 import com.moqui.graphql.DataFetchingException
+import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment
 import groovy.transform.CompileStatic
 import org.moqui.context.ArtifactAuthorizationException
@@ -13,7 +14,7 @@ import org.moqui.impl.webapp.ScreenResourceNotFoundException
 import static com.moqui.impl.service.GraphQLSchemaDefinition.FieldDefinition
 
 @CompileStatic
-abstract class BaseDataFetcher {
+abstract class BaseDataFetcher implements DataFetcher {
     @SuppressWarnings("GrFinalVariableAccess")
     final ExecutionContextFactory ecf
     @SuppressWarnings("GrFinalVariableAccess")
@@ -24,6 +25,7 @@ abstract class BaseDataFetcher {
         this.fieldDef = fieldDef
     }
 
+    @Override
     Object get(DataFetchingEnvironment environment) {
         try {
             return fetch(environment)
