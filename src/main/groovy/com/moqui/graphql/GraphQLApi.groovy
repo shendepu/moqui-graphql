@@ -26,13 +26,6 @@ import org.moqui.util.MNode
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
-import graphql.schema.GraphQLObjectType
-
-import java.util.concurrent.locks.ReentrantLock
-
-import static graphql.schema.GraphQLFieldDefinition.newFieldDefinition
-import static graphql.Scalars.GraphQLString
-
 @CompileStatic
 class GraphQLApi {
     protected final static Logger logger = LoggerFactory.getLogger(GraphQLApi.class)

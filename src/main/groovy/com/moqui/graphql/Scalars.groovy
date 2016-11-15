@@ -18,9 +18,11 @@ import graphql.language.IntValue
 import graphql.language.StringValue
 import graphql.schema.Coercing
 import graphql.schema.GraphQLScalarType
+import groovy.transform.CompileStatic
 
 import java.sql.Timestamp
 
+@CompileStatic
 class Scalars {
     private static final BigInteger LONG_MAX = BigInteger.valueOf(Long.MAX_VALUE)
     private static final BigInteger LONG_MIN = BigInteger.valueOf(Long.MIN_VALUE)

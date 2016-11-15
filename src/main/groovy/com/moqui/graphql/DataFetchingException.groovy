@@ -13,6 +13,9 @@
  */
 package com.moqui.graphql
 
+import groovy.transform.CompileStatic
+
+@CompileStatic
 class DataFetchingException extends RuntimeException {
     public String errorCode
     public DataFetchingException(String errorCode, String message) {

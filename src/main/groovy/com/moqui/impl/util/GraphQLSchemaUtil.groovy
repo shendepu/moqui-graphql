@@ -14,6 +14,12 @@
 package com.moqui.impl.util
 
 import com.moqui.impl.service.GraphQLSchemaDefinition
+import com.moqui.impl.service.fetcher.BaseDataFetcher
+import com.moqui.impl.service.fetcher.EmptyDataFetcher
+import com.moqui.impl.service.fetcher.EntityDataFetcher
+import com.moqui.impl.service.fetcher.ServiceDataFetcher
+import graphql.schema.GraphQLScalarType
+import groovy.transform.CompileStatic
 import org.moqui.context.ExecutionContextFactory
 import org.moqui.entity.EntityValue
 import org.moqui.impl.context.ExecutionContextFactoryImpl
@@ -23,19 +29,44 @@ import org.moqui.util.MNode
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
+import static graphql.Scalars.GraphQLBigDecimal
+import static graphql.Scalars.GraphQLBigInteger
+import static graphql.Scalars.GraphQLBoolean
+import static graphql.Scalars.GraphQLByte
+import static graphql.Scalars.GraphQLChar
+import static graphql.Scalars.GraphQLFloat
+import static graphql.Scalars.GraphQLID
+import static graphql.Scalars.GraphQLInt
+import static graphql.Scalars.GraphQLLong
+import static graphql.Scalars.GraphQLShort
+import static graphql.Scalars.GraphQLString
+import static com.moqui.graphql.Scalars.GraphQLTimestamp
+
 import static org.moqui.impl.entity.EntityDefinition.MasterDefinition
 import static org.moqui.impl.entity.EntityDefinition.MasterDetail
 import static org.moqui.impl.entity.EntityJavaUtil.RelationshipInfo
 
 import static com.moqui.impl.service.GraphQLSchemaDefinition.ArgumentDefinition
 import static com.moqui.impl.service.GraphQLSchemaDefinition.AutoArgumentsDefinition
-import static com.moqui.impl.service.GraphQLSchemaDefinition.DataFetcherHandler
-import static com.moqui.impl.service.GraphQLSchemaDefinition.DataFetcherEntity
 import static com.moqui.impl.service.GraphQLSchemaDefinition.FieldDefinition
-import static com.moqui.impl.service.GraphQLSchemaDefinition.DataFetcherService
 
+@CompileStatic
 class GraphQLSchemaUtil {
     protected final static Logger logger = LoggerFactory.getLogger(GraphQLSchemaUtil.class)
+
+
+    public static final Map<String, GraphQLScalarType> graphQLScalarTypes = [
+            "Int"       : GraphQLInt,           "Long"      : GraphQLLong,
+            "Float"     : GraphQLFloat,         "String"    : GraphQLString,
+            "Boolean"   : GraphQLBoolean,       "ID"        : GraphQLID,
+            "BigInteger": GraphQLBigInteger,    "BigDecimal": GraphQLBigDecimal,
+            "Byte"      : GraphQLByte,          "Short"     : GraphQLShort,
+            "Char"      : GraphQLChar,          "Timestamp" : GraphQLTimestamp]
+
+    static final List<String> graphQLStringTypes = ["String", "ID", "Char"]
+    static final List<String> graphQLDateTypes = ["Timestamp"]
+    static final List<String> graphQLNumericTypes = ["Int", "Long", "Float", "BigInteger", "BigDecimal", "Short"]
+    static final List<String> graphQLBoolTypes = ["Boolean"]
 
     static final Map<String, String> fieldTypeGraphQLMap = [
             "id"                : "ID",         "id-long"           : "ID",
@@ -132,7 +163,7 @@ class GraphQLSchemaUtil {
             if (relInfo.type.startsWith("one")) excludedArguments.addAll(relEd.getPkFieldNames())
             FieldDefinition fieldDef = new FieldDefinition(ecf, fieldName, fieldType, fieldPropertyMap, excludedArguments)
 
-            DataFetcherHandler dataFetcher = new DataFetcherEntity(ecf, fieldDef, relInfo.relatedEntityName, relInfo.keyMap)
+            BaseDataFetcher dataFetcher = new EntityDataFetcher(ecf, fieldDef, relInfo.relatedEntityName, relInfo.keyMap)
             fieldDef.setDataFetcher(dataFetcher)
 
             fieldDefMap.put(fieldName, fieldDef)
@@ -182,13 +213,13 @@ class GraphQLSchemaUtil {
                         fieldDef.mergeArgument(argDef)
                         break
                     case "empty-fetcher":
-                        fieldDef.setDataFetcher(new GraphQLSchemaDefinition.EmptyDataFetcher(childNode, fieldDef))
+                        fieldDef.setDataFetcher(new EmptyDataFetcher(childNode, fieldDef))
                         break
                     case "entity-fetcher":
-                        fieldDef.setDataFetcher(new DataFetcherEntity(childNode, fieldDef, ecf))
+                        fieldDef.setDataFetcher(new EntityDataFetcher(childNode, fieldDef, ecf))
                         break
                     case "service-fetcher":
-                        fieldDef.setDataFetcher(new DataFetcherService(childNode, fieldDef, ecf))
+                        fieldDef.setDataFetcher(new ServiceDataFetcher(childNode, fieldDef, ecf))
                         break
                     case "pre-fetcher":
                         break

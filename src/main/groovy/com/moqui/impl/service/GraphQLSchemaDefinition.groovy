@@ -13,7 +13,10 @@
  */
 package com.moqui.impl.service
 
-import com.moqui.graphql.DataFetchingException
+import com.moqui.impl.service.fetcher.BaseDataFetcher
+import com.moqui.impl.service.fetcher.EmptyDataFetcher
+import com.moqui.impl.service.fetcher.EntityDataFetcher
+import com.moqui.impl.service.fetcher.ServiceDataFetcher
 import com.moqui.impl.util.GraphQLSchemaUtil
 import graphql.schema.DataFetcher
 import graphql.schema.DataFetchingEnvironment
@@ -34,21 +37,12 @@ import graphql.schema.GraphQLType
 import graphql.schema.GraphQLTypeReference
 import graphql.schema.GraphQLUnionType
 import graphql.schema.TypeResolver
-import org.moqui.context.ArtifactAuthorizationException
-import org.moqui.context.ArtifactTarpitException
-import org.moqui.context.AuthenticationRequiredException
-import org.moqui.context.ExecutionContext
+import groovy.transform.CompileStatic
 import org.moqui.context.ExecutionContextFactory
-import org.moqui.entity.EntityCondition
-import org.moqui.entity.EntityFind
-import org.moqui.entity.EntityList
-import org.moqui.entity.EntityValue
 import org.moqui.impl.context.ExecutionContextFactoryImpl
-import org.moqui.impl.context.UserFacadeImpl
 import org.moqui.impl.entity.EntityDefinition
 import org.moqui.impl.entity.FieldInfo
 import org.moqui.impl.service.ServiceDefinition
-import org.moqui.impl.webapp.ScreenResourceNotFoundException
 import org.moqui.util.MNode
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -66,7 +60,7 @@ import static graphql.Scalars.GraphQLShort
 import static graphql.Scalars.GraphQLString
 import static com.moqui.graphql.Scalars.GraphQLTimestamp
 
-
+@CompileStatic
 public class GraphQLSchemaDefinition {
     protected final static Logger logger = LoggerFactory.getLogger(GraphQLSchemaDefinition.class)
 
@@ -146,23 +140,9 @@ public class GraphQLSchemaDefinition {
         createPredefinedGraphQLTypes()
     }
 
-
-    public static final Map<String, GraphQLScalarType> graphQLScalarTypes = [
-            "Int"       : GraphQLInt,           "Long"      : GraphQLLong,
-            "Float"     : GraphQLFloat,         "String"    : GraphQLString,
-            "Boolean"   : GraphQLBoolean,       "ID"        : GraphQLID,
-            "BigInteger": GraphQLBigInteger,    "BigDecimal": GraphQLBigDecimal,
-            "Byte"      : GraphQLByte,          "Short"     : GraphQLShort,
-            "Char"      : GraphQLChar,          "Timestamp" : GraphQLTimestamp]
-
-    static final List<String> graphQLStringTypes = ["String", "ID", "Char"]
-    static final List<String> graphQLDateTypes = ["Timestamp"]
-    static final List<String> graphQLNumericTypes = ["Int", "Long", "Float", "BigInteger", "BigDecimal", "Short"]
-    static final List<String> graphQLBoolTypes = ["Boolean"]
-
     private static void createPredefinedGraphQLTypes() {
         // Add default GraphQLScalarType
-        for (Map.Entry<String, GraphQLScalarType> entry in graphQLScalarTypes.entrySet()) {
+        for (Map.Entry<String, GraphQLScalarType> entry in GraphQLSchemaUtil.graphQLScalarTypes.entrySet()) {
             graphQLInputTypeMap.put(entry.getKey(), entry.getValue())
             graphQLOutputTypeMap.put(entry.getKey(), entry.getValue())
         }
@@ -329,15 +309,16 @@ public class GraphQLSchemaDefinition {
 
     public static String getArgumentTypeName(String type, String fieldIsList) {
         if (!"true".equals(fieldIsList)) return type
-        if (graphQLStringTypes.contains(type) || graphQLNumericTypes.contains(type) || graphQLDateTypes.contains(type))
+        if (GraphQLSchemaUtil.graphQLStringTypes.contains(type) || GraphQLSchemaUtil.graphQLNumericTypes.contains(type) ||
+                GraphQLSchemaUtil.graphQLDateTypes.contains(type))
             return operationInputType.name
-        if (graphQLDateTypes.contains(type)) return dateRangeInputType.name
+        if (GraphQLSchemaUtil.graphQLDateTypes.contains(type)) return dateRangeInputType.name
 
         return type
     }
 
     public static void putCachedArgumentDefinition(ArgumentDefinition argDef) {
-        if (!(graphQLScalarTypes.containsKey(argDef.type) ||
+        if (!(GraphQLSchemaUtil.graphQLScalarTypes.containsKey(argDef.type) ||
                 dateRangeInputType.name.equals(argDef.type) ||
                 operationInputType.name.equals(argDef.type))) return
 
@@ -383,7 +364,7 @@ public class GraphQLSchemaDefinition {
 
     private void addSchemaInputTypes() {
         // Add default GraphQLScalarType
-        for (Map.Entry<String, GraphQLScalarType> entry in graphQLScalarTypes.entrySet()) {
+        for (Map.Entry<String, GraphQLScalarType> entry in GraphQLSchemaUtil.graphQLScalarTypes.entrySet()) {
             schemaInputTypeMap.put(entry.getKey(), entry.getValue())
         }
 
@@ -395,7 +376,7 @@ public class GraphQLSchemaDefinition {
         for (String inputTypeName in schemaInputTypeNameList) {
             GraphQLType type = graphQLInputTypeMap.get(inputTypeName)
             if (type == null)
-                throw new IllegalArgumentException("GraphQLInputType [${inputTypeName}] for schema [${this.schemaName}] not found")
+                throw new IllegalArgumentException("GraphQLInputType [${inputTypeName}] for schema not found")
             schemaInputTypeMap.put(inputTypeName, type)
         }
 
@@ -414,8 +395,8 @@ public class GraphQLSchemaDefinition {
                 if (fieldDef.dataFetcher instanceof EmptyDataFetcher)
                     throw new IllegalArgumentException("FieldDefinition [${fieldDef.name} - ${fieldDef.type}] as mutation can't have empty data fetcher")
 
-                if (fieldDef.dataFetcher instanceof DataFetcherService) {
-                    String serviceName = ((DataFetcherService) fieldDef.dataFetcher).serviceName
+                if (fieldDef.dataFetcher instanceof ServiceDataFetcher) {
+                    String serviceName = ((ServiceDataFetcher) fieldDef.dataFetcher).serviceName
                     String inputTypeName = GraphQLSchemaUtil.camelCaseToUpperCamel(fieldDef.name) + "Input"
                     ServiceDefinition sd = ((ExecutionContextFactoryImpl) ecf).serviceFacade.getServiceDefinition(serviceName)
 
@@ -437,7 +418,7 @@ public class GraphQLSchemaDefinition {
                         InputObjectFieldDefinition inputFieldDef = inputFieldEntry.getValue()
 
                         if ("clientMutationId".equals(inputFieldDef.name)) continue
-                        if (!graphQLScalarTypes.keySet().contains(inputFieldDef.type))
+                        if (!GraphQLSchemaUtil.graphQLScalarTypes.keySet().contains(inputFieldDef.type))
                             throw new IllegalArgumentException("GraphQLInputObjectField [${inputFieldDef.name} - ${inputFieldDef.type}] should be GraphQLScalarType types")
 
                         String inputFieldKey = inputFieldDef.name + KEY_SPLITTER + inputFieldDef.type
@@ -543,7 +524,7 @@ public class GraphQLSchemaDefinition {
         if (node.data) {
             for (String type in node.data.getDependentTypes()) {
                 // If type is GraphQL Scalar types, skip.
-                if (graphQLScalarTypes.containsKey(type)) continue
+                if (GraphQLSchemaUtil.graphQLScalarTypes.containsKey(type)) continue
                 // If type is GraphQLObjectType which already added in Tree, skip.
                 if (objectTypeNames.contains(type)) continue
                 if (!includeInterface && "interface".equals(type)) continue
@@ -802,7 +783,7 @@ public class GraphQLSchemaDefinition {
     }
 
     private static GraphQLFieldDefinition getGraphQLFieldWithNoArgs(String name, String rawTypeName, String nonNull, String isList,
-                    String listItemNonNull, String description, DataFetcherHandler dataFetcherHandler) {
+                                                                    String listItemNonNull, String description, BaseDataFetcher dataFetcher) {
         GraphQLOutputType rawType = graphQLOutputTypeMap.get(rawTypeName)
 //        if (rawType == null) throw new IllegalArgumentException("GraphQLOutputType [${rawTypeName}] for field [${name}] not found")
         if (rawType == null) {
@@ -812,16 +793,16 @@ public class GraphQLSchemaDefinition {
                 graphQLTypeReferenceMap.put(rawTypeName, rawType)
             }
         }
-        return getGraphQLFieldWithNoArgs(name, rawType, nonNull, isList, listItemNonNull, description, dataFetcherHandler)
+        return getGraphQLFieldWithNoArgs(name, rawType, nonNull, isList, listItemNonNull, description, dataFetcher)
     }
 
     private static GraphQLFieldDefinition getGraphQLFieldWithNoArgs(String name, GraphQLOutputType rawType, String nonNull, String isList,
-                    String listItemNonNull, DataFetcherHandler dataFetcherHandler) {
-        return getGraphQLFieldWithNoArgs(name, rawType, nonNull, isList, listItemNonNull, "", dataFetcherHandler)
+                    String listItemNonNull, BaseDataFetcher dataFetcher) {
+        return getGraphQLFieldWithNoArgs(name, rawType, nonNull, isList, listItemNonNull, "", dataFetcher)
     }
 
     private static GraphQLFieldDefinition getGraphQLFieldWithNoArgs(String name, GraphQLOutputType rawType, String nonNull, String isList,
-                                                                    String listItemNonNull, String description, DataFetcherHandler dataFetcherHandler) {
+                                                                    String listItemNonNull, String description, BaseDataFetcher dataFetcher) {
         String fieldKey = getFieldKey(name, rawType.name, nonNull, isList, listItemNonNull)
 
         GraphQLFieldDefinition field = graphQLFieldMap.get(fieldKey)
@@ -842,11 +823,11 @@ public class GraphQLSchemaDefinition {
         if ("true".equals(isList)) fieldBuilder.argument(paginationArgument)
         for (Map.Entry<String, GraphQLArgument> entry in graphQLDirectiveArgumentMap) fieldBuilder.argument((GraphQLArgument) entry.getValue())
 
-        if (dataFetcherHandler != null) {
+        if (dataFetcher != null) {
             fieldBuilder.dataFetcher(new DataFetcher() {
                 @Override
                 public Object get(DataFetchingEnvironment environment) {
-                    return dataFetcherHandler.get(environment)
+                    return dataFetcher.get(environment)
                 }
             })
         }
@@ -980,7 +961,7 @@ public class GraphQLSchemaDefinition {
     private static GraphQLFieldDefinition buildSchemaField(FieldDefinition fieldDef) {
         GraphQLFieldDefinition graphQLFieldDef
 
-        if (fieldDef.argumentList.size() == 0 && graphQLScalarTypes.containsKey(fieldDef.type))
+        if (fieldDef.argumentList.size() == 0 && GraphQLSchemaUtil.graphQLScalarTypes.containsKey(fieldDef.type))
             return getGraphQLFieldWithNoArgs(fieldDef)
 
         GraphQLOutputType fieldType
@@ -1380,7 +1361,7 @@ public class GraphQLSchemaDefinition {
         String requireAuthentication
         boolean isMutation = false
 
-        DataFetcherHandler dataFetcher
+        BaseDataFetcher dataFetcher
         String preDataFetcher, postDataFetcher
 
 //        List<ArgumentDefinition> argumentList = new LinkedList<>()
@@ -1418,10 +1399,10 @@ public class GraphQLSchemaDefinition {
                         mergeArgument(argDef)
                         break
                     case "service-fetcher":
-                        this.dataFetcher = new DataFetcherService(childNode, this, ecf)
+                        this.dataFetcher = new ServiceDataFetcher(childNode, this, ecf)
                         break
                     case "entity-fetcher":
-                        this.dataFetcher = new DataFetcherEntity(childNode, this, ecf)
+                        this.dataFetcher = new EntityDataFetcher(childNode, this, ecf)
                         break
                     case "empty-fetcher":
                         this.dataFetcher = new EmptyDataFetcher(childNode, this)
@@ -1434,7 +1415,7 @@ public class GraphQLSchemaDefinition {
                         break
                 }
             }
-            if (dataFetcher == null && !graphQLScalarTypes.keySet().contains(type))
+            if (dataFetcher == null && !GraphQLSchemaUtil.graphQLScalarTypes.keySet().contains(type))
                 dataFetcher = new EmptyDataFetcher(this)
 
             addAutoArguments(new ArrayList<String>())
@@ -1458,7 +1439,7 @@ public class GraphQLSchemaDefinition {
 
         // This constructor used by auto creation of master-detail field
         FieldDefinition(ExecutionContextFactory ecf, String name, String type, Map<String, String> fieldPropertyMap,
-                        DataFetcherHandler dataFetcher, List<String> excludedArguments) {
+                        BaseDataFetcher dataFetcher, List<String> excludedArguments) {
             this.ecf = ecf
             this.name = name
             this.type = type
@@ -1519,7 +1500,7 @@ public class GraphQLSchemaDefinition {
             }
         }
 
-        public void setDataFetcher(DataFetcherHandler dataFetcher) {
+        public void setDataFetcher(BaseDataFetcher dataFetcher) {
             this.dataFetcher = dataFetcher
         }
 
@@ -1564,7 +1545,7 @@ public class GraphQLSchemaDefinition {
         }
 
         private void addAutoArguments(List<String> excludedFields) {
-            if (graphQLScalarTypes.keySet().contains(type) || graphQLDirectiveArgumentMap.keySet().contains(type)) return
+            if (GraphQLSchemaUtil.graphQLScalarTypes.keySet().contains(type) || graphQLDirectiveArgumentMap.keySet().contains(type)) return
 
             if (!(((ExecutionContextFactoryImpl) ecf).entityFacade.isEntityDefined(type))) return
 
@@ -1606,277 +1587,4 @@ public class GraphQLSchemaDefinition {
             this.description = description
         }
     }
-
-    static abstract class DataFetcherHandler {
-        @SuppressWarnings("GrFinalVariableAccess")
-        final ExecutionContextFactory ecf
-        @SuppressWarnings("GrFinalVariableAccess")
-        final FieldDefinition fieldDef
-
-        DataFetcherHandler(FieldDefinition fieldDef, ExecutionContextFactory ecf) {
-            this.ecf = ecf
-            this.fieldDef = fieldDef
-        }
-
-        Object get(DataFetchingEnvironment environment) {
-            try {
-                return fetch(environment)
-            } catch (AuthenticationRequiredException e) {
-                throw new DataFetchingException('401', e.getMessage())
-            } catch (ArtifactAuthorizationException e) {
-                throw new DataFetchingException('403', e.getMessage())
-            } catch (ScreenResourceNotFoundException e) {
-                throw new DataFetchingException('404', e.getMessage())
-            } catch (ArtifactTarpitException e) {
-                throw new DataFetchingException('429', e.getMessage())
-            } catch (DataFetchingException e) {
-                throw e
-            }
-            catch (Throwable t) {
-                throw new DataFetchingException("UNKNOWN", t.getMessage())
-            }
-        }
-
-        Object fetch(DataFetchingEnvironment environment) { return null }
-    }
-
-    static class DataFetcherService extends DataFetcherHandler {
-        String serviceName
-        String requireAuthentication
-
-        DataFetcherService(MNode node, FieldDefinition fieldDef, ExecutionContextFactory ecf) {
-            super(fieldDef, ecf)
-            this.requireAuthentication = node.attribute("require-authentication") ?: fieldDef.requireAuthentication ?: "true"
-
-            this.serviceName = node.attribute("service")
-
-            ServiceDefinition sd = ((ExecutionContextFactoryImpl) ecf).serviceFacade.getServiceDefinition(serviceName)
-            if (sd == null) throw new IllegalArgumentException("Service ${serviceName} not found")
-        }
-
-        @Override
-        Object fetch(DataFetchingEnvironment environment) {
-            logger.info("---- running data fetcher service [${serviceName}] ...")
-            ExecutionContext ec = ecf.getExecutionContext()
-            boolean loggedInAnonymous = false
-            if ("anonymous-all".equals(requireAuthentication)) {
-                ec.artifactExecution.setAnonymousAuthorizedAll()
-                loggedInAnonymous = ec.getUser().loginAnonymousIfNoUser()
-            } else if ("anonymous-view".equals(requireAuthentication)) {
-                ec.artifactExecution.setAnonymousAuthorizedView()
-                loggedInAnonymous = ec.getUser().loginAnonymousIfNoUser()
-            }
-
-            try {
-                Map<String, Object> inputFieldsMap = new HashMap<>()
-                GraphQLSchemaUtil.transformArguments(environment.arguments, inputFieldsMap)
-                logger.info("inputFieldsMap - ${inputFieldsMap}")
-
-                Map result
-                if (fieldDef.isMutation) {
-                    result = ec.getService().sync().name(serviceName).parameters(inputFieldsMap).call()
-                } else {
-                    result = ec.getService().sync().name(serviceName)
-                            .parameter("environment", environment)
-                            .parameters(inputFieldsMap).call()
-                }
-
-                return result
-            } finally {
-                if (loggedInAnonymous) ((UserFacadeImpl) ec.getUser()).logoutAnonymousOnly()
-            }
-        }
-    }
-
-    static class DataFetcherEntity extends DataFetcherHandler {
-        String entityName, interfaceEntityName, operation
-        String requireAuthentication
-        String interfaceEntityPkField
-        List<String> pkFieldNames = new ArrayList<>(1)
-        String fieldRawType
-        Map<String, String> relKeyMap = new HashMap<>()
-
-        DataFetcherEntity(MNode node, FieldDefinition fieldDef, ExecutionContextFactory ecf) {
-            super(fieldDef, ecf)
-
-            Map<String, String> keyMap = new HashMap<>()
-            for (MNode keyMapNode in node.children("key-map"))
-                keyMap.put(keyMapNode.attribute("field-name"), keyMapNode.attribute("related") ?: keyMapNode.attribute("field-name"))
-
-            initializeFields(node.attribute("entity-name"), node.attribute("interface-entity-name"), keyMap)
-        }
-
-        DataFetcherEntity(ExecutionContextFactory ecf, FieldDefinition fieldDef, String entityName, Map<String, String> relKeyMap) {
-            this(ecf, fieldDef, entityName, null, relKeyMap)
-        }
-
-        DataFetcherEntity(ExecutionContextFactory ecf, FieldDefinition fieldDef, String entityName, String interfaceEntityName, Map<String, String> relKeyMap) {
-            super(fieldDef, ecf)
-            initializeFields(entityName, interfaceEntityName, relKeyMap)
-        }
-
-        private void initializeFields(String entityName, String interfaceEntityName, Map<String, String> relKeyMap) {
-            this.requireAuthentication = fieldDef.requireAuthentication ?: "true"
-            this.entityName = entityName
-            this.interfaceEntityName = interfaceEntityName
-            this.fieldRawType = fieldDef.type
-            this.relKeyMap.putAll(relKeyMap)
-            if ("true".equals(fieldDef.isList)) this.operation = "list"
-            else this.operation = "one"
-
-            if (interfaceEntityName) {
-                EntityDefinition ed = ((ExecutionContextFactoryImpl) ecf).entityFacade.getEntityDefinition(interfaceEntityName)
-                if (ed.getFieldNames(true, false).size() != 1)
-                    throw new IllegalArgumentException("Entity ${interfaceEntityName} for interface should have one primary key")
-                interfaceEntityPkField = ed.getFieldNames(true, false).first()
-            }
-
-            EntityDefinition ed = ((ExecutionContextFactoryImpl) ecf).entityFacade.getEntityDefinition(entityName)
-            pkFieldNames.addAll(ed.pkFieldNames)
-        }
-
-        @Override
-        Object fetch(DataFetchingEnvironment environment) {
-            logger.info("---- running data fetcher entity for entity [${entityName}] with operation [${operation}] ...")
-            logger.info("arguments  - ${environment.arguments}")
-            logger.info("source     - ${environment.source}")
-            logger.info("context    - ${environment.context}")
-            logger.info("relKeyMap  - ${relKeyMap}")
-            logger.info("interfaceEntityName    - ${interfaceEntityName}")
-
-            ExecutionContext ec = ecf.getExecutionContext()
-
-            boolean loggedInAnonymous = false
-            if ("anonymous-all".equals(requireAuthentication)) {
-                ec.artifactExecution.setAnonymousAuthorizedAll()
-                loggedInAnonymous = ec.getUser().loginAnonymousIfNoUser()
-            } else if ("anonymous-view".equals(requireAuthentication)) {
-                ec.artifactExecution.setAnonymousAuthorizedView()
-                loggedInAnonymous = ec.getUser().loginAnonymousIfNoUser()
-            }
-
-            try {
-                Map<String, Object> inputFieldsMap = new HashMap<>()
-                GraphQLSchemaUtil.transformArguments(environment.arguments, inputFieldsMap)
-                logger.info("pageIndex   - ${inputFieldsMap.get('pageIndex')}")
-                logger.info("pageSize    - ${inputFieldsMap.get('pageSize')}")
-                if (operation == "one") {
-                    EntityFind ef = ec.entity.find(entityName).searchFormMap(inputFieldsMap, null, null, null, false)
-                    for (Map.Entry<String, String> entry in relKeyMap.entrySet()) {
-                        ef = ef.condition(entry.getValue(), ((Map) environment.source).get(entry.getKey()))
-                    }
-                    EntityValue one = ef.one()
-                    if (one == null) return  null
-                    if (interfaceEntityName == null || interfaceEntityName.isEmpty() || entityName.equals(interfaceEntityName)) {
-                         return one.getMap()
-                    } else {
-
-                        logger.info("entity find interface EntityName - ${interfaceEntityName}")
-                        logger.info("entity find one.getPrimaryKeys - ${one.getPrimaryKeys()}")
-                        ef = ec.entity.find(interfaceEntityName)
-                                .condition(ec.getEntity().getConditionFactory().makeCondition(one.getPrimaryKeys()))
-                        EntityValue interfaceOne = ef.one()
-                        Map jointOneMap = new HashMap()
-                        if (interfaceOne != null) jointOneMap.putAll(interfaceOne.getMap())
-                        jointOneMap.putAll(one.getMap())
-
-                        return jointOneMap
-                    }
-                } else if (operation == "list") {
-                    EntityFind ef = ec.entity.find(entityName).searchFormMap(inputFieldsMap, null, null, null, true)
-                    for (Map.Entry<String, String> entry in relKeyMap.entrySet()) {
-                        ef = ef.condition(entry.getValue(), ((Map) environment.source).get(entry.getKey()))
-                    }
-
-                    if (!ef.getLimit()) ef.limit(100)
-
-                    int count = ef.count() as int
-                    int pageIndex = ef.getPageIndex()
-                    int pageSize = ef.getPageSize()
-                    int pageMaxIndex = ((count - 1) as BigDecimal).divide(pageSize as BigDecimal, 0, BigDecimal.ROUND_DOWN).intValue()
-                    int pageRangeLow = pageIndex * pageSize + 1
-                    int pageRangeHigh = (pageIndex * pageSize) + pageSize
-                    if (pageRangeHigh > count) pageRangeHigh = count
-                    boolean hasPreviousPage = pageIndex > 0
-                    boolean hasNextPage = pageMaxIndex > pageIndex
-
-                    Map<String, Object> resultMap = new HashMap<>()
-                    Map<String, Object> pageInfo = ['pageIndex'   : pageIndex, 'pageSize': pageSize, 'totalCount': count,
-                            'pageMaxIndex': pageMaxIndex, 'pageRangeLow': pageRangeLow, 'pageRangeHigh': pageRangeHigh,
-                            'hasPreviousPage': hasPreviousPage, 'hasNextPage': hasNextPage] as Map<String, Object>
-
-                    EntityList el = ef.list()
-                    List<Map<String, Object>> edgesDataList = new ArrayList(el.size())
-                    Map<String, Object> edgesData
-                    String cursor
-
-                    if (el == null || el.size() == 0) {
-                        // Do nothing
-                    } else {
-                        if (interfaceEntityName == null || interfaceEntityName.isEmpty() || entityName.equals(interfaceEntityName)) {
-                            pageInfo.put("startCursor", GraphQLSchemaUtil.base64EncodeCursor(el.get(0), fieldRawType, pkFieldNames))
-                            pageInfo.put("endCursor", GraphQLSchemaUtil.base64EncodeCursor(el.get(el.size() - 1), fieldRawType, pkFieldNames))
-                            for (EntityValue ev in el) {
-                                edgesData = new HashMap<>(2)
-                                cursor = GraphQLSchemaUtil.base64EncodeCursor(ev, fieldRawType, pkFieldNames)
-                                edgesData.put("cursor", cursor)
-                                edgesData.put("node", ev.getPlainValueMap(0))
-                                edgesDataList.add(edgesData)
-                            }
-                        } else {
-                            List<Object> pkValues = new ArrayList<>()
-                            for (EntityValue ev in el) pkValues.add(ev.get(interfaceEntityPkField))
-
-                            EntityFind efInterface = ec.entity.find(interfaceEntityName).condition(interfaceEntityPkField, EntityCondition.ComparisonOperator.IN, pkValues)
-
-                            Map<String, Object> jointOneMap, matchedOne
-
-                            pageInfo.put("startCursor", GraphQLSchemaUtil.base64EncodeCursor(el.get(0), fieldRawType, pkFieldNames))
-                            pageInfo.put("endCursor", GraphQLSchemaUtil.base64EncodeCursor(el.get(el.size() - 1), fieldRawType, pkFieldNames))
-                            for (EntityValue ev in el) {
-                                edgesData = new HashMap<>(2)
-                                cursor = GraphQLSchemaUtil.base64EncodeCursor(ev, fieldRawType, pkFieldNames)
-                                edgesData.put("cursor", cursor)
-                                jointOneMap = ev.getPlainValueMap(0)
-                                matchedOne = efInterface.list().find({ it.get(interfaceEntityPkField).equals(ev.get(interfaceEntityPkField)) })
-                                jointOneMap.putAll(matchedOne)
-                                edgesData.put("node", jointOneMap)
-                                edgesDataList.add(edgesData)
-                            }
-                        }
-                    }
-                    resultMap.put("edges", edgesDataList)
-                    resultMap.put("pageInfo", pageInfo)
-                    return resultMap
-                }
-            }
-            finally {
-                if (loggedInAnonymous) ((UserFacadeImpl) ec.getUser()).logoutAnonymousOnly()
-            }
-            return null
-        }
-
-    }
-
-    static class EmptyDataFetcher extends DataFetcherHandler {
-        EmptyDataFetcher (MNode node, FieldDefinition fieldDef) {
-            super(fieldDef, null)
-        }
-
-        EmptyDataFetcher(FieldDefinition fieldDef) {
-            super(fieldDef, null)
-        }
-
-        @Override
-        Object get(DataFetchingEnvironment environment) {
-            if (!graphQLScalarTypes.containsKey(fieldDef.type)) {
-                if ("true".equals(fieldDef.isList)) {
-                    return new ArrayList<Object>()
-                }
-                return new HashMap<String, Object>()
-            }
-            return null
-        }
-    }
-
 }
