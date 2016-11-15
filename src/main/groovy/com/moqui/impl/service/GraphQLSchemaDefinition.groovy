@@ -47,18 +47,10 @@ import org.moqui.util.MNode
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
-import static graphql.Scalars.GraphQLBigDecimal
-import static graphql.Scalars.GraphQLBigInteger
 import static graphql.Scalars.GraphQLBoolean
-import static graphql.Scalars.GraphQLByte
 import static graphql.Scalars.GraphQLChar
-import static graphql.Scalars.GraphQLFloat
-import static graphql.Scalars.GraphQLID
 import static graphql.Scalars.GraphQLInt
-import static graphql.Scalars.GraphQLLong
-import static graphql.Scalars.GraphQLShort
 import static graphql.Scalars.GraphQLString
-import static com.moqui.graphql.Scalars.GraphQLTimestamp
 
 @CompileStatic
 public class GraphQLSchemaDefinition {
