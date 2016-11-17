@@ -49,17 +49,12 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
         return jointOneMap
     }
 
-    private void setResult(List<Object> sources, List<Map<String, Object>> resultList) {
-
-    }
-
     private boolean requireInterfaceEntity() {
         return !(interfaceEntityName == null || interfaceEntityName.isEmpty() || entityName.equals(interfaceEntityName))
     }
 
-    private boolean requirePagination(DataFetchingEnvironment environment) {
+    private static boolean requirePagination(DataFetchingEnvironment environment) {
         List sources = (List) environment.source
-        if (sources.size() == 0) return true
 
         Map<String, Object> arguments = (Map) environment.arguments
         List<Field> fields = (List) environment.fields
@@ -67,6 +62,8 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
         result = result || arguments.get("pagination") != null
         if (result) return true
         result = result || fields.find({ it.name == "pageInfo" }) != null
+        if (!result) result = sources.size() == 1
+
         return result
     }
 
@@ -122,7 +119,7 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
 
     @Override
     Object fetch(DataFetchingEnvironment environment) {
-        logger.info("============ running batched data fetcher entity for entity [${entityName}] with operation [${operation}] ==========")
+        logger.info("running batched data fetcher entity for entity [${entityName}] with operation [${operation}] ...")
 //        logger.info("source     - ${environment.source}")
 //        logger.info("arguments  - ${environment.arguments}")
 //        logger.info("context    - ${environment.context}")
@@ -138,11 +135,11 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
         int sourceItemCount = ((List) environment.source).size()
         int relKeyCount = relKeyMap.size()
 
+        if (sourceItemCount == 0)
+            throw new IllegalArgumentException("Source should be wrapped in List with at least 1 item for entity ${entityName}")
+
         if (sourceItemCount > 1 && relKeyCount == 0 && operation == "one")
             throw new IllegalArgumentException("Source contains more than 1 item, but no relationship key map defined for entity ${entityName}")
-
-        if (sourceItemCount == 0 && relKeyCount > 0 && operation == "one")
-            throw new IllegalArgumentException("Source contains 0 item, but has relationship key map defined for entity ${entityName}")
 
         boolean loggedInAnonymous = false
         if ("anonymous-all".equals(requireAuthentication)) {
@@ -156,8 +153,6 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
         try {
             Map<String, Object> inputFieldsMap = new HashMap<>()
             GraphQLSchemaUtil.transformArguments(environment.arguments, inputFieldsMap)
-            logger.info("pageIndex   - ${inputFieldsMap.get('pageIndex')}")
-            logger.info("pageSize    - ${inputFieldsMap.get('pageSize')}")
 
             List<Map<String, Object>> resultList = new ArrayList<>(sourceItemCount != 0 ? sourceItemCount : 1)
             for (int i = 0; i < sourceItemCount; i++) resultList.add(null)
@@ -184,12 +179,11 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
                 EntityList el = ef.list()
                 EntityFind efInterface = requireInterfaceEF ? getInterfaceEntityFind(ec, ef) : null
 
-
-                if (((List) environment.source).size() > 0) {
-//                    logger.info("---- branch batched data fetcher entity with ${((List) environment.source).size()} source for entity [${entityName}] with operation [${operation}] ----")
-                    ((List) environment.source).eachWithIndex { Object object, int index ->
-                        Map sourceItem = (Map) object
-                        EntityValue evSelf = el.find { EntityValue ev ->
+//                logger.info("---- branch batched data fetcher entity with ${((List) environment.source).size()} source for entity [${entityName}] with operation [${operation}] ----")
+                ((List) environment.source).eachWithIndex { Object object, int index ->
+                    Map sourceItem = (Map) object
+                    EntityValue evSelf = relKeyCount == 0 ? ef.one()
+                        : el.find { EntityValue ev ->
                             int found = -1
                             for (Map.Entry<String, String> entry in relKeyMap.entrySet()) {
                                 found = (found == -1) ? (sourceItem.get(entry.getKey()) == ev.get(entry.getValue()) ? 1 : 0)
@@ -197,17 +191,9 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
                             }
                             return found == 1
                         }
-                        if (evSelf == null) return
-                        jointOneMap = updateWithInterfaceEV(evSelf, efInterface)
-                        resultList.set(index, jointOneMap)
-                    }
-                } else {
-//                    logger.info("---- branch batched data fetcher entity with 0 source for entity [${entityName}] with operation [${operation}] ----")
-                    EntityValue evSelf = el.size() > 0 ? el.get(0) : null
-                    if (evSelf != null) {
-                        jointOneMap = updateWithInterfaceEV(evSelf, efInterface)
-                        resultList.set(0, jointOneMap)
-                    }
+                    if (evSelf == null) return
+                    jointOneMap = updateWithInterfaceEV(evSelf, efInterface)
+                    resultList.set(index, jointOneMap)
                 }
 
                 return resultList
@@ -228,7 +214,7 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
                     EntityList el = ef.list()
                     EntityFind efInterface = requireInterfaceEF ? getInterfaceEntityFind(ec, ef) : null
 
-
+                    logger.info("((List) environment.source).size: ${((List) environment.source).size()}")
                     ((List) environment.source).eachWithIndex { Object object, int index ->
                         Map sourceItem = (Map) object
                         EntityList elSource = relKeyCount == 0 ? el
