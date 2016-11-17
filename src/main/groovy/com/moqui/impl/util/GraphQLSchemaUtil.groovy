@@ -16,7 +16,7 @@ package com.moqui.impl.util
 import com.moqui.impl.service.GraphQLSchemaDefinition
 import com.moqui.impl.service.fetcher.BaseDataFetcher
 import com.moqui.impl.service.fetcher.EmptyDataFetcher
-import com.moqui.impl.service.fetcher.EntityDataFetcher
+import com.moqui.impl.service.fetcher.EntityBatchedDataFetcher
 import com.moqui.impl.service.fetcher.ServiceDataFetcher
 import graphql.schema.GraphQLScalarType
 import groovy.transform.CompileStatic
@@ -163,7 +163,7 @@ class GraphQLSchemaUtil {
             if (relInfo.type.startsWith("one")) excludedArguments.addAll(relEd.getPkFieldNames())
             FieldDefinition fieldDef = new FieldDefinition(ecf, fieldName, fieldType, fieldPropertyMap, excludedArguments)
 
-            BaseDataFetcher dataFetcher = new EntityDataFetcher(ecf, fieldDef, relInfo.relatedEntityName, relInfo.keyMap)
+            BaseDataFetcher dataFetcher = new EntityBatchedDataFetcher(ecf, fieldDef, relInfo.relatedEntityName, relInfo.keyMap)
             fieldDef.setDataFetcher(dataFetcher)
 
             fieldDefMap.put(fieldName, fieldDef)
@@ -216,7 +216,7 @@ class GraphQLSchemaUtil {
                         fieldDef.setDataFetcher(new EmptyDataFetcher(childNode, fieldDef))
                         break
                     case "entity-fetcher":
-                        fieldDef.setDataFetcher(new EntityDataFetcher(childNode, fieldDef, ecf))
+                        fieldDef.setDataFetcher(new EntityBatchedDataFetcher(childNode, fieldDef, ecf))
                         break
                     case "service-fetcher":
                         fieldDef.setDataFetcher(new ServiceDataFetcher(childNode, fieldDef, ecf))

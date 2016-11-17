@@ -9,34 +9,20 @@ import org.moqui.entity.EntityCondition
 import org.moqui.entity.EntityFind
 import org.moqui.entity.EntityList
 import org.moqui.entity.EntityValue
-import org.moqui.impl.context.ExecutionContextFactoryImpl
 import org.moqui.impl.context.UserFacadeImpl
-import org.moqui.impl.entity.EntityDefinition
 import org.moqui.util.MNode
 
-import com.moqui.impl.service.GraphQLSchemaDefinition.FieldDefinition
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
+import static com.moqui.impl.service.GraphQLSchemaDefinition.FieldDefinition
+
 @CompileStatic
-class EntityDataFetcher extends BaseDataFetcher {
+class EntityDataFetcher extends BaseEntityDataFetcher {
     protected final static Logger logger = LoggerFactory.getLogger(EntityDataFetcher.class)
 
-    String entityName, interfaceEntityName, operation
-    String requireAuthentication
-    String interfaceEntityPkField
-    List<String> pkFieldNames = new ArrayList<>(1)
-    String fieldRawType
-    Map<String, String> relKeyMap = new HashMap<>()
-
     EntityDataFetcher(MNode node, FieldDefinition fieldDef, ExecutionContextFactory ecf) {
-        super(fieldDef, ecf)
-
-        Map<String, String> keyMap = new HashMap<>()
-        for (MNode keyMapNode in node.children("key-map"))
-            keyMap.put(keyMapNode.attribute("field-name"), keyMapNode.attribute("related") ?: keyMapNode.attribute("field-name"))
-
-        initializeFields(node.attribute("entity-name"), node.attribute("interface-entity-name"), keyMap)
+        super(node, fieldDef, ecf)
     }
 
     EntityDataFetcher(ExecutionContextFactory ecf, FieldDefinition fieldDef, String entityName, Map<String, String> relKeyMap) {
@@ -44,38 +30,20 @@ class EntityDataFetcher extends BaseDataFetcher {
     }
 
     EntityDataFetcher(ExecutionContextFactory ecf, FieldDefinition fieldDef, String entityName, String interfaceEntityName, Map<String, String> relKeyMap) {
-        super(fieldDef, ecf)
-        initializeFields(entityName, interfaceEntityName, relKeyMap)
-    }
-
-    private void initializeFields(String entityName, String interfaceEntityName, Map<String, String> relKeyMap) {
-        this.requireAuthentication = fieldDef.requireAuthentication ?: "true"
-        this.entityName = entityName
-        this.interfaceEntityName = interfaceEntityName
-        this.fieldRawType = fieldDef.type
-        this.relKeyMap.putAll(relKeyMap)
-        if ("true".equals(fieldDef.isList)) this.operation = "list"
-        else this.operation = "one"
-
-        if (interfaceEntityName) {
-            EntityDefinition ed = ((ExecutionContextFactoryImpl) ecf).entityFacade.getEntityDefinition(interfaceEntityName)
-            if (ed.getFieldNames(true, false).size() != 1)
-                throw new IllegalArgumentException("Entity ${interfaceEntityName} for interface should have one primary key")
-            interfaceEntityPkField = ed.getFieldNames(true, false).first()
-        }
-
-        EntityDefinition ed = ((ExecutionContextFactoryImpl) ecf).entityFacade.getEntityDefinition(entityName)
-        pkFieldNames.addAll(ed.pkFieldNames)
+        super(ecf, fieldDef, entityName, interfaceEntityName, relKeyMap)
     }
 
     @Override
     Object fetch(DataFetchingEnvironment environment) {
         logger.info("---- running data fetcher entity for entity [${entityName}] with operation [${operation}] ...")
-        logger.info("arguments  - ${environment.arguments}")
-        logger.info("source     - ${environment.source}")
-        logger.info("context    - ${environment.context}")
-        logger.info("relKeyMap  - ${relKeyMap}")
-        logger.info("interfaceEntityName    - ${interfaceEntityName}")
+//        logger.info("source     - ${environment.source}")
+//        logger.info("arguments  - ${environment.arguments}")
+//        logger.info("context    - ${environment.context}")
+//        logger.info("fields     - ${environment.fields}")
+//        logger.info("fieldType  - ${environment.fieldType}")
+//        logger.info("parentType - ${environment.parentType}")
+//        logger.info("relKeyMap  - ${relKeyMap}")
+//        logger.info("interfaceEntityName    - ${interfaceEntityName}")
 
         ExecutionContext ec = ecf.getExecutionContext()
 

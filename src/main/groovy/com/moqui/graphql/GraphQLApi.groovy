@@ -18,6 +18,7 @@ import graphql.ExceptionWhileDataFetching
 import graphql.ExecutionResult
 import graphql.GraphQL
 import graphql.GraphQLError
+import graphql.execution.batched.BatchedExecutionStrategy
 import groovy.transform.CompileStatic
 import org.moqui.context.ExecutionContextFactory
 import org.moqui.resource.ResourceReference
@@ -91,7 +92,7 @@ class GraphQLApi {
             }
         }
         GraphQLSchemaDefinition schemaDef = new GraphQLSchemaDefinition(ecf, schemaNodeList)
-        graphQLCache.put(schemaCacheKey, new GraphQL(schemaDef.getSchema()))
+        graphQLCache.put(schemaCacheKey, new GraphQL(schemaDef.getSchema(), new BatchedExecutionStrategy()))
 
         logger.info("Loaded GraphQL schema, in ${System.currentTimeMillis() - startTime}ms")
     }
