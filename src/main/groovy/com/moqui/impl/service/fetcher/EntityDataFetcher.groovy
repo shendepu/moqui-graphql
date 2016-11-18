@@ -18,6 +18,7 @@ import org.slf4j.LoggerFactory
 import static com.moqui.impl.service.GraphQLSchemaDefinition.FieldDefinition
 
 @CompileStatic
+@Deprecated
 class EntityDataFetcher extends BaseEntityDataFetcher {
     protected final static Logger logger = LoggerFactory.getLogger(EntityDataFetcher.class)
 

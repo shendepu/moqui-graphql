@@ -16,11 +16,8 @@ package com.moqui.impl.service
 import com.moqui.impl.service.fetcher.BaseDataFetcher
 import com.moqui.impl.service.fetcher.EmptyDataFetcher
 import com.moqui.impl.service.fetcher.EntityBatchedDataFetcher
-import com.moqui.impl.service.fetcher.EntityDataFetcher
 import com.moqui.impl.service.fetcher.ServiceDataFetcher
 import com.moqui.impl.util.GraphQLSchemaUtil
-import graphql.schema.DataFetcher
-import graphql.schema.DataFetchingEnvironment
 import graphql.schema.GraphQLArgument
 import graphql.schema.GraphQLEnumType
 import graphql.schema.GraphQLFieldDefinition
