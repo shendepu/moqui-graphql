@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-2.0.xsd"
-    require-authentication="false" track-artifact-hit="false" default-menu-include="false">
+    require-authentication="false" standalone="true" track-artifact-hit="false" default-menu-include="false">
 
     <transition name="v1" read-only="true">
         <parameter name="query"/>
