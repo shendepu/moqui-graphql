@@ -278,6 +278,10 @@ public class GraphQLSchemaDefinition {
             fieldDefMap.put(fieldName, fieldDef)
         }
 
+        if (fieldDefMap.size() == 0) {
+            FieldDefinition fieldDef = new FieldDefinition(ecf, "empty", "String", [nonNull: "false"])
+            fieldDefMap.put("empty", fieldDef)
+        }
         ObjectTypeDefinition objectTypeDef = new ObjectTypeDefinition(ecf, rootObjectTypeName, "", new ArrayList<String>(), fieldDefMap)
         allTypeDefMap.put(rootObjectTypeName,  objectTypeDef)
     }
