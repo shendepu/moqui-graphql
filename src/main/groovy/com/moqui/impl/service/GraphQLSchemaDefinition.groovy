@@ -368,7 +368,7 @@ public class GraphQLSchemaDefinition {
 
         // Add explicitly defined input types from *.graphql.xml
         for (String inputTypeName in schemaInputTypeNameList) {
-            GraphQLType type = graphQLInputTypeMap.get(inputTypeName)
+            GraphQLInputType type = graphQLInputTypeMap.get(inputTypeName)
             if (type == null)
                 throw new IllegalArgumentException("GraphQLInputType [${inputTypeName}] for schema not found")
             schemaInputTypeMap.put(inputTypeName, type)
@@ -639,7 +639,7 @@ public class GraphQLSchemaDefinition {
             rawType = graphQLTypeReferenceMap.get(rawTypeName)
             if (rawType == null) {
                 rawType = new GraphQLTypeReference(rawTypeName)
-                graphQLTypeReferenceMap.put(rawTypeName, rawType)
+                graphQLTypeReferenceMap.put(rawTypeName, (GraphQLTypeReference) rawType)
             }
         }
         return getConnectionObjectType(rawType, nonNull, listItemNonNull)
@@ -737,7 +737,7 @@ public class GraphQLSchemaDefinition {
         if (rawType == null) {
 //            throw new IllegalArgumentException("GraphQLOutputType [${rawTypeName}] not found")
             rawType = new GraphQLTypeReference(rawTypeName)
-            graphQLTypeReferenceMap.put(rawTypeName, rawType)
+            graphQLTypeReferenceMap.put(rawTypeName, (GraphQLTypeReference) rawType)
         }
         return getGraphQLOutputType(rawType, nonNull, isList, listItemNonNull)
     }
@@ -784,7 +784,7 @@ public class GraphQLSchemaDefinition {
             rawType = graphQLTypeReferenceMap.get(rawTypeName)
             if (rawType == null) {
                 rawType = new GraphQLTypeReference(rawTypeName)
-                graphQLTypeReferenceMap.put(rawTypeName, rawType)
+                graphQLTypeReferenceMap.put(rawTypeName, (GraphQLTypeReference) rawType)
             }
         }
         return getGraphQLFieldWithNoArgs(name, rawType, nonNull, isList, listItemNonNull, description, dataFetcher)
