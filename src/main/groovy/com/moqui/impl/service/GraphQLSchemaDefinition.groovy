@@ -247,7 +247,8 @@ public class GraphQLSchemaDefinition {
                         allTypeDefMap.put(childNode.attribute("name"), new EnumTypeDefinition(childNode))
                         break
                     case "extend-object":
-                        extendObjectDefMap.put(childNode.attribute("name"), new ExtendObjectDefinition(childNode))
+                        extendObjectDefMap.put(childNode.attribute("name"),
+                                               mergeExtendObjectDef(extendObjectDefMap, new ExtendObjectDefinition(childNode, ecf)))
                         break
                     case "pre-load-object":
                         preLoadObjectTypes.add(childNode.attribute("name"))
@@ -260,6 +261,12 @@ public class GraphQLSchemaDefinition {
         createRootObjectTypeDef(mutationRootObjectTypeName, mutationRootFieldMap)
 
         updateAllTypeDefMap()
+    }
+
+    private static ExtendObjectDefinition mergeExtendObjectDef(Map<String, ExtendObjectDefinition> extendObjectDefMap, ExtendObjectDefinition extendObjectDef) {
+        ExtendObjectDefinition eoDef = extendObjectDefMap.get(extendObjectDef.name)
+        if (eoDef == null) return extendObjectDef
+        return eoDef.merge(extendObjectDef)
     }
 
     private void createRootObjectTypeDef(String rootObjectTypeName, Map<String, String> rootFieldMap) {
@@ -1126,8 +1133,11 @@ public class GraphQLSchemaDefinition {
             this.resolverMap.putAll(extendObjectDef.resolverMap)
 
             fieldDefMap.putAll(objectTypeDef.fieldDefMap)
-            for (MNode fieldNode in extendObjectDef.extendObjectNode.children("field")) {
-                GraphQLSchemaUtil.mergeFieldDefinition(fieldNode, fieldDefMap, ecf)
+
+            for (MNode extendObjectNode in extendObjectDef.extendObjectNodeList) {
+                for (MNode fieldNode in extendObjectNode.children("field")) {
+                    GraphQLSchemaUtil.mergeFieldDefinition(fieldNode, fieldDefMap, ecf)
+                }
             }
 
             for (String excludeFieldName in extendObjectDef.excludeFields)
@@ -1199,16 +1209,20 @@ public class GraphQLSchemaDefinition {
 
         public void extend(ExtendObjectDefinition extendObjectDef, Map<String, GraphQLTypeDefinition> allTypeDefMap) {
             // Extend interface first, then field.
-            for (MNode childNode in extendObjectDef.extendObjectNode.children("interface")) {
-                GraphQLTypeDefinition interfaceTypeDef = allTypeDefMap.get(childNode.attribute("name"))
-                if (interfaceTypeDef == null)
-                    throw new IllegalArgumentException("Interface definition [${childNode.attribute("name")}] not found")
-                if (!(interfaceTypeDef instanceof InterfaceTypeDefinition))
-                    throw new IllegalArgumentException("Interface definition [${childNode.attribute("name")}] is not instance of InterfaceTypeDefinition")
-                extendInterface((InterfaceTypeDefinition) interfaceTypeDef, childNode)
+            for (MNode extendObjectNode in extendObjectDef.extendObjectNodeList) {
+                for (MNode childNode in extendObjectNode.children("interface")) {
+                    GraphQLTypeDefinition interfaceTypeDef = allTypeDefMap.get(childNode.attribute("name"))
+                    if (interfaceTypeDef == null)
+                        throw new IllegalArgumentException("Extend object ${extendObjectDef.name}, but interface definition [${childNode.attribute("name")}] not found")
+                    if (!(interfaceTypeDef instanceof InterfaceTypeDefinition))
+                        throw new IllegalArgumentException("Extend object ${extendObjectDef.name}, but interface definition [${childNode.attribute("name")}] is not instance of InterfaceTypeDefinition")
+                    extendInterface((InterfaceTypeDefinition) interfaceTypeDef, childNode)
+                }
             }
-            for (MNode childNode in extendObjectDef.extendObjectNode.children("field")) {
-                GraphQLSchemaUtil.mergeFieldDefinition(childNode, fieldDefMap, ecf)
+            for (MNode extendObjectNode in extendObjectDef.extendObjectNodeList) {
+                for (MNode childNode in extendObjectNode.children("field")) {
+                    GraphQLSchemaUtil.mergeFieldDefinition(childNode, fieldDefMap, ecf)
+                }
             }
 
             for (String excludeFieldName in extendObjectDef.excludeFields)
@@ -1245,7 +1259,7 @@ public class GraphQLSchemaDefinition {
     static class ExtendObjectDefinition {
         @SuppressWarnings("GrFinalVariableAccess")
         final ExecutionContextFactory ecf
-        MNode extendObjectNode
+        List<MNode> extendObjectNodeList = new ArrayList<>(1)
         String name, resolverField
 
         List<String> interfaceList = new LinkedList<>()
@@ -1255,8 +1269,9 @@ public class GraphQLSchemaDefinition {
 
         boolean convertToInterface = false
 
-        ExtendObjectDefinition(MNode node) {
-            this.extendObjectNode = node
+        ExtendObjectDefinition(MNode node, ExecutionContextFactory ecf) {
+            this.ecf = ecf
+            this.extendObjectNodeList.add(node)
             this.name = node.attribute("name")
 
             for (MNode childNode in node.children) {
@@ -1279,6 +1294,17 @@ public class GraphQLSchemaDefinition {
                         break
                 }
             }
+        }
+
+        public ExtendObjectDefinition merge(ExtendObjectDefinition other) {
+            extendObjectNodeList.addAll(other.extendObjectNodeList)
+            resolverField = resolverField ?: other.resolverField
+            interfaceList.addAll(other.interfaceList)
+            fieldDefMap.putAll(other.fieldDefMap)
+            excludeFields.addAll(other.excludeFields)
+            resolverMap.putAll(other.resolverMap)
+            convertToInterface = convertToInterface ?: other.convertToInterface
+            return this
         }
     }
 

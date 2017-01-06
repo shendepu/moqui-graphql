@@ -154,7 +154,7 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
             Map<String, Object> inputFieldsMap = new HashMap<>()
             GraphQLSchemaUtil.transformArguments(environment.arguments, inputFieldsMap)
 
-            List<Map<String, Object>> resultList = new ArrayList<>(sourceItemCount != 0 ? sourceItemCount : 1)
+            List<Map<String, Object>> resultList = new ArrayList<>((sourceItemCount != 0 ? sourceItemCount : 1) as int)
             for (int i = 0; i < sourceItemCount; i++) resultList.add(null)
 
             boolean requireInterfaceEF = requireInterfaceEntity()
