@@ -33,15 +33,21 @@ class GraphQLApi {
 
     @SuppressWarnings("GrFinalVariableAccess")
     protected final ExecutionContextFactory ecf
-    @SuppressWarnings("GrFinalVariableAccess")
-    final MCache<String, GraphQL> graphQLCache
 
-    final String graphQLCacheName = "service.graphql.graphql"
-    final String schemaCacheKey = "schema"
+    private GraphQL graphQL
+
+    private final long graphQLTTI
+    private long lastLoadTime = 0
+
+    private Map<String, MNode> schemaNodeMap = new LinkedHashMap<>()
 
     GraphQLApi(ExecutionContextFactory ecf) {
         this.ecf = ecf
-        graphQLCache = ecf.getCache().getLocalCache(graphQLCacheName)
+
+        String graphQLTtiProperty = System.getProperty("moshi.humanres.resume_parser.tti")
+        graphQLTTI = graphQLTtiProperty ? graphQLTtiProperty.toLong() * 1000 : Long.MAX_VALUE
+
+        loadSchemaNode()
     }
 
     GraphQLResult execute(String requestString) {
@@ -53,17 +59,7 @@ class GraphQLApi {
     }
 
     GraphQLResult execute(String requestString, String operationName, Object context, Map<String, Object> arguments) {
-        GraphQL graphQL = graphQLCache.get(schemaCacheKey)
-
-        if (graphQL == null) {
-            synchronized (this) {
-                if (graphQL == null) {
-                    GraphQLSchemaDefinition.clearAllCachedGraphQLTypes()
-                    loadSchemaNode()
-                    graphQL = graphQLCache.get(schemaCacheKey)
-                }
-            }
-        }
+        if ((System.currentTimeMillis() - lastLoadTime) > graphQLTTI) loadSchemaNode()
 
         ExecutionResult executionResult = graphQL.execute("${requestString}", operationName, context, arguments)
         return new GraphQLResult(executionResult)
@@ -71,7 +67,7 @@ class GraphQLApi {
 
     synchronized void loadSchemaNode() {
         long startTime = System.currentTimeMillis()
-        List<MNode> schemaNodeList = new ArrayList<>()
+        boolean needToReload = false
 
         // find *.graphql.xml files in component/service directories
         for (String location in this.ecf.getComponentBaseLocations().values()) {
@@ -82,19 +78,28 @@ class GraphQLApi {
                 for (ResourceReference rr in serviceDirRr.directoryEntries) {
                     if (!rr.fileName.endsWith(".graphql.xml")) continue
 
+                    long lastModified = rr.supportsLastModified() ? rr.lastModified : 0
+                    if (lastLoadTime >= lastModified) continue
+
+                    needToReload = true
+
                     logger.info("Loading ${rr.fileName}")
                     // Parse .graphql.xml, add schema to cache
                     MNode schemaNode = MNode.parse(rr)
-                    schemaNodeList.add(schemaNode)
+                    schemaNodeMap.put(rr.fileName, schemaNode)
                 }
             } else {
                 logger.warn("Can't load GraphQL APIs from component at [${serviceDirRr.location}] because it doesn't support exists/directory/etc")
             }
         }
-        GraphQLSchemaDefinition schemaDef = new GraphQLSchemaDefinition(ecf, schemaNodeList)
-        graphQLCache.put(schemaCacheKey, new GraphQL(schemaDef.getSchema(), new BatchedExecutionStrategy()))
+        if (needToReload) {
+            GraphQLSchemaDefinition.clearAllCachedGraphQLTypes()
+            GraphQLSchemaDefinition schemaDef = new GraphQLSchemaDefinition(ecf, schemaNodeMap.values().toList())
+            graphQL = new GraphQL(schemaDef.getSchema(), new BatchedExecutionStrategy())
 
-        logger.info("Loaded GraphQL schema, in ${System.currentTimeMillis() - startTime}ms")
+            lastLoadTime = System.currentTimeMillis()
+            logger.info("Loaded GraphQL schema, in ${System.currentTimeMillis() - startTime}ms")
+        }
     }
 
     static class GraphQLResult {
