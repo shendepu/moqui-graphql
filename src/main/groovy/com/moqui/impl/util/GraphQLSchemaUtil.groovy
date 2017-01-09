@@ -298,6 +298,12 @@ class GraphQLSchemaUtil {
         return Base64.getEncoder().encodeToString(cursor.bytes)
     }
 
+    public static String base64EncodeCursor(Map<String, Object> ev, String fieldRawType, List<String> pkFieldNames) {
+        String cursor = fieldRawType
+        for (String pk in pkFieldNames) cursor = cursor + '|' + ev.get(pk)
+        return Base64.getEncoder().encodeToString(cursor.bytes)
+    }
+
     public static String camelCaseToUpperCamel(String camelCase) {
         if (camelCase == null || camelCase.length() == 0) return ""
         return camelCase.replace(camelCase.charAt(0), Character.toUpperCase(camelCase.charAt(0)))

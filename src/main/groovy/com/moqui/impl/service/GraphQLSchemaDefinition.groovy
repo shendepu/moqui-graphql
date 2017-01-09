@@ -16,6 +16,7 @@ package com.moqui.impl.service
 import com.moqui.impl.service.fetcher.BaseDataFetcher
 import com.moqui.impl.service.fetcher.EmptyDataFetcher
 import com.moqui.impl.service.fetcher.EntityBatchedDataFetcher
+import com.moqui.impl.service.fetcher.InterfaceBatchedDataFetcher
 import com.moqui.impl.service.fetcher.ServiceDataFetcher
 import com.moqui.impl.util.GraphQLSchemaUtil
 import graphql.schema.GraphQLArgument
@@ -1413,6 +1414,9 @@ public class GraphQLSchemaDefinition {
                         break
                     case "entity-fetcher":
                         this.dataFetcher = new EntityBatchedDataFetcher(childNode, this, ecf)
+                        break
+                    case "interface-fetcher":
+                        this.dataFetcher = new InterfaceBatchedDataFetcher(childNode, this, ecf)
                         break
                     case "empty-fetcher":
                         this.dataFetcher = new EmptyDataFetcher(childNode, this)
