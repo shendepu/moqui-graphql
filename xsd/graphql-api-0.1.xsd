@@ -68,7 +68,11 @@ along with this software (see the LICENSE.md file). If not, see
         <xs:complexType>
             <xs:sequence>
                 <xs:element minOccurs="0" maxOccurs="1" name="description" type="xs:string"/>
-                <xs:element minOccurs="1" maxOccurs="unbounded" name="type" type="xs:string"/>
+                <xs:element minOccurs="1" maxOccurs="unbounded" name="type">
+                    <xs:complexType>
+                        <xs:attribute name="name" type="name-all-upper"/>
+                    </xs:complexType>
+                </xs:element>
             </xs:sequence>
             <xs:attribute name="name" type="name-upper" use="required"/>
             <xs:attribute name="type-resolver" type="xs:string"/>
@@ -162,19 +166,70 @@ along with this software (see the LICENSE.md file). If not, see
         </xs:complexType>
     </xs:element>
 
+    <xs:element name="key-map">
+        <xs:complexType>
+            <xs:attribute name="field-name" type="name-field"/>
+            <xs:attribute name="related" type="name-field"/>
+        </xs:complexType>
+    </xs:element>
+
     <xs:element name="empty-fetcher"/>
     <xs:element name="entity-fetcher">
         <xs:complexType>
             <xs:sequence>
-                <xs:element minOccurs="0" maxOccurs="unbounded" name="key-map">
-                    <xs:complexType>
-                        <xs:attribute name="field-name" type="name-field"/>
-                        <xs:attribute name="related" type="name-field"/>
-                    </xs:complexType>
-                </xs:element>
+                <xs:element minOccurs="0" maxOccurs="unbounded" ref="key-map"/>
             </xs:sequence>
             <xs:attribute name="entity-name" type="name-full" use="required"/>
             <xs:attribute name="interface-entity-name" type="name-full"/>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:element name="interface-fetcher">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element minOccurs="0" maxOccurs="unbounded" ref="key-map"/>
+                <xs:element minOccurs="1" maxOccurs="1" name="default-fetcher">
+                    <xs:complexType>
+                        <xs:sequence>
+                            <xs:choice minOccurs="1" maxOccurs="1">
+                                <xs:element name="entity-fetcher">
+                                    <xs:complexType>
+                                        <xs:attribute name="entity-name"/>
+                                    </xs:complexType>
+                                </xs:element>
+                                <xs:element name="service-fetcher">
+                                    <xs:complexType>
+                                        <xs:attribute name="service" type="name-full" use="required"/>
+                                        <xs:attribute name="require-authentication" type="authc-options" default="true"/>
+                                    </xs:complexType>
+                                </xs:element>
+                            </xs:choice>
+                        </xs:sequence>
+                    </xs:complexType>
+                </xs:element>
+                <xs:element minOccurs="0" maxOccurs="unbounded" name="resolver-fetcher">
+                    <xs:complexType>
+                        <xs:sequence>
+                            <xs:choice minOccurs="1" maxOccurs="1">
+                                <xs:element name="entity-fetcher">
+                                    <xs:complexType>
+                                        <xs:attribute name="entity-name"/>
+                                    </xs:complexType>
+                                </xs:element>
+                                <xs:element name="service-fetcher">
+                                    <xs:complexType>
+                                        <xs:attribute name="service" type="name-full" use="required"/>
+                                        <xs:attribute name="require-authentication" type="authc-options" default="true"/>
+                                    </xs:complexType>
+                                </xs:element>
+                            </xs:choice>
+                        </xs:sequence>
+                        <xs:attribute name="resolver-value" type="xs:string"/>
+                    </xs:complexType>
+                </xs:element>
+            </xs:sequence>
+            <xs:attribute name="primary-field" use="required"/>
+            <xs:attribute name="resolver-field" use="required"/>
         </xs:complexType>
     </xs:element>
 
@@ -207,6 +262,7 @@ along with this software (see the LICENSE.md file). If not, see
                     <xs:element ref="empty-fetcher"/>
                     <xs:element ref="entity-fetcher"/>
                     <xs:element ref="service-fetcher"/>
+                    <xs:element ref="interface-fetcher"/>
                 </xs:choice>
                 <xs:element minOccurs="0" maxOccurs="1" ref="pre-fetcher"/>
                 <xs:element minOccurs="0" maxOccurs="1" ref="post-fetcher"/>
