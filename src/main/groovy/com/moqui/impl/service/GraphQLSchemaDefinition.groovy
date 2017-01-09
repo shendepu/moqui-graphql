@@ -35,6 +35,7 @@ import graphql.schema.GraphQLSchema
 import graphql.schema.GraphQLType
 import graphql.schema.GraphQLTypeReference
 import graphql.schema.GraphQLUnionType
+import graphql.schema.SchemaUtil
 import graphql.schema.TypeResolver
 import groovy.transform.CompileStatic
 import org.moqui.context.ExecutionContextFactory
@@ -45,6 +46,8 @@ import org.moqui.impl.service.ServiceDefinition
 import org.moqui.util.MNode
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
+
+import java.lang.reflect.Method
 
 import static graphql.Scalars.GraphQLBoolean
 import static graphql.Scalars.GraphQLChar
@@ -252,7 +255,8 @@ public class GraphQLSchemaDefinition {
                                                mergeExtendObjectDef(extendObjectDefMap, new ExtendObjectDefinition(childNode, ecf)))
                         break
                     case "pre-load-object":
-                        preLoadObjectTypes.add(childNode.attribute("name"))
+                        if (!preLoadObjectTypes.contains(childNode.attribute("object-type")))
+                            preLoadObjectTypes.add(childNode.attribute("object-type"))
                         break
                 }
             }
@@ -563,6 +567,7 @@ public class GraphQLSchemaDefinition {
 //        }
 
         for (GraphQLTypeDefinition typeDef in allTypeDefSortedList) {
+            logger.info("Traversing allTypeDefSortedList: ${typeDef.name}")
             switch (typeDef.type) {
                 case "union":
                     addGraphQLUnionType((UnionTypeDefinition) typeDef)
@@ -582,6 +587,7 @@ public class GraphQLSchemaDefinition {
                     break
             }
         }
+        rebuildQueryObjectType()
 
         // Create GraphQLSchema
         GraphQLObjectType schemaQueryType = graphQLObjectTypeMap.get(this.queryRootObjectTypeName)
@@ -595,12 +601,24 @@ public class GraphQLSchemaDefinition {
 
         GraphQLSchema schema = schemaBuilder.build(new HashSet<GraphQLType>(schemaInputTypeMap.values()))
 
+//        hackCallReplaceTypeReferences(schema)
+
         logger.info("Schema loaded: ${unionTypeCount} union type, ${enumTypeCount} enum type, ${interfaceTypeCount} interface type, ${objectTypeCount} object type")
         logger.info("Schema created: ${graphQLUnionTypeCount} union type, ${graphQLEnumTypeCount} enum type, " +
                 "${graphQLInterfaceTypeCount} interface type, ${graphQLObjectTypeCount} object type, ${graphQLInputTypeCount} input type, " +
                 "${graphQLInputFieldCount} input field, ${graphQLFieldCount} field, ${graphQLArgumentCount} argument")
         logger.info("Globally ${graphQLFieldMap.size()} fields, ${graphQLOutputTypeMap.size()} output types, ${graphQLInputTypeMap.size()} imput types")
         return schema
+    }
+
+    private static void hackCallReplaceTypeReferences(GraphQLSchema schema) {
+//        Class<?> schemaUtilClass = Thread.getClassLoader().loadClass("graphql.schema.SchemaUtil")
+        SchemaUtil util = new SchemaUtil()
+
+//        Method method = schemaUtilClass.getMethod("replaceTypeReferences", GraphQLSchema.class)
+        Method method = util.getClass().getDeclaredMethod("replaceTypeReferences", GraphQLSchema.class)
+        method.setAccessible(true)
+        method.invoke(util, schema)
     }
 
     private void updateAllTypeDefMap() {
@@ -647,7 +665,9 @@ public class GraphQLSchemaDefinition {
             rawType = graphQLTypeReferenceMap.get(rawTypeName)
             if (rawType == null) {
                 rawType = new GraphQLTypeReference(rawTypeName)
+                logger.info("Adding graphQLTypeReferenceMap: ${rawTypeName}")
                 graphQLTypeReferenceMap.put(rawTypeName, (GraphQLTypeReference) rawType)
+
             }
         }
         return getConnectionObjectType(rawType, nonNull, listItemNonNull)
@@ -744,8 +764,12 @@ public class GraphQLSchemaDefinition {
         GraphQLOutputType rawType = graphQLOutputTypeMap.get(rawTypeName)
         if (rawType == null) {
 //            throw new IllegalArgumentException("GraphQLOutputType [${rawTypeName}] not found")
-            rawType = new GraphQLTypeReference(rawTypeName)
-            graphQLTypeReferenceMap.put(rawTypeName, (GraphQLTypeReference) rawType)
+            rawType = graphQLTypeReferenceMap.get(rawTypeName)
+            if (rawType == null) {
+                rawType = new GraphQLTypeReference(rawTypeName)
+                logger.info("Adding graphQLTypeReferenceMap: ${rawTypeName}")
+                graphQLTypeReferenceMap.put(rawTypeName, (GraphQLTypeReference) rawType)
+            }
         }
         return getGraphQLOutputType(rawType, nonNull, isList, listItemNonNull)
     }
@@ -792,6 +816,7 @@ public class GraphQLSchemaDefinition {
             rawType = graphQLTypeReferenceMap.get(rawTypeName)
             if (rawType == null) {
                 rawType = new GraphQLTypeReference(rawTypeName)
+                logger.info("Adding graphQLTypeReferenceMap: ${rawTypeName}")
                 graphQLTypeReferenceMap.put(rawTypeName, (GraphQLTypeReference) rawType)
             }
         }
@@ -953,6 +978,38 @@ public class GraphQLSchemaDefinition {
         objectType = objectTypeBuilder.build()
         graphQLObjectTypeMap.put(objectTypeName, objectType)
         graphQLOutputTypeMap.put(objectTypeName, objectType)
+    }
+
+    private void rebuildQueryObjectType() {
+        ObjectTypeDefinition queryObjectTypeDef = (ObjectTypeDefinition) allTypeDefMap.get(queryRootObjectTypeName)
+
+        GraphQLObjectType.Builder queryObjectTypeBuilder = GraphQLObjectType.newObject()
+                .name(queryRootObjectTypeName)
+                .description(queryObjectTypeDef.description)
+
+        for (FieldDefinition fieldDef in queryObjectTypeDef.fieldList)
+            queryObjectTypeBuilder = queryObjectTypeBuilder.field(buildSchemaField(fieldDef))
+
+        // create a fake object type
+        GraphQLObjectType.Builder graphQLObjectTypeBuilder = GraphQLObjectType.newObject()
+                .name("FakeTypeReferenceContainer")
+                .description("This is only for contain GraphQLTypeReference so GraphQLSchema includes all of GraphQLTypeReference.")
+        for (Map.Entry<String, GraphQLTypeReference> entry in graphQLTypeReferenceMap) {
+            FieldDefinition fieldDef = new FieldDefinition(ecf, entry.key, entry.key)
+            graphQLObjectTypeBuilder.field(buildSchemaField(fieldDef))
+        }
+        GraphQLObjectType fakeObjectType = graphQLObjectTypeBuilder.build()
+
+        GraphQLFieldDefinition fakeField = GraphQLFieldDefinition.newFieldDefinition()
+            .name("fakeTypeReferenceContainer")
+            .type(fakeObjectType)
+            .build()
+
+        queryObjectTypeBuilder.field(fakeField)
+        GraphQLObjectType queryObjectType = queryObjectTypeBuilder.build()
+
+        graphQLObjectTypeMap.put(queryRootObjectTypeName, queryObjectType)
+        graphQLOutputTypeMap.put(queryRootObjectTypeName, queryObjectType)
     }
 
     private static GraphQLFieldDefinition buildSchemaField(FieldDefinition fieldDef) {
