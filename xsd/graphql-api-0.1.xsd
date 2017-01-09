@@ -188,7 +188,7 @@ along with this software (see the LICENSE.md file). If not, see
         <xs:complexType>
             <xs:sequence>
                 <xs:element minOccurs="0" maxOccurs="unbounded" ref="key-map"/>
-                <xs:element minOccurs="1" maxOccurs="1" name="default-fetcher">
+                <xs:element minOccurs="0" maxOccurs="1" name="default-fetcher">
                     <xs:complexType>
                         <xs:sequence>
                             <xs:choice minOccurs="1" maxOccurs="1">
@@ -228,8 +228,10 @@ along with this software (see the LICENSE.md file). If not, see
                     </xs:complexType>
                 </xs:element>
             </xs:sequence>
-            <xs:attribute name="primary-field" use="required"/>
-            <xs:attribute name="resolver-field" use="required"/>
+            <xs:attribute name="primary-field"/>
+            <xs:attribute name="resolver-field"/>
+            <xs:attribute name="name" type="xs:string"/>
+            <xs:attribute name="ref" type="xs:string"/>
         </xs:complexType>
     </xs:element>
 
@@ -394,6 +396,7 @@ along with this software (see the LICENSE.md file). If not, see
                     <xs:element ref="graphql-type"/>
                     <xs:element ref="extend-object"/>
                 </xs:choice>
+                <xs:element minOccurs="0" maxOccurs="unbounded" ref="interface-fetcher"/>
                 <xs:element minOccurs="0" maxOccurs="unbounded" ref="input-type"/>
                 <xs:element minOccurs="0" maxOccurs="unbounded" ref="pre-load-object"/>
             </xs:sequence>

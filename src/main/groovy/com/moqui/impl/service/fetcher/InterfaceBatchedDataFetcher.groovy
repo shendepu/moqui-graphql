@@ -31,36 +31,36 @@ class InterfaceBatchedDataFetcher extends BaseDataFetcher implements BatchedData
     Map<String, String> relKeyMap = new HashMap<>(1)
     Map<String, InternalDataFetcher> resolverFetcherMap = new HashMap<>(1)
 
-    InterfaceBatchedDataFetcher(MNode node, FieldDefinition fieldDef, ExecutionContextFactory ecf) {
+    InterfaceBatchedDataFetcher(MNode node, MNode refNode, FieldDefinition fieldDef, ExecutionContextFactory ecf) {
         super(fieldDef, ecf)
 
-        primaryField = node.attribute("primary-field")
-        resolverField = node.attribute("resolver-field")
+        primaryField = node.attribute("primary-field") ?: (refNode != null ? refNode.attribute("primary-field") : "")
+        resolverField = node.attribute("resolver-field") ?: (refNode != null ? refNode.attribute("resolver-field") : "")
 
         Map<String, String> pkRelMap = new HashMap<>(1)
         pkRelMap.put(primaryField, primaryField)
 
-        for (MNode keyMapNode in node.children("key-map")) {
+        ArrayList<MNode> keyMapChildren = node.children("key-map") ?: refNode?.children("key-map")
+        for (MNode keyMapNode in keyMapChildren) {
             relKeyMap.put(keyMapNode.attribute("field-name"), keyMapNode.attribute("related") ?: keyMapNode.attribute("field-name"))
         }
 
-        for (MNode childNode in node.children) {
-            switch (childNode.name) {
-                case "default-fetcher":
-                    defaultFetcher = buildDataFetcher(childNode.children[0], fieldDef, ecf, relKeyMap)
-                    break
-                case "resolver-fetcher":
-                    String resolverValue = childNode.attribute("resolver-value")
-                    InternalDataFetcher dataFetcher = buildDataFetcher(childNode.children[0], fieldDef, ecf, pkRelMap)
-                    resolverFetcherMap.put(resolverValue, dataFetcher)
-                    break
-            }
+        logger.info("primaryField: ${primaryField}, resolverField: ${resolverField}")
+        logger.info("node: ${node}, refNode: ${refNode}")
+
+        ArrayList<MNode> defaultFetcherChildren = node.children("default-fetcher") ?: refNode?.children("default-fetcher")
+        MNode defaultFetcherNode = defaultFetcherChildren[0]
+        defaultFetcher = buildDataFetcher(defaultFetcherNode.children[0], fieldDef, ecf, relKeyMap)
+
+        ArrayList<MNode> resolverFetcherChildren = node.children("resolver-fetcher") ?: refNode?.children("resolver-fetcher")
+        for (MNode resolverFetcherNode in resolverFetcherChildren) {
+            String resolverValue = resolverFetcherNode.attribute("resolver-value")
+            InternalDataFetcher dataFetcher = buildDataFetcher(resolverFetcherNode.children[0], fieldDef, ecf, pkRelMap)
+            resolverFetcherMap.put(resolverValue, dataFetcher)
         }
 
         initializeFields()
-        logger.info("resolverFetcherMap: ${resolverFetcherMap}")
     }
-
 
     private void initializeFields() {
         this.requireAuthentication = fieldDef.requireAuthentication ?: "true"

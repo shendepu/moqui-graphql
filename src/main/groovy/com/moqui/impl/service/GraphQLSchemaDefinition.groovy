@@ -93,6 +93,8 @@ public class GraphQLSchemaDefinition {
     protected LinkedList<GraphQLTypeDefinition> allTypeDefSortedList = new LinkedList<>()
     protected Map<String, GraphQLTypeDefinition> requiredTypeDefMap = new LinkedHashMap<>()
 
+    protected static Map<String, MNode> interfaceFetcherNodeMap = new HashMap<>()
+
     // Only cache scalar field definition
     protected static Map<String, FieldDefinition> fieldDefMap = new HashMap<>()
 
@@ -231,6 +233,10 @@ public class GraphQLSchemaDefinition {
 
             if (rootMutationTypeName) mutationRootFieldMap.put(rootFieldName, rootMutationTypeName)
 
+            for (MNode interfaceFetcherNode in schemaNode.children("interface-fetcher")) {
+                interfaceFetcherNodeMap.put(interfaceFetcherNode.attribute("name"), interfaceFetcherNode)
+            }
+
             for (MNode childNode in schemaNode.children) {
                 switch (childNode.name) {
                     case "input-type":
@@ -359,6 +365,8 @@ public class GraphQLSchemaDefinition {
         graphQLTypeReferenceMap.clear()
 
         fieldDefMap.clear()
+
+        interfaceFetcherNodeMap.clear()
 
         createPredefinedGraphQLTypes()
     }
@@ -1473,7 +1481,9 @@ public class GraphQLSchemaDefinition {
                         this.dataFetcher = new EntityBatchedDataFetcher(childNode, this, ecf)
                         break
                     case "interface-fetcher":
-                        this.dataFetcher = new InterfaceBatchedDataFetcher(childNode, this, ecf)
+                        String refName = childNode.attribute("ref") ?: "NOT_EXIST"
+                        MNode refNode = interfaceFetcherNodeMap.get(refName)
+                        this.dataFetcher = new InterfaceBatchedDataFetcher(childNode, refNode, this, ecf)
                         break
                     case "empty-fetcher":
                         this.dataFetcher = new EmptyDataFetcher(childNode, this)
