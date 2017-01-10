@@ -1339,7 +1339,7 @@ public class GraphQLSchemaDefinition {
                 // Already use interface field.
                 fieldDefMap.put(entry.getKey(), entry.getValue())
             }
-            interfaceTypeDefinition.addResolver(interfaceNode.attribute("resolver-value"), interfaceNode.attribute("resolver-type"))
+            interfaceTypeDefinition.addResolver(interfaceNode.attribute("resolver-value"), name)
             logger.info("Object ${name} extending interface ${interfaceTypeDefinition.name}")
             if (!interfaceList.contains(interfaceTypeDefinition.name)) interfaceList.add(interfaceTypeDefinition.name)
         }
