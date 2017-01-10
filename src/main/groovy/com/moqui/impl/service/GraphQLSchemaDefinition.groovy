@@ -94,6 +94,7 @@ public class GraphQLSchemaDefinition {
     protected Map<String, GraphQLTypeDefinition> requiredTypeDefMap = new LinkedHashMap<>()
 
     protected static Map<String, MNode> interfaceFetcherNodeMap = new HashMap<>()
+    protected static Set<String> interfaceResolverTypeSet = new HashSet<>()
 
     // Only cache scalar field definition
     protected static Map<String, FieldDefinition> fieldDefMap = new HashMap<>()
@@ -932,6 +933,8 @@ public class GraphQLSchemaDefinition {
         GraphQLInterfaceType interfaceType = graphQLInterfaceTypeMap.get(interfaceTypeName)
         if (interfaceType != null) return
 
+        interfaceResolverTypeSet.addAll(interfaceTypeDef.resolverMap.values())
+
         GraphQLInterfaceType.Builder interfaceTypeBuilder = GraphQLInterfaceType.newInterface()
                 .name(interfaceTypeName)
                 .description(interfaceTypeDef.description)
@@ -1002,10 +1005,30 @@ public class GraphQLSchemaDefinition {
         GraphQLObjectType.Builder graphQLObjectTypeBuilder = GraphQLObjectType.newObject()
                 .name("FakeTypeReferenceContainer")
                 .description("This is only for contain GraphQLTypeReference so GraphQLSchema includes all of GraphQLTypeReference.")
+
+        List<String> fakeFieldNameList = new ArrayList<>()
+        // fields for GraphQLTypeReference
         for (Map.Entry<String, GraphQLTypeReference> entry in graphQLTypeReferenceMap) {
+            if (fakeFieldNameList.contains(entry.key)) continue
+
             FieldDefinition fieldDef = new FieldDefinition(ecf, entry.key, entry.key)
             graphQLObjectTypeBuilder.field(buildSchemaField(fieldDef))
+            fakeFieldNameList.add(entry.key)
         }
+
+        // fields for resolver type of interface
+        for (String resolverType in interfaceResolverTypeSet) {
+            if (fakeFieldNameList.contains(resolverType)) continue
+
+            GraphQLTypeDefinition typeDef = getTypeDef(resolverType)
+            if (typeDef == null) throw new IllegalArgumentException("GraphQLTypeDefinition ${resolverType} not found")
+            addGraphQLObjectType(typeDef as ObjectTypeDefinition)
+
+            FieldDefinition fieldDef = new FieldDefinition(ecf, resolverType, resolverType)
+            graphQLObjectTypeBuilder.field(buildSchemaField(fieldDef))
+            fakeFieldNameList.add(resolverType)
+        }
+
         GraphQLObjectType fakeObjectType = graphQLObjectTypeBuilder.build()
 
         GraphQLFieldDefinition fakeField = GraphQLFieldDefinition.newFieldDefinition()
