@@ -214,7 +214,6 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
                     EntityList el = ef.list()
                     EntityFind efInterface = requireInterfaceEF ? getInterfaceEntityFind(ec, ef) : null
 
-                    logger.info("((List) environment.source).size: ${((List) environment.source).size()}")
                     ((List) environment.source).eachWithIndex { Object object, int index ->
                         Map sourceItem = (Map) object
                         EntityList elSource = relKeyCount == 0 ? el

@@ -45,9 +45,6 @@ class InterfaceBatchedDataFetcher extends BaseDataFetcher implements BatchedData
             relKeyMap.put(keyMapNode.attribute("field-name"), keyMapNode.attribute("related") ?: keyMapNode.attribute("field-name"))
         }
 
-        logger.info("primaryField: ${primaryField}, resolverField: ${resolverField}")
-        logger.info("node: ${node}, refNode: ${refNode}")
-
         ArrayList<MNode> defaultFetcherChildren = node.children("default-fetcher") ?: refNode?.children("default-fetcher")
         MNode defaultFetcherNode = defaultFetcherChildren[0]
         defaultFetcher = buildDataFetcher(defaultFetcherNode.children[0], fieldDef, ecf, relKeyMap)
@@ -101,11 +98,8 @@ class InterfaceBatchedDataFetcher extends BaseDataFetcher implements BatchedData
             resolverValues.add(it.get(resolverField) as String)
         }
 
-        logger.info("resolverValues: ${resolverValues}")
-
         for (String resolverValue in resolverValues) {
             InternalDataFetcher resolverFetcher = resolverFetcherMap.get(resolverValue)
-            logger.info("finding resolverFetcher: ${resolverFetcher}")
             if (resolverFetcher == null) continue
 
             List<Map<String, Object>> filterValueList = interfaceValueList.findAll { Map<String, Object> it ->
@@ -174,7 +168,7 @@ class InterfaceBatchedDataFetcher extends BaseDataFetcher implements BatchedData
             Map<String, Object> jointOneMap
 
             if (operation == "one") {
-                logger.warn("running one operation")
+//                logger.warn("running one operation")
                 List<Map<String, Object>> interfaceValueList = defaultFetcher.searchFormMap((List) environment.source, inputFieldsMap)
 
                 mergeWithConcreteValue(interfaceValueList)
@@ -193,7 +187,7 @@ class InterfaceBatchedDataFetcher extends BaseDataFetcher implements BatchedData
                 List<Map<String, Object>> edgesDataList
 
                 if (!requirePagination(environment)) {
-                    logger.warn("running list with batch")
+//                    logger.warn("running list with batch")
                     inputFieldsMap.put("noPageLimit", "true")
                     List<Map<String, Object>> interfaceValueList = defaultFetcher.searchFormMap((List) environment.source, inputFieldsMap)
 
@@ -217,8 +211,7 @@ class InterfaceBatchedDataFetcher extends BaseDataFetcher implements BatchedData
                         resultList.set(index, resultMap)
                     }
                 } else { // Used pagination or field selection set includes pageInfo
-
-                    logger.warn("running list with no batch!!!!")
+//                    logger.warn("running list with no batch!!!!")
                     ((List) environment.source).eachWithIndex { Object object, int index ->
                         Map sourceItem = (Map) object
 
@@ -297,9 +290,6 @@ class InterfaceBatchedDataFetcher extends BaseDataFetcher implements BatchedData
 
         @Override
         List<Map<String, Object>> searchFormMap(List<Object> source, Map<String, Object> inputFieldsMap) {
-            logger.warn("running InternalEntityDataFetcher.searchFormMap for entity ${entityName}")
-            logger.info("source: ${source}")
-            logger.info("relKeyMap: ${relKeyMap}")
             ExecutionContext ec = ecf.getExecutionContext()
             EntityFind ef = ec.entity.find(entityName).searchFormMap(inputFieldsMap, null, null, null, false)
 
@@ -310,9 +300,6 @@ class InterfaceBatchedDataFetcher extends BaseDataFetcher implements BatchedData
 
         @Override
         Map<String, Object> searchFormMapWithPagination(List<Object> source, Map<String, Object> inputFieldsMap) {
-            logger.warn("running InternalEntityDataFetcher.searchFormMapWithPagination for entity ${entityName}")
-            logger.info("source: ${source}")
-            logger.info("relKeyMap: ${relKeyMap}")
             ExecutionContext ec = ecf.getExecutionContext()
             EntityFind ef = ec.entity.find(entityName).searchFormMap(inputFieldsMap, null, null, null, false)
             patchWithConditions(ef, source, ec)
