@@ -1602,7 +1602,7 @@ public class GraphQLSchemaDefinition {
                 if (autoArgumentsDef.excludes.contains(fieldName)) continue
 
                 Map<String, String> map = new HashMap<>(4)
-                map.put("type", GraphQLSchemaUtil.getEntityFieldGraphQLType(ed.getFieldInfo(fieldName).type))
+                map.put("type", getArgumentTypeName(GraphQLSchemaUtil.getEntityFieldGraphQLType(ed.getFieldInfo(fieldName).type), isList))
                 map.put("required", autoArgumentsDef.required)
                 map.put("defaultValue", "")
                 map.put("description", "")
