@@ -226,6 +226,12 @@ public class GraphQLSchemaDefinition {
         GraphQLSchemaUtil.createObjectTypeNodeForAllEntities(ecf, allTypeDefMap)
 
         for (MNode schemaNode in schemaNodeList) {
+            for (MNode interfaceFetcherNode in schemaNode.children("interface-fetcher")) {
+                interfaceFetcherNodeMap.put(interfaceFetcherNode.attribute("name"), interfaceFetcherNode)
+            }
+        }
+
+        for (MNode schemaNode in schemaNodeList) {
             String rootFieldName = schemaNode.attribute("name")
             String rootQueryTypeName = schemaNode.attribute("query")
             String rootMutationTypeName = schemaNode.attribute("mutation")
@@ -233,10 +239,6 @@ public class GraphQLSchemaDefinition {
             if (rootQueryTypeName) queryRootFieldMap.put(rootFieldName, rootQueryTypeName)
 
             if (rootMutationTypeName) mutationRootFieldMap.put(rootFieldName, rootMutationTypeName)
-
-            for (MNode interfaceFetcherNode in schemaNode.children("interface-fetcher")) {
-                interfaceFetcherNodeMap.put(interfaceFetcherNode.attribute("name"), interfaceFetcherNode)
-            }
 
             for (MNode childNode in schemaNode.children) {
                 switch (childNode.name) {
