@@ -46,6 +46,8 @@ class InterfaceBatchedDataFetcher extends BaseDataFetcher implements BatchedData
         }
 
         ArrayList<MNode> defaultFetcherChildren = node.children("default-fetcher") ?: refNode?.children("default-fetcher")
+
+        if (defaultFetcherChildren.size() != 1) throw new IllegalArgumentException("interface-fetcher.default-fetcher not found")
         MNode defaultFetcherNode = defaultFetcherChildren[0]
         defaultFetcher = buildDataFetcher(defaultFetcherNode.children[0], fieldDef, ecf, relKeyMap)
 
