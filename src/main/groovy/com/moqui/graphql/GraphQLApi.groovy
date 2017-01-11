@@ -83,7 +83,7 @@ class GraphQLApi {
 
                     needToReload = true
 
-                    logger.info("Loading ${rr.fileName}")
+                    logger.info("Adding ${rr.fileName} to be loaded")
                     // Parse .graphql.xml, add schema to cache
                     MNode schemaNode = MNode.parse(rr)
                     schemaNodeMap.put(rr.fileName, schemaNode)
@@ -94,7 +94,8 @@ class GraphQLApi {
         }
         if (needToReload) {
             GraphQLSchemaDefinition.clearAllCachedGraphQLTypes()
-            GraphQLSchemaDefinition schemaDef = new GraphQLSchemaDefinition(ecf, schemaNodeMap.values().toList())
+
+            GraphQLSchemaDefinition schemaDef = new GraphQLSchemaDefinition(ecf, schemaNodeMap)
             graphQL = new GraphQL(schemaDef.getSchema(), new BatchedExecutionStrategy())
 
             lastLoadTime = System.currentTimeMillis()

@@ -38,6 +38,7 @@ import graphql.schema.GraphQLUnionType
 import graphql.schema.SchemaUtil
 import graphql.schema.TypeResolver
 import groovy.transform.CompileStatic
+import javafx.scene.input.Mnemonic
 import org.moqui.context.ExecutionContextFactory
 import org.moqui.impl.context.ExecutionContextFactoryImpl
 import org.moqui.impl.entity.EntityDefinition
@@ -62,7 +63,7 @@ public class GraphQLSchemaDefinition {
     protected final ExecutionContextFactory ecf
 
     @SuppressWarnings("GrFinalVariableAccess")
-    protected final List<MNode> schemaNodeList
+    protected final Map<String, MNode> schemaNodeMap
 
     protected final String queryRootObjectTypeName = "QueryRootObjectType"
     protected final String mutationRootObjectTypeName = "MutationRootObjectType"
@@ -219,19 +220,27 @@ public class GraphQLSchemaDefinition {
         graphQLInputObjectFieldMap.put("clientMutationId", clientMutationIdInputField)
     }
 
-    public GraphQLSchemaDefinition(ExecutionContextFactory ecf, List<MNode> schemaNodeList) {
+    public GraphQLSchemaDefinition(ExecutionContextFactory ecf, Map<String, MNode> schemaNodeMap) {
         this.ecf = ecf
-        this.schemaNodeList = schemaNodeList
+
+        this.schemaNodeMap = schemaNodeMap.sort { Map.Entry<String, MNode> it ->
+            String priority = it.value.attribute('load-priority') ?: "99"
+            return priority.toInteger()
+        }
 
         GraphQLSchemaUtil.createObjectTypeNodeForAllEntities(ecf, allTypeDefMap)
 
-        for (MNode schemaNode in schemaNodeList) {
+        for (Map.Entry<String, MNode> entry in this.schemaNodeMap) {
+            MNode schemaNode = entry.value
             for (MNode interfaceFetcherNode in schemaNode.children("interface-fetcher")) {
                 interfaceFetcherNodeMap.put(interfaceFetcherNode.attribute("name"), interfaceFetcherNode)
             }
         }
 
-        for (MNode schemaNode in schemaNodeList) {
+        for (Map.Entry<String, MNode> entry in this.schemaNodeMap) {
+            MNode schemaNode = entry.value
+            logger.info("Loading graphql schema configuration from ${entry.key}")
+
             String rootFieldName = schemaNode.attribute("name")
             String rootQueryTypeName = schemaNode.attribute("query")
             String rootMutationTypeName = schemaNode.attribute("mutation")
