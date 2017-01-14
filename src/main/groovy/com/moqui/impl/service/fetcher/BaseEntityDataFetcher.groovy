@@ -19,6 +19,7 @@ class BaseEntityDataFetcher extends BaseDataFetcher {
     List<String> pkFieldNames = new ArrayList<>(1)
     String fieldRawType
     Map<String, String> relKeyMap = new HashMap<>()
+    List<String> localizeFields = new ArrayList<>()
 
     BaseEntityDataFetcher (MNode node, FieldDefinition fieldDef, ExecutionContextFactory ecf) {
         super(fieldDef, ecf)
@@ -27,6 +28,10 @@ class BaseEntityDataFetcher extends BaseDataFetcher {
         for (MNode keyMapNode in node.children("key-map"))
             keyMap.put(keyMapNode.attribute("field-name"), keyMapNode.attribute("related") ?: keyMapNode.attribute("field-name"))
 
+        for (MNode localizeFieldNode in node.children("localize-field")) {
+            if (!localizeFields.contains(localizeFieldNode.attribute("name")))
+                localizeFields.add(localizeFieldNode.attribute("name"))
+        }
         initializeFields(node.attribute("entity-name"), node.attribute("interface-entity-name"), keyMap)
     }
 

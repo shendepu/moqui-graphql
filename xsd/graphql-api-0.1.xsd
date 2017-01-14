@@ -173,10 +173,19 @@ along with this software (see the LICENSE.md file). If not, see
     </xs:element>
 
     <xs:element name="empty-fetcher"/>
+
+
+    <xs:element name="localize-field">
+        <xs:complexType>
+            <xs:attribute name="name" use="required"/>
+        </xs:complexType>
+    </xs:element>
+
     <xs:element name="entity-fetcher">
         <xs:complexType>
             <xs:sequence>
                 <xs:element minOccurs="0" maxOccurs="unbounded" ref="key-map"/>
+                <xs:element minOccurs="0" maxOccurs="unbounded" ref="localize-field"/>
             </xs:sequence>
             <xs:attribute name="entity-name" type="name-full" use="required"/>
             <xs:attribute name="interface-entity-name" type="name-full"/>
@@ -193,6 +202,9 @@ along with this software (see the LICENSE.md file). If not, see
                             <xs:choice minOccurs="1" maxOccurs="1">
                                 <xs:element name="entity-fetcher">
                                     <xs:complexType>
+                                        <xs:sequence>
+                                            <xs:element minOccurs="0" maxOccurs="unbounded" ref="localize-field"/>
+                                        </xs:sequence>
                                         <xs:attribute name="entity-name"/>
                                     </xs:complexType>
                                 </xs:element>
@@ -212,6 +224,9 @@ along with this software (see the LICENSE.md file). If not, see
                             <xs:choice minOccurs="1" maxOccurs="1">
                                 <xs:element name="entity-fetcher">
                                     <xs:complexType>
+                                        <xs:sequence>
+                                            <xs:element minOccurs="0" maxOccurs="unbounded" ref="localize-field"/>
+                                        </xs:sequence>
                                         <xs:attribute name="entity-name"/>
                                     </xs:complexType>
                                 </xs:element>

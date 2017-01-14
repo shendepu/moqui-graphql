@@ -3,6 +3,8 @@ package com.moqui.impl.service.fetcher
 import com.moqui.impl.util.GraphQLSchemaUtil
 import graphql.execution.batched.BatchedDataFetcher
 import graphql.language.Field
+import graphql.language.Selection
+import graphql.language.SelectionSet
 import graphql.schema.DataFetchingEnvironment
 import groovy.transform.CompileStatic
 import org.moqui.context.ExecutionContext
@@ -141,6 +143,8 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
         if (sourceItemCount > 1 && relKeyCount == 0 && operation == "one")
             throw new IllegalArgumentException("Source contains more than 1 item, but no relationship key map defined for entity ${entityName}")
 
+        List<String> actualLocalizedFields = DataFetcherUtils.getActualLocalizeFields(environment.fields[0].selectionSet, localizeFields, operation != "one")
+
         boolean loggedInAnonymous = false
         if ("anonymous-all".equals(requireAuthentication)) {
             ec.artifactExecution.setAnonymousAuthorizedAll()
@@ -193,6 +197,7 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
                         }
                     if (evSelf == null) return
                     jointOneMap = updateWithInterfaceEV(evSelf, efInterface)
+                    DataFetcherUtils.localize(jointOneMap, actualLocalizedFields, ec)
                     resultList.set(index, jointOneMap)
                 }
 
@@ -229,6 +234,7 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
                             edgesData = new HashMap<>(2)
                             cursor = GraphQLSchemaUtil.base64EncodeCursor(ev, fieldRawType, pkFieldNames)
                             jointOneMap = updateWithInterfaceEV(ev, efInterface)
+                            DataFetcherUtils.localize(jointOneMap, actualLocalizedFields, ec)
                             edgesData.put("cursor", cursor)
                             edgesData.put("node", jointOneMap)
                             return edgesData
@@ -277,6 +283,7 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
                                 edgesData = new HashMap<>(2)
                                 cursor = GraphQLSchemaUtil.base64EncodeCursor(ev, fieldRawType, pkFieldNames)
                                 jointOneMap = updateWithInterfaceEV(ev, efInterface)
+                                DataFetcherUtils.localize(jointOneMap, actualLocalizedFields, ec)
                                 edgesData.put("cursor", cursor)
                                 edgesData.put("node", jointOneMap)
                                 return edgesData
