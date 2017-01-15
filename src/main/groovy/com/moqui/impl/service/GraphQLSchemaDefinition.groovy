@@ -768,7 +768,7 @@ public class GraphQLSchemaDefinition {
         if ("true".equals(listItemNonNull)) edgesType = new GraphQLNonNull(edgesType)
         edgesType = new GraphQLList(edgesType)
         if ("true".equals(nonNull)) edgesType = new GraphQLNonNull(edgesType)
-        
+
         if (!edgesTypeKey.equals(edgeRawTypeName)) {
             graphQLOutputTypeMap.put(edgesTypeKey, edgesType)
         }
@@ -1660,6 +1660,7 @@ public class GraphQLSchemaDefinition {
         }
 
         private void addAutoArguments(List<String> excludedFields) {
+            if (isMutation) return
             if (GraphQLSchemaUtil.graphQLScalarTypes.keySet().contains(type) || graphQLDirectiveArgumentMap.keySet().contains(type)) return
 
             if (!(((ExecutionContextFactoryImpl) ecf).entityFacade.isEntityDefined(type))) return
