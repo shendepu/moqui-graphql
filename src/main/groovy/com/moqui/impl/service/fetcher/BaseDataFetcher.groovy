@@ -33,6 +33,9 @@ abstract class BaseDataFetcher implements DataFetcher {
         } catch (AuthenticationRequiredException e) {
             throw new DataFetchingException('401', e.getMessage())
         } catch (ArtifactAuthorizationException e) {
+            if (!ecf.getExecutionContext().getUser().userId)
+                throw new DataFetchingException('401', e.getMessage())
+
             throw new DataFetchingException('403', e.getMessage())
         } catch (ScreenResourceNotFoundException e) {
             throw new DataFetchingException('404', e.getMessage())
