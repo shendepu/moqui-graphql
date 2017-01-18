@@ -128,9 +128,9 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
 //        logger.info("fields     - ${environment.fields}")
 //        logger.info("fieldType  - ${environment.fieldType}")
 //        logger.info("parentType - ${environment.parentType}")
+//        logger.info("schema     - ${environment.graphQLSchema}")
 //        logger.info("relKeyMap  - ${relKeyMap}")
 //        logger.info("interfaceEntityName    - ${interfaceEntityName}")
-
 
         ExecutionContext ec = ecf.getExecutionContext()
 
