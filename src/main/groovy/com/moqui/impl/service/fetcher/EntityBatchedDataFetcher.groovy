@@ -215,6 +215,7 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
 //                    logger.info("---- branch batched data fetcher entity without pagination for entity [${entityName}] with operation [${operation}] ----")
                     inputFieldsMap.put("noPageLimit", "true")
                     EntityFind ef = ec.entity.find(entityName).searchFormMap(inputFieldsMap, null, null, null, true)
+                    GraphQLSchemaUtil.addPeriodValidArguments(ec, ef, environment.arguments)
 
                     patchWithConditions(ef, environment, ec)
 
@@ -253,6 +254,7 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
                     ((List) environment.source).eachWithIndex { Object object, int index ->
                         Map sourceItem = (Map) object
                         EntityFind ef = ec.entity.find(entityName).searchFormMap(inputFieldsMap, null, null, null, true)
+                        GraphQLSchemaUtil.addPeriodValidArguments(ec, ef, environment.arguments)
 
                         for (Map.Entry<String, String> entry in relKeyMap.entrySet()) {
                             ef = ef.condition(entry.getValue(), sourceItem.get(entry.getKey()))

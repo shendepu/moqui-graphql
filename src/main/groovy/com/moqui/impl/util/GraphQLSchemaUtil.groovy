@@ -20,7 +20,9 @@ import com.moqui.impl.service.fetcher.EntityBatchedDataFetcher
 import com.moqui.impl.service.fetcher.ServiceDataFetcher
 import graphql.schema.GraphQLScalarType
 import groovy.transform.CompileStatic
+import org.moqui.context.ExecutionContext
 import org.moqui.context.ExecutionContextFactory
+import org.moqui.entity.EntityFind
 import org.moqui.entity.EntityValue
 import org.moqui.impl.context.ExecutionContextFactoryImpl
 import org.moqui.impl.entity.FieldInfo
@@ -298,8 +300,28 @@ class GraphQLSchemaUtil {
                 if (argValue.get("thru") != null) inputFieldsMap.put(argName + "_thru", argValue.get("thru"))
 
             } else {
-                inputFieldsMap.put(argName, argValue)
+                // periodValid_ type argument is handled specially
+                if (!(argName == "periodValid_" || argName.endsWith("PeriodValid_"))) {
+                    inputFieldsMap.put(argName, argValue)
+                }
             }
+        }
+    }
+
+    static void addPeriodValidArguments(ExecutionContext ec, EntityFind ef, Map<String, Object> arguments) {
+        for (Map.Entry<String, Object> entry in arguments.entrySet()) {
+            String argName = entry.getKey()
+            if (!(argName == "periodValid_" || argName.endsWith("PeriodValid_"))) continue
+
+            String fromFieldName = "fromDate"
+            String thruFieldName = "thruDate"
+            if (argName.endsWith("PeriodValid_")) {
+                // 12 = "PeriodValid_".length
+                String prefix = argName.substring(0, argName.length() - 12)
+                fromFieldName = prefix + "FromDate"
+                thruFieldName = prefix + "ThruDate"
+            }
+            ef.condition(ec.entity.conditionFactory.makeConditionDate(fromFieldName, thruFieldName, ec.user.nowTimestamp))
         }
     }
 
