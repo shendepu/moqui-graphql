@@ -1536,6 +1536,7 @@ public class GraphQLSchemaDefinition {
             addAutoArguments(new ArrayList<String>())
             updateArgumentDefs()
             addInputArgument()
+            addPeriodValidArguments()
         }
 
         FieldDefinition(ExecutionContextFactory ecf, String name, String type) {
@@ -1571,6 +1572,7 @@ public class GraphQLSchemaDefinition {
             addAutoArguments(excludedArguments)
             updateArgumentDefs()
             addInputArgument()
+            addPeriodValidArguments()
         }
 
         public List<ArgumentDefinition> getArgumentList() {
@@ -1688,6 +1690,28 @@ public class GraphQLSchemaDefinition {
                     putCachedArgumentDefinition(argumentDef)
                 }
                 argumentDefMap.put(fi.name, argumentDef)
+            }
+        }
+
+        private void addPeriodValidArguments() {
+            if (!"true".equals(isList)) return
+
+            List<String> allArguments = argumentDefMap.keySet().toList()
+            List<String> fromDateArguments = allArguments.findAll { String argument ->
+                argument == "fromDate" || argument.endsWith("FromDate") }
+            List<String> pairedFromDateArguments = fromDateArguments.findAll { String argument ->
+                (argument == "fromDate" && allArguments.contains("thruDate")) ||
+                allArguments.contains(argument.replace("FromDate", "ThruDate"))
+            }
+            for (String argument in pairedFromDateArguments) {
+                String periodValidArgName = argument == "fromDate" ? "periodValid_"
+                        : argument.replace("FromDate", "PeriodValid_")
+                ArgumentDefinition argumentDef = getCachedArgumentDefinition(periodValidArgName, "Boolean", null)
+                if (argumentDef == null) {
+                    argumentDef = new ArgumentDefinition(this, periodValidArgName, "Boolean", null, null, "")
+                    putCachedArgumentDefinition(argumentDef)
+                }
+                argumentDefMap.put(periodValidArgName, argumentDef)
             }
         }
     }

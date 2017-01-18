@@ -116,7 +116,10 @@ class GraphQLSchemaUtil {
         if (!allFields.contains("id")) {
             // Add a id field to all entity Object Type
             FieldDefinition idFieldDef = GraphQLSchemaDefinition.getCachedFieldDefinition("id", "ID", "false", "false", "false")
-            if (idFieldDef == null) idFieldDef = new FieldDefinition(ecf, "id", "ID", [:])
+            if (idFieldDef == null) {
+                idFieldDef = new FieldDefinition(ecf, "id", "ID", [:])
+                GraphQLSchemaDefinition.putCachedFieldDefinition(idFieldDef)
+            }
             fieldDefMap.put("id", idFieldDef)
         }
 
