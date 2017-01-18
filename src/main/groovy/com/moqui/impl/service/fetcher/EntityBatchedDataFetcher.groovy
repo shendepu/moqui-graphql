@@ -163,6 +163,7 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
 
             boolean requireInterfaceEF = requireInterfaceEntity()
             Map<String, Object> jointOneMap
+            String cursor
 
             // When no relationship field, it means there is only one item in source and all conditions come from arguments.
             // When one relationship field, it means there are more than one item (including one) in source, and all conditions
@@ -197,7 +198,8 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
                         }
                     if (evSelf == null) return
                     jointOneMap = updateWithInterfaceEV(evSelf, efInterface)
-                    jointOneMap.put("id", GraphQLSchemaUtil.base64EncodeId(jointOneMap, pkFieldNames))
+                    cursor = GraphQLSchemaUtil.base64EncodeCursor(jointOneMap, fieldRawType, pkFieldNames)
+                    jointOneMap.put("id", cursor)
                     DataFetcherUtils.localize(jointOneMap, actualLocalizedFields, ec)
                     resultList.set(index, jointOneMap)
                 }
@@ -206,7 +208,6 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
             } else { // Operation == "list"
                 Map<String, Object> resultMap
                 Map<String, Object> edgesData
-                String cursor
                 List<Map<String, Object>> edgesDataList
 
                 // No pagination needed pageInfo is not in the field selection set, so no need to construct it.
@@ -236,7 +237,7 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
                             cursor = GraphQLSchemaUtil.base64EncodeCursor(ev, fieldRawType, pkFieldNames)
                             jointOneMap = updateWithInterfaceEV(ev, efInterface)
 
-                            jointOneMap.put("id", GraphQLSchemaUtil.base64EncodeId(jointOneMap, pkFieldNames))
+                            jointOneMap.put("id", cursor)
                             DataFetcherUtils.localize(jointOneMap, actualLocalizedFields, ec)
                             edgesData.put("cursor", cursor)
                             edgesData.put("node", jointOneMap)
@@ -286,7 +287,7 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
                                 edgesData = new HashMap<>(2)
                                 cursor = GraphQLSchemaUtil.base64EncodeCursor(ev, fieldRawType, pkFieldNames)
                                 jointOneMap = updateWithInterfaceEV(ev, efInterface)
-                                jointOneMap.put("id", GraphQLSchemaUtil.base64EncodeId(jointOneMap, pkFieldNames))
+                                jointOneMap.put("id", cursor)
                                 DataFetcherUtils.localize(jointOneMap, actualLocalizedFields, ec)
                                 edgesData.put("cursor", cursor)
                                 edgesData.put("node", jointOneMap)

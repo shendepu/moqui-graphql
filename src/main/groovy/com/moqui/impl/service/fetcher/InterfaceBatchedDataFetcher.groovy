@@ -168,6 +168,7 @@ class InterfaceBatchedDataFetcher extends BaseDataFetcher implements BatchedData
             for (int i = 0; i < sourceItemCount; i++) resultList.add(null)
 
             Map<String, Object> jointOneMap
+            String cursor
 
             if (operation == "one") {
 //                logger.warn("running one operation")
@@ -181,13 +182,16 @@ class InterfaceBatchedDataFetcher extends BaseDataFetcher implements BatchedData
                     jointOneMap = relKeyCount == 0 ? (interfaceValueList.size() > 0 ? interfaceValueList[0] : null) :
                         interfaceValueList.find { Map<String, Object> it -> matchParentByRelKeyMap(sourceItem, it, relKeyMap) }
 
-                    jointOneMap.put("id", GraphQLSchemaUtil.base64EncodeId(jointOneMap, [primaryField]))
+                    if (jointOneMap == null) return
+
+                    cursor = GraphQLSchemaUtil.base64EncodeCursor(jointOneMap, fieldRawType, [primaryField])
+                    jointOneMap.put("id", cursor)
+
                     resultList.set(index, jointOneMap)
                 }
             } else { // Operation == "list"
                 Map<String, Object> resultMap
                 Map<String, Object> edgesData
-                String cursor
                 List<Map<String, Object>> edgesDataList
 
                 if (!requirePagination(environment)) {
@@ -206,7 +210,7 @@ class InterfaceBatchedDataFetcher extends BaseDataFetcher implements BatchedData
                         edgesDataList = jointOneList.collect { Map<String, Object> it ->
                             edgesData = new HashMap<>(2)
                             cursor = GraphQLSchemaUtil.base64EncodeCursor(it, fieldRawType, [primaryField])
-                            it.put("id", GraphQLSchemaUtil.base64EncodeId(it, [primaryField]))
+                            it.put("id", cursor)
                             edgesData.put("cursor", cursor)
                             edgesData.put("node", it)
                             return edgesData
@@ -247,7 +251,7 @@ class InterfaceBatchedDataFetcher extends BaseDataFetcher implements BatchedData
                             edgesDataList = interfaceValueList.collect { Map<String, Object> it ->
                                 edgesData = new HashMap<>(2)
                                 cursor = GraphQLSchemaUtil.base64EncodeCursor(it, fieldRawType, [primaryField])
-                                it.put("id", GraphQLSchemaUtil.base64EncodeId(it, [primaryField]))
+                                it.put("id", cursor)
                                 edgesData.put("cursor", cursor)
                                 edgesData.put("node", it)
                                 return edgesData
