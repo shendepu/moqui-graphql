@@ -112,6 +112,14 @@ class GraphQLSchemaUtil {
         Map<String, FieldDefinition> fieldDefMap = new LinkedHashMap<>()
 
         List<String> allFields = ed.getAllFieldNames()
+
+        if (!allFields.contains("id")) {
+            // Add a id field to all entity Object Type
+            FieldDefinition idFieldDef = GraphQLSchemaDefinition.getCachedFieldDefinition("id", "ID", "false", "false", "false")
+            if (idFieldDef == null) idFieldDef = new FieldDefinition(ecf, "id", "ID", [:])
+            fieldDefMap.put("id", idFieldDef)
+        }
+
         for (String fieldName in allFields) {
             // Add fields in entity as field
             FieldInfo fi = ed.getFieldInfo(fieldName)
@@ -292,19 +300,25 @@ class GraphQLSchemaUtil {
         }
     }
 
-    public static String base64EncodeCursor(EntityValue ev, String fieldRawType, List<String> pkFieldNames) {
+    static String base64EncodeCursor(EntityValue ev, String fieldRawType, List<String> pkFieldNames) {
         String cursor = fieldRawType
         for (String pk in pkFieldNames) cursor = cursor + '|' + ev.get(pk)
         return Base64.getEncoder().encodeToString(cursor.bytes)
     }
 
-    public static String base64EncodeCursor(Map<String, Object> ev, String fieldRawType, List<String> pkFieldNames) {
+    static String base64EncodeCursor(Map<String, Object> ev, String fieldRawType, List<String> pkFieldNames) {
         String cursor = fieldRawType
         for (String pk in pkFieldNames) cursor = cursor + '|' + ev.get(pk)
         return Base64.getEncoder().encodeToString(cursor.bytes)
     }
 
-    public static String camelCaseToUpperCamel(String camelCase) {
+    static String base64EncodeId(Map<String, Object> ev, List<String> pkFieldNames) {
+        String code = pkFieldNames.size() > 0 ? ev.get(pkFieldNames[0]) : ""
+        for (int i = 1; i < pkFieldNames.size(); i++) code = code + "|" + ev.get(pkFieldNames[i])
+        return Base64.getEncoder().encodeToString(code.bytes)
+    }
+
+    static String camelCaseToUpperCamel(String camelCase) {
         if (camelCase == null || camelCase.length() == 0) return ""
         return camelCase.replace(camelCase.charAt(0), Character.toUpperCase(camelCase.charAt(0)))
     }

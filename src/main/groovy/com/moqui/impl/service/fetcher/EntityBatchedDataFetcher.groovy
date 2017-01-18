@@ -197,6 +197,7 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
                         }
                     if (evSelf == null) return
                     jointOneMap = updateWithInterfaceEV(evSelf, efInterface)
+                    jointOneMap.put("id", GraphQLSchemaUtil.base64EncodeId(jointOneMap, pkFieldNames))
                     DataFetcherUtils.localize(jointOneMap, actualLocalizedFields, ec)
                     resultList.set(index, jointOneMap)
                 }
@@ -234,6 +235,8 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
                             edgesData = new HashMap<>(2)
                             cursor = GraphQLSchemaUtil.base64EncodeCursor(ev, fieldRawType, pkFieldNames)
                             jointOneMap = updateWithInterfaceEV(ev, efInterface)
+
+                            jointOneMap.put("id", GraphQLSchemaUtil.base64EncodeId(jointOneMap, pkFieldNames))
                             DataFetcherUtils.localize(jointOneMap, actualLocalizedFields, ec)
                             edgesData.put("cursor", cursor)
                             edgesData.put("node", jointOneMap)
@@ -283,6 +286,7 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
                                 edgesData = new HashMap<>(2)
                                 cursor = GraphQLSchemaUtil.base64EncodeCursor(ev, fieldRawType, pkFieldNames)
                                 jointOneMap = updateWithInterfaceEV(ev, efInterface)
+                                jointOneMap.put("id", GraphQLSchemaUtil.base64EncodeId(jointOneMap, pkFieldNames))
                                 DataFetcherUtils.localize(jointOneMap, actualLocalizedFields, ec)
                                 edgesData.put("cursor", cursor)
                                 edgesData.put("node", jointOneMap)
