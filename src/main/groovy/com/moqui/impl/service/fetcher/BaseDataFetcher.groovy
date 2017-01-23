@@ -17,9 +17,9 @@ import static com.moqui.impl.service.GraphQLSchemaDefinition.FieldDefinition
 @CompileStatic
 abstract class BaseDataFetcher implements DataFetcher {
     @SuppressWarnings("GrFinalVariableAccess")
-    final ExecutionContextFactory ecf
+    protected final ExecutionContextFactory ecf
     @SuppressWarnings("GrFinalVariableAccess")
-    final FieldDefinition fieldDef
+    protected final FieldDefinition fieldDef
 
     BaseDataFetcher(FieldDefinition fieldDef, ExecutionContextFactory ecf) {
         this.ecf = ecf
@@ -29,7 +29,12 @@ abstract class BaseDataFetcher implements DataFetcher {
     @Override
     Object get(DataFetchingEnvironment environment) {
         try {
-            return fetch(environment)
+            Object result = fetch(environment)
+
+            if (ecf != null && ecf.getExecutionContext().getMessage().hasError()) {
+                throw new DataFetchingException('500', ecf.getExecutionContext().getMessage().getErrorsString())
+            }
+            return result
         } catch (AuthenticationRequiredException e) {
             throw new DataFetchingException('401', e.getMessage())
         } catch (ArtifactAuthorizationException e) {
@@ -46,7 +51,9 @@ abstract class BaseDataFetcher implements DataFetcher {
         } catch (DataFetchingException e) {
             throw e
         } catch (Throwable t) {
-            throw new DataFetchingException("UNKNOWN", t.getMessage())
+            throw new DataFetchingException("UNKNOWN", t.getStackTrace().toString())
+        } finally {
+            if (ecf != null) ecf.getExecutionContext().getMessage().clearErrors()
         }
     }
 
