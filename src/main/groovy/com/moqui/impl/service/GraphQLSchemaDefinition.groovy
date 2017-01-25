@@ -38,7 +38,6 @@ import graphql.schema.GraphQLUnionType
 import graphql.schema.SchemaUtil
 import graphql.schema.TypeResolver
 import groovy.transform.CompileStatic
-import javafx.scene.input.Mnemonic
 import org.moqui.context.ExecutionContextFactory
 import org.moqui.impl.context.ExecutionContextFactoryImpl
 import org.moqui.impl.entity.EntityDefinition
@@ -1488,6 +1487,9 @@ public class GraphQLSchemaDefinition {
             this.requireAuthentication = node.attribute("require-authentication") ?: "true"
             this.isMutation = "mutation".equals(node.attribute("for"))
 
+            String dataFetcherType = ""
+            MNode dataFetcherNode = null
+
             for (MNode childNode in node.children) {
                 switch (childNode.name) {
                     case "description":
@@ -1509,17 +1511,25 @@ public class GraphQLSchemaDefinition {
                         mergeArgument(argDef)
                         break
                     case "service-fetcher":
+                        dataFetcherType = "service"
+                        dataFetcherNode = childNode
                         this.dataFetcher = new ServiceDataFetcher(childNode, this, ecf)
                         break
                     case "entity-fetcher":
+                        dataFetcherType = "entity"
+                        dataFetcherNode = childNode
                         this.dataFetcher = new EntityBatchedDataFetcher(childNode, this, ecf)
                         break
                     case "interface-fetcher":
+                        dataFetcherType = "interface"
+                        dataFetcherNode = childNode
                         String refName = childNode.attribute("ref") ?: "NOT_EXIST"
                         MNode refNode = interfaceFetcherNodeMap.get(refName)
                         this.dataFetcher = new InterfaceBatchedDataFetcher(childNode, refNode, this, ecf)
                         break
                     case "empty-fetcher":
+                        dataFetcherType = "empty"
+                        dataFetcherNode = childNode
                         this.dataFetcher = new EmptyDataFetcher(childNode, this)
                         break
                     case "pre-fetcher":
@@ -1533,10 +1543,16 @@ public class GraphQLSchemaDefinition {
             if (dataFetcher == null && !GraphQLSchemaUtil.graphQLScalarTypes.keySet().contains(type))
                 dataFetcher = new EmptyDataFetcher(this)
 
-            addAutoArguments(new ArrayList<String>())
-            updateArgumentDefs()
-            addInputArgument()
-            addPeriodValidArguments()
+            if (dataFetcherType == "entity" || dataFetcherType == "interface") {
+                addEntityAutoArguments(new ArrayList<String>())
+                addPeriodValidArguments()
+                updateArgumentDefs()
+            }
+
+            if (dataFetcherType == "service") {
+                if (isMutation) addInputArgument()
+                else addServiceAutoArguments(dataFetcherNode)
+            }
         }
 
         FieldDefinition(ExecutionContextFactory ecf, String name, String type) {
@@ -1569,7 +1585,7 @@ public class GraphQLSchemaDefinition {
             this.description = fieldPropertyMap.get("description")
             this.depreciationReason = fieldPropertyMap.get("depreciationReason")
 
-            addAutoArguments(excludedArguments)
+            addEntityAutoArguments(excludedArguments)
             updateArgumentDefs()
             addInputArgument()
             addPeriodValidArguments()
@@ -1661,7 +1677,41 @@ public class GraphQLSchemaDefinition {
             return baseArgumentDef
         }
 
-        private void addAutoArguments(List<String> excludedFields) {
+        private void addServiceAutoArguments(MNode serviceFetcherNode) {
+            if (isMutation) return
+
+            String serviceName = serviceFetcherNode.attribute("service")
+
+            ServiceDefinition sd = ((ExecutionContextFactoryImpl) ecf).serviceFacade.getServiceDefinition(serviceName)
+            if (sd == null) throw new IllegalArgumentException("Service ${serviceName} for field ${name} not found")
+
+            for (String paramName in sd.getInParameterNames()) {
+                MNode parameterNode = sd.getInParameter(paramName)
+                String paramType = parameterNode.attribute("type") ?: "String"
+                // TODO: get description from parameter description node
+                String paramDescription = ""
+
+                String argType
+                switch (paramType) {
+                    case "com.moqui.graphql.OperationInputType": argType = "OperationInputType"; break
+                    case "com.moqui.graphql.DateRangeInputType": argType = "DateRangeInputType"; break
+                    case "com.moqui.graphql.PaginationInputType": argType = "PaginationInputType"; break
+                    default:
+                        argType = getArgumentTypeName(GraphQLSchemaUtil.javaTypeGraphQLMap.get(paramType), isList)
+                        break
+                }
+                if (!argType) throw new IllegalArgumentException("Parameter ${paramName} type ${paramType} can't be mapped")
+
+                ArgumentDefinition argumentDef = getCachedArgumentDefinition(paramName, argType, null)
+                if (argumentDef == null) {
+                    argumentDef = new ArgumentDefinition(this, paramName, argType, null, null, paramDescription)
+                    putCachedArgumentDefinition(argumentDef)
+                }
+                argumentDefMap.put(paramName, argumentDef)
+            }
+        }
+
+        private void addEntityAutoArguments(List<String> excludedFields) {
             if (isMutation) return
             if (GraphQLSchemaUtil.graphQLScalarTypes.keySet().contains(type) || graphQLDirectiveArgumentMap.keySet().contains(type)) return
 

@@ -81,6 +81,15 @@ class GraphQLSchemaUtil {
             "currency-precise"  : "BigDecimal", "binary-very-long"  : "Byte"
     ] as Map<String, String>
 
+    static final Map<String, String> javaTypeGraphQLMap = [
+            "String"        : "String",     "CharSequence"  : "String",
+            "Date"          : "String",     "Time"          : "String",
+            "Timestamp"     : "Timestamp",
+            "Integer"       : "Int",        "Long"          : "Int",            "BigInteger": "Int",
+            "Float"         : "BigDecimal", "Double"        : "BigDecimal",     "BigDecimal": "BigDecimal",
+            "Boolean"       : "Boolean"
+    ] as Map<String, String>
+
     static final List<String> moquiStringTypes = ["id", "id-long", "text-short", "text-medium", "text-long", "text-very-long"]
     static final List<String> moquiDateTypes = ["date", "time", "date-time"]
     static final List<String> moquiNumericTypes = ["number-integer", "number-float", "number-decimal", "currency-amount", "currency-precise"]
