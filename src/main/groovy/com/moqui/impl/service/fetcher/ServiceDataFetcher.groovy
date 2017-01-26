@@ -20,6 +20,7 @@ class ServiceDataFetcher extends BaseDataFetcher {
 
     String serviceName
     String requireAuthentication
+    ServiceDefinition sd
 
     ServiceDataFetcher(MNode node, FieldDefinition fieldDef, ExecutionContextFactory ecf) {
         super(fieldDef, ecf)
@@ -27,7 +28,7 @@ class ServiceDataFetcher extends BaseDataFetcher {
 
         this.serviceName = node.attribute("service")
 
-        ServiceDefinition sd = ((ExecutionContextFactoryImpl) ecf).serviceFacade.getServiceDefinition(serviceName)
+        sd = ((ExecutionContextFactoryImpl) ecf).serviceFacade.getServiceDefinition(serviceName)
         if (sd == null) throw new IllegalArgumentException("Service ${serviceName} not found")
     }
 
@@ -46,7 +47,8 @@ class ServiceDataFetcher extends BaseDataFetcher {
 
         try {
             Map<String, Object> inputFieldsMap = new HashMap<>()
-            GraphQLSchemaUtil.transformArguments(environment.arguments, inputFieldsMap)
+            if (fieldDef.isMutation) GraphQLSchemaUtil.transformArguments(environment.arguments, inputFieldsMap)
+            else GraphQLSchemaUtil.transformQueryServiceArguments(sd, environment.arguments, inputFieldsMap)
             logger.info("inputFieldsMap - ${inputFieldsMap}")
 
             Map result

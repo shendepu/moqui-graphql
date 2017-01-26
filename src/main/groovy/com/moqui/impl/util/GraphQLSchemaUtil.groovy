@@ -13,6 +13,9 @@
  */
 package com.moqui.impl.util
 
+import com.moqui.graphql.DateRangeInputType
+import com.moqui.graphql.OperationInputType
+import com.moqui.graphql.PaginationInputType
 import com.moqui.impl.service.GraphQLSchemaDefinition
 import com.moqui.impl.service.fetcher.BaseDataFetcher
 import com.moqui.impl.service.fetcher.EmptyDataFetcher
@@ -27,9 +30,12 @@ import org.moqui.entity.EntityValue
 import org.moqui.impl.context.ExecutionContextFactoryImpl
 import org.moqui.impl.entity.FieldInfo
 import org.moqui.impl.entity.EntityDefinition
+import org.moqui.impl.service.ServiceDefinition
 import org.moqui.util.MNode
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
+
+import java.sql.Timestamp
 
 import static graphql.Scalars.GraphQLBigDecimal
 import static graphql.Scalars.GraphQLBigInteger
@@ -85,8 +91,8 @@ class GraphQLSchemaUtil {
             "String"        : "String",     "CharSequence"  : "String",
             "Date"          : "String",     "Time"          : "String",
             "Timestamp"     : "Timestamp",
-            "Integer"       : "Int",        "Long"          : "Int",            "BigInteger": "Int",
-            "Float"         : "BigDecimal", "Double"        : "BigDecimal",     "BigDecimal": "BigDecimal",
+            "Integer"       : "Int",        "Long"          : "Long",           "BigInteger": "BigInteger",
+            "Float"         : "Float",      "Double"        : "Float",          "BigDecimal": "BigDecimal",
             "Boolean"       : "Boolean"
     ] as Map<String, String>
 
@@ -252,6 +258,49 @@ class GraphQLSchemaUtil {
         } else {
             fieldDef = new FieldDefinition(fieldNode, ecf)
             fieldDefMap.put(fieldDef.name, fieldDef)
+        }
+    }
+
+    static Object castValueToJavaType(Object value, String javaType) {
+        switch (javaType) {
+            case "String": return value as String
+            case "CharSequence": return value as String
+            case "Date": break  //TODO
+            case "Time": break  //TODO
+            case "Timestamp": return value as Timestamp
+            case "Integer": return value as Integer
+            case "Long": return value as Long
+            case "BigInteger": return value as BigInteger
+            case "Float": return value as Float
+            case "Double": return value as Double
+            case "BigDecimal": return value as BigDecimal
+            case "Boolean": return value as Boolean
+            default:
+                throw new IllegalArgumentException("Can't cast value [${value}] to Java type ${javaType}")
+                break
+        }
+    }
+
+    static void transformQueryServiceArguments(ServiceDefinition sd, Map<String, Object> arguments, Map<String, Object> inParameterMap) {
+        for (Map.Entry<String, Object> entry in arguments.entrySet()) {
+            String paramName = entry.key
+            if ("if".equals(paramName)) continue
+            if (entry.value == null) continue
+            MNode paramNode = sd.getInParameter(paramName)
+            String paramType = paramNode.attribute("type")
+            Object paramJavaTypeValue
+            logger.info("argument: ${paramName} - ${entry.value}")
+            switch (paramType) {
+                case "com.moqui.graphql.OperationInputType":
+                    paramJavaTypeValue = new OperationInputType(entry.value as Map); break
+                case "com.moqui.graphql.DateRangeInputType":
+                    paramJavaTypeValue = new DateRangeInputType(entry.value as Map); break
+                case "com.moqui.graphql.PaginationInputType":
+                    paramJavaTypeValue = new PaginationInputType(entry.value as Map); break
+                default:
+                    paramJavaTypeValue = castValueToJavaType(entry.value, paramType); break
+            }
+            inParameterMap.put(paramName, paramJavaTypeValue)
         }
     }
 
