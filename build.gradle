@@ -29,7 +29,8 @@ repositories {
 
 dependencies {
     compile project(':framework')
-    compile 'com.graphql-java:graphql-java:2016-09-21T06-38-24'
+    compile project(":runtime/component/moqui-elasticsearch")
+    compile 'com.graphql-java:graphql-java:2017-01-23T23-49-33'
     testCompile project(':framework').configurations.testCompile.allDependencies
 }
 

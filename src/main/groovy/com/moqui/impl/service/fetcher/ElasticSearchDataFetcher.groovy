@@ -1,6 +1,5 @@
 package com.moqui.impl.service.fetcher
 
-import com.moqui.impl.util.GraphQLSchemaUtil
 import graphql.schema.DataFetchingEnvironment
 import org.moqui.context.ExecutionContext
 import org.moqui.context.ExecutionContextFactory
@@ -8,6 +7,8 @@ import org.moqui.entity.EntityException
 import org.moqui.entity.EntityValue
 import org.moqui.impl.context.UserFacadeImpl
 import org.moqui.util.MNode
+import org.elasticsearch.client.Client
+import org.elasticsearch.action.get.GetResponse
 
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -20,7 +21,6 @@ class ElasticSearchDataFetcher extends BaseDataFetcher {
     String dataDocumentId
     String indexName
     String requireAuthentication
-//    Map<String, Object> dataDocDefMap
 
     ElasticSearchDataFetcher(MNode node, FieldDefinition fieldDef, ExecutionContextFactory ecf) {
         super(fieldDef, ecf)
@@ -33,7 +33,6 @@ class ElasticSearchDataFetcher extends BaseDataFetcher {
             EntityValue dataDocument = ecf.entity.find("moqui.entity.document.DataDocument").condition("dataDocumentId", dataDocumentId).one()
             if (dataDocument == null) throw new EntityException("Can't find data document ${dataDocumentId}")
             this.indexName = dataDocument.get("indexName")
-//            this.dataDocDefMap = GraphQLSchemaUtil.getDataDocDefinition(ecf, dataDocumentId)
         } finally {
             if (!alreadyDisabled) ecf.executionContext.artifactExecution.enableAuthz()
         }
@@ -116,7 +115,14 @@ class ElasticSearchDataFetcher extends BaseDataFetcher {
                 resultMap.put("pageInfo", pageInfo)
                 return resultMap
             } else {
+                String _id = environment.arguments.get("_id")
 
+                Client elasticSearchClient = ec.getTool("ElasticSearch", Client.class)
+                GetResponse docGr = elasticSearchClient.prepareGet(indexName, dataDocumentId, _id).execute().actionGet()
+
+                Map<String, Object> resultMap = [:]
+                populateResult(resultMap, docGr.getSourceAsMap())
+                return resultMap
             }
 
             return null
