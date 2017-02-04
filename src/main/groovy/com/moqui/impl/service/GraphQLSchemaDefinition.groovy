@@ -228,6 +228,7 @@ public class GraphQLSchemaDefinition {
         }
 
         GraphQLSchemaUtil.createObjectTypeNodeForAllEntities(ecf, allTypeDefMap)
+        GraphQLSchemaUtil.createObjectTypeNodeForAllDataDocuments(ecf, allTypeDefMap)
 
         for (Map.Entry<String, MNode> entry in this.schemaNodeMap) {
             MNode schemaNode = entry.value

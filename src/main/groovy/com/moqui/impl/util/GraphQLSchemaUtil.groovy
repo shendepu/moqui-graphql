@@ -25,9 +25,14 @@ import graphql.schema.GraphQLScalarType
 import groovy.transform.CompileStatic
 import org.moqui.context.ExecutionContext
 import org.moqui.context.ExecutionContextFactory
+import org.moqui.entity.EntityException
 import org.moqui.entity.EntityFind
+import org.moqui.entity.EntityList
 import org.moqui.entity.EntityValue
 import org.moqui.impl.context.ExecutionContextFactoryImpl
+import org.moqui.impl.context.ExecutionContextImpl
+import org.moqui.impl.entity.EntityDataDocument
+import org.moqui.impl.entity.EntityFacadeImpl
 import org.moqui.impl.entity.FieldInfo
 import org.moqui.impl.entity.EntityDefinition
 import org.moqui.impl.service.ServiceDefinition
@@ -54,8 +59,10 @@ import static org.moqui.impl.entity.EntityDefinition.MasterDefinition
 import static org.moqui.impl.entity.EntityDefinition.MasterDetail
 import static org.moqui.impl.entity.EntityJavaUtil.RelationshipInfo
 
+import static com.moqui.impl.service.GraphQLSchemaDefinition.GraphQLTypeDefinition
 import static com.moqui.impl.service.GraphQLSchemaDefinition.ArgumentDefinition
 import static com.moqui.impl.service.GraphQLSchemaDefinition.AutoArgumentsDefinition
+import static com.moqui.impl.service.GraphQLSchemaDefinition.ObjectTypeDefinition
 import static com.moqui.impl.service.GraphQLSchemaDefinition.FieldDefinition
 
 @CompileStatic
@@ -112,15 +119,15 @@ class GraphQLSchemaUtil {
         return objectTypeGraphQLMap.get(javaType) ?: "String"
     }
 
-    static void createObjectTypeNodeForAllEntities(ExecutionContextFactory ecf, Map<String, GraphQLSchemaDefinition.GraphQLTypeDefinition> allTypeNodeMap) {
+    static void createObjectTypeNodeForAllEntities(ExecutionContextFactory ecf, Map<String, GraphQLTypeDefinition> allTypeNodeMap) {
         for (String entityName in ((ExecutionContextFactoryImpl) ecf).entityFacade.getAllEntityNames()) {
             EntityDefinition ed = ((ExecutionContextFactoryImpl) ecf).entityFacade.getEntityDefinition(entityName)
             addObjectTypeNode(ecf, ed, true, "default", null, allTypeNodeMap)
         }
     }
 
-    private static void addObjectTypeNode(ExecutionContextFactory ecf, EntityDefinition ed, boolean standalone, String masterName, MasterDetail masterDetail, Map<String, GraphQLSchemaDefinition
-            .GraphQLTypeDefinition> allTypeDefMap) {
+    private static void addObjectTypeNode(ExecutionContextFactory ecf, EntityDefinition ed, boolean standalone, String masterName, MasterDetail masterDetail,
+                                          Map<String, GraphQLTypeDefinition> allTypeDefMap) {
         String objectTypeName = ed.getEntityName()
 
         // Check if the type already exist in the map
@@ -202,7 +209,7 @@ class GraphQLSchemaUtil {
             objectTypeDescription = objectTypeDescription + descriptionMNode.text + "\n"
         }
 
-        GraphQLSchemaDefinition.ObjectTypeDefinition objectTypeDef = new GraphQLSchemaDefinition.ObjectTypeDefinition(ecf, objectTypeName, objectTypeDescription, new ArrayList<String>(), fieldDefMap)
+        ObjectTypeDefinition objectTypeDef = new ObjectTypeDefinition(ecf, objectTypeName, objectTypeDescription, new ArrayList<String>(), fieldDefMap)
         allTypeDefMap.put(objectTypeName, objectTypeDef)
     }
 
@@ -210,6 +217,137 @@ class GraphQLSchemaUtil {
         return fieldTypeGraphQLMap.get(type)
     }
 
+    static void createObjectTypeNodeForAllDataDocuments(ExecutionContextFactory ecf, Map<String, GraphQLTypeDefinition> allTypeNodeMap) {
+        boolean alreadyDisabled = ecf.executionContext.artifactExecution.disableAuthz()
+        try {
+            EntityList el = ecf.entity.find("moqui.entity.feed.DataFeedDocument").selectField("dataDocumentId").distinct(true).useCache(true).list()
+
+            el.collect { EntityValue ev -> addObjectTypeNode(ecf, ev.get("dataDocumentId") as String, allTypeNodeMap) }
+        } finally {
+            if (!alreadyDisabled) ecf.executionContext.artifactExecution.enableAuthz()
+        }
+    }
+
+    private static void addObjectTypeNode(ExecutionContextFactory ecf, String dataDocumentId, Map<String, GraphQLTypeDefinition> allTypeDefMap) {
+        String objectTypeName = "FT" + dataDocumentId
+        // Check if the type already exist in the map
+        if (allTypeDefMap.get(objectTypeName)) return
+
+        Map<String, Object> dataDocDefMap = getDataDocDefinition(ecf, dataDocumentId)
+
+        addNestFTObjectTypeNode(ecf, objectTypeName, dataDocDefMap, allTypeDefMap)
+    }
+
+    private static void addNestFTObjectTypeNode(ExecutionContextFactory ecf, String objectTypeName, Map<String, Object> dataDocDefCurrent,
+                                                Map<String, GraphQLTypeDefinition> allTypeDefMap) {
+        // Check if the type already exist in the map
+        if (allTypeDefMap.get(objectTypeName)) return
+
+        Map<String, FieldDefinition> fieldDefMap = new LinkedHashMap<>()
+        for (Map.Entry<String, Object> dataDocDefEntry in dataDocDefCurrent) {
+            String fieldName = dataDocDefEntry.key
+            if (dataDocDefEntry.value instanceof Map) {
+                String fieldType = fieldName
+                Map<String, Object> dataDocDefChild = dataDocDefEntry.value as Map
+                String childObjectTypeName = objectTypeName + camelCaseToUpperCamel(fieldType)
+                addNestFTObjectTypeNode(ecf, childObjectTypeName, dataDocDefChild, allTypeDefMap)
+
+                FieldDefinition fieldDef = new FieldDefinition(ecf, fieldName, childObjectTypeName, [isList: "true"])
+                fieldDef.setDataFetcher(new EmptyDataFetcher(fieldDef))
+
+                fieldDefMap.put(fieldName, fieldDef)
+
+            } else {
+                String fieldScalarType = fieldTypeGraphQLMap.get(dataDocDefEntry.value)
+                if (fieldScalarType == null) throw new IllegalArgumentException("Can't map entity field type ${dataDocDefEntry.value} to GraphQL type")
+
+                FieldDefinition fieldDef = GraphQLSchemaDefinition.getCachedFieldDefinition(fieldName, fieldScalarType, "false", "false", "false")
+                if (fieldDef == null) {
+                    fieldDef = new FieldDefinition(ecf, fieldName, fieldScalarType, [:])
+                    GraphQLSchemaDefinition.putCachedFieldDefinition(fieldDef)
+                }
+                fieldDefMap.put(fieldName, fieldDef)
+            }
+        }
+        ObjectTypeDefinition objectTypeDef = new ObjectTypeDefinition(ecf, objectTypeName, "", new ArrayList<String>(), fieldDefMap)
+        allTypeDefMap.put(objectTypeName, objectTypeDef)
+    }
+
+    private static Map<String, Object> getDataDocDefinition(ExecutionContextFactory ecf, String dataDocumentId) {
+        ExecutionContextImpl eci = (ecf as ExecutionContextFactoryImpl).getEci()
+        EntityFacadeImpl efi = eci.entityFacade
+
+        EntityValue dataDocument = efi.fastFindOne("moqui.entity.document.DataDocument", true, false, dataDocumentId)
+        if (dataDocument == null) throw new EntityException("No DataDocument found with ID [${dataDocumentId}]")
+        EntityList dataDocumentFieldList = dataDocument.findRelated("moqui.entity.document.DataDocumentField", null, null, true, false)
+        EntityList dataDocumentRelAliasList = dataDocument.findRelated("moqui.entity.document.DataDocumentRelAlias", null, null, true, false)
+
+        String primaryEntityName = dataDocument.primaryEntityName
+        EntityDefinition primaryEd = efi.getEntityDefinition(primaryEntityName)
+        List<String> primaryPkFieldNames = primaryEd.getPkFieldNames()
+
+        // build the field tree, nested Maps for relationship field path elements and field alias String for field name path elements
+        Map<String, Object> fieldTree = [:]
+        Map<String, String> fieldAliasPathMap = [:]
+        EntityDataDocument.populateFieldTreeAndAliasPathMap(dataDocumentFieldList, primaryPkFieldNames, fieldTree, fieldAliasPathMap)
+        // make the relationship alias Map
+        Map relationshipAliasMap = [:]
+        for (EntityValue dataDocumentRelAlias in dataDocumentRelAliasList)
+            relationshipAliasMap.put(dataDocumentRelAlias.relationshipName, dataDocumentRelAlias.documentAlias)
+
+        Map<String, Object> docDefMap = [:]
+
+        logger.info("fieldTree of ${dataDocumentId}: ${fieldTree}")
+
+        for (Map.Entry<String, Object> entry in fieldTree) {
+            if (entry.value instanceof Map) continue
+            FieldInfo fieldInfo = primaryEd.getFieldInfo(entry.key as String)
+            if (fieldInfo == null) throw new EntityException("Can't find field ${entry.key} in entity ${primaryEntityName} for data docuemnet ${dataDocumentId}")
+            docDefMap.put(entry.value as String, fieldInfo.type)
+        }
+        populateDataDocDefinitionRelatedMap(docDefMap, primaryEd, fieldTree, relationshipAliasMap, false)
+
+        return docDefMap
+    }
+
+    private static populateDataDocDefinitionRelatedMap(Map<String, Object> parentDocMap, EntityDefinition parentEd,
+                                                       Map<String, Object> fieldTreeCurrent, Map relationshipAliasMap, boolean setFields) {
+        for (Map.Entry<String, Object> fieldTreeEntry in fieldTreeCurrent) {
+            if (fieldTreeEntry.value instanceof Map) {
+                String relationshipName = fieldTreeEntry.key
+                Map<String, Object> fieldTreeChild = fieldTreeEntry.value as Map
+
+                RelationshipInfo relationshipInfo = parentEd.getRelationshipInfo(relationshipName)
+                String relDocumentAlias = relationshipAliasMap.get(relationshipName) ?: relationshipInfo.shortAlias ?: relationshipName
+                EntityDefinition relatedEd = relationshipInfo.relatedEd
+                boolean isOneRelationship = relationshipInfo.isTypeOne
+
+                boolean recurseSetFields = true
+                if (isOneRelationship) {
+                    populateDataDocDefinitionRelatedMap(parentDocMap, relatedEd, fieldTreeChild, relationshipAliasMap, recurseSetFields)
+                } else {
+                    recurseSetFields = false
+                    Map<String, Object> relatedDocMap = [:]
+                    for (Map.Entry<String, Object> fieldTreeChildEntry in fieldTreeChild) {
+                        if (fieldTreeChildEntry.value instanceof Map) continue
+                        FieldInfo fieldInfo = relatedEd.getFieldInfo(fieldTreeChildEntry.key as String)
+                        if (fieldInfo == null) throw new EntityException("Can't find field ${fieldTreeChildEntry.key} in entity ${relatedEd.getEntityName()}")
+                        relatedDocMap.put(fieldTreeChildEntry.value as String, fieldInfo.type)
+                    }
+                    populateDataDocDefinitionRelatedMap(relatedDocMap, relatedEd, fieldTreeChild, relationshipAliasMap, recurseSetFields)
+                    parentDocMap.put(relDocumentAlias, relatedDocMap)
+                }
+
+            } else {
+                if (setFields) {
+                    FieldInfo fieldInfo = parentEd.getFieldInfo(fieldTreeEntry.key as String)
+                    if (fieldInfo == null) throw new EntityException("Can't find field ${fieldTreeEntry.key} in entity ${parentEd.getEntityName()}")
+                    parentDocMap.put(fieldTreeEntry.value as String, fieldInfo.type)
+                }
+            }
+        }
+
+    }
 
     static void mergeFieldDefinition(MNode fieldNode, Map<String, FieldDefinition> fieldDefMap, ExecutionContextFactory ecf) {
         FieldDefinition fieldDef = fieldDefMap.get(fieldNode.attribute("name"))
