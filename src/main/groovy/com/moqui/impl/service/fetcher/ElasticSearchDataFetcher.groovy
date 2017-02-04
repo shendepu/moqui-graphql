@@ -21,12 +21,17 @@ class ElasticSearchDataFetcher extends BaseDataFetcher {
     String dataDocumentId
     String indexName
     String requireAuthentication
+    List<String> localizeFields = new ArrayList<>()
 
     ElasticSearchDataFetcher(MNode node, FieldDefinition fieldDef, ExecutionContextFactory ecf) {
         super(fieldDef, ecf)
         this.requireAuthentication = node.attribute("require-authentication") ?: fieldDef.requireAuthentication ?: "true"
 
         dataDocumentId = node.attribute("data-document-id")
+
+        for (MNode localizeFieldNode in node.children("localize-field")) {
+            localizeFields.add(localizeFieldNode.attribute("name"))
+        }
 
         boolean alreadyDisabled = ecf.executionContext.artifactExecution.disableAuthz()
         try {
@@ -35,6 +40,43 @@ class ElasticSearchDataFetcher extends BaseDataFetcher {
             this.indexName = dataDocument.get("indexName")
         } finally {
             if (!alreadyDisabled) ecf.executionContext.artifactExecution.enableAuthz()
+        }
+    }
+
+    private static localizeFieldPath(ExecutionContext ec, Object parentData, String restPathElement) {
+        while (!restPathElement.isEmpty()) {
+            if (parentData instanceof List) {
+                for (Object listItem in parentData) localizeFieldPath(ec, listItem, restPathElement)
+            } else if (parentData instanceof Map) {
+                String currentPathElement
+                int colonPos = restPathElement.indexOf(":")
+                if (colonPos > -1) {
+                    currentPathElement = restPathElement.substring(0, colonPos)
+                    restPathElement = restPathElement.substring(colonPos + 1)
+                } else {
+                    currentPathElement = restPathElement
+                    restPathElement = ""
+                }
+
+                Object currentData = parentData.get(currentPathElement)
+                if (currentData == null) return
+
+                if (currentData instanceof List || currentData instanceof Map) {
+                    localizeFieldPath(ec, currentData, restPathElement)
+                } else if (currentData instanceof String) {
+                    if (!restPathElement.isEmpty()) {
+                        logger.warn("Localize field of data document is not on leaf")
+                        return
+                    }
+                    parentData.put(currentPathElement, ec.l10n.localize(currentData))
+                }
+            }
+        }
+    }
+
+    private void localizeDocument(Map<String, Object> document) {
+        for (String localizeField in localizeFields) {
+            localizeFieldPath(ecf.getExecutionContext(), document, localizeField)
         }
     }
 
@@ -104,6 +146,7 @@ class ElasticSearchDataFetcher extends BaseDataFetcher {
                 List<Map<String, Object>> documentList = ddMap.documentList as List
                 List<Map<String, Object>> edgesDataList = new ArrayList<>(documentList.size())
                 for (Map<String, Object> document in documentList) {
+                    localizeDocument(document)
                     Map<String, Object> edgeMap = new HashMap<>(2)
                     Map<String, Object> nodeMap = new HashMap<>()
                     populateResult(nodeMap, document)
@@ -121,7 +164,10 @@ class ElasticSearchDataFetcher extends BaseDataFetcher {
                 GetResponse docGr = elasticSearchClient.prepareGet(indexName, dataDocumentId, _id).execute().actionGet()
 
                 Map<String, Object> resultMap = [:]
-                populateResult(resultMap, docGr.getSourceAsMap())
+                Map<String, Object> document = docGr.getSourceAsMap()
+                localizeDocument(document)
+
+                populateResult(resultMap, document)
                 return resultMap
             }
 
