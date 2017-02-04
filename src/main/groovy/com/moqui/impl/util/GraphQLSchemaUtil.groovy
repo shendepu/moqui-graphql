@@ -273,7 +273,7 @@ class GraphQLSchemaUtil {
         allTypeDefMap.put(objectTypeName, objectTypeDef)
     }
 
-    private static Map<String, Object> getDataDocDefinition(ExecutionContextFactory ecf, String dataDocumentId) {
+    static Map<String, Object> getDataDocDefinition(ExecutionContextFactory ecf, String dataDocumentId) {
         ExecutionContextImpl eci = (ecf as ExecutionContextFactoryImpl).getEci()
         EntityFacadeImpl efi = eci.entityFacade
 

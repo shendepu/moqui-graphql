@@ -268,6 +268,14 @@ along with this software (see the LICENSE.md file). If not, see
         </xs:complexType>
     </xs:element>
 
+    <xs:element name="es-fetcher">
+        <xs:annotation><xs:documentation>fetcher by elastic search</xs:documentation></xs:annotation>
+        <xs:complexType>
+            <xs:attribute name="data-document-id" type="name-upper" use="required"/>
+            <xs:attribute name="require-authentication" type="authc-options" default="true"/>
+        </xs:complexType>
+    </xs:element>
+
     <xs:element name="field">
         <xs:complexType>
             <xs:sequence>
@@ -279,6 +287,7 @@ along with this software (see the LICENSE.md file). If not, see
                     <xs:element ref="empty-fetcher"/>
                     <xs:element ref="entity-fetcher"/>
                     <xs:element ref="service-fetcher"/>
+                    <xs:element ref="es-fetcher"/>
                     <xs:element ref="interface-fetcher"/>
                 </xs:choice>
                 <xs:element minOccurs="0" maxOccurs="1" ref="pre-fetcher"/>

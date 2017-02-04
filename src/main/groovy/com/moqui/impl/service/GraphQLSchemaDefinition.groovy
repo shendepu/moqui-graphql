@@ -14,6 +14,7 @@
 package com.moqui.impl.service
 
 import com.moqui.impl.service.fetcher.BaseDataFetcher
+import com.moqui.impl.service.fetcher.ElasticSearchDataFetcher
 import com.moqui.impl.service.fetcher.EmptyDataFetcher
 import com.moqui.impl.service.fetcher.EntityBatchedDataFetcher
 import com.moqui.impl.service.fetcher.InterfaceBatchedDataFetcher
@@ -1528,6 +1529,11 @@ public class GraphQLSchemaDefinition {
                         MNode refNode = interfaceFetcherNodeMap.get(refName)
                         this.dataFetcher = new InterfaceBatchedDataFetcher(childNode, refNode, this, ecf)
                         break
+                    case "es-fetcher":
+                        dataFetcherType = "elastic-search"
+                        dataFetcherNode = childNode
+                        this.dataFetcher = new ElasticSearchDataFetcher(childNode, this, ecf)
+                        break
                     case "empty-fetcher":
                         dataFetcherType = "empty"
                         dataFetcherNode = childNode
@@ -1544,15 +1550,20 @@ public class GraphQLSchemaDefinition {
             if (dataFetcher == null && !GraphQLSchemaUtil.graphQLScalarTypes.keySet().contains(type))
                 dataFetcher = new EmptyDataFetcher(this)
 
-            if (dataFetcherType == "entity" || dataFetcherType == "interface") {
-                addEntityAutoArguments(new ArrayList<String>())
-                addPeriodValidArguments()
-                updateArgumentDefs()
-            }
-
-            if (dataFetcherType == "service") {
-                if (isMutation) addInputArgument()
-                else addServiceAutoArguments(dataFetcherNode)
+            switch (dataFetcherType) {
+                case "entity":
+                case "interface":
+                    addEntityAutoArguments(new ArrayList<String>())
+                    addPeriodValidArguments()
+                    updateArgumentDefs()
+                    break
+                case "service":
+                    if (isMutation) addInputArgument()
+                    else addServiceAutoArguments(dataFetcherNode)
+                    break
+                case "elastic-search":
+                    addElasticSearchAutoArguments(dataFetcherNode)
+                    break
             }
         }
 
@@ -1710,6 +1721,18 @@ public class GraphQLSchemaDefinition {
                 }
                 argumentDefMap.put(paramName, argumentDef)
             }
+        }
+
+        private void addElasticSearchAutoArguments(MNode elasticSearchFetcherNode) {
+            if (isMutation) return
+
+            // add queryString argument
+            ArgumentDefinition argumentDef = getCachedArgumentDefinition("queryString", "String", "true")
+            if (argumentDef == null) {
+                argumentDef = new ArgumentDefinition(this, "queryString", "String", "true", null, null)
+                putCachedArgumentDefinition(argumentDef)
+            }
+            argumentDefMap.put("queryString", argumentDef)
         }
 
         private void addEntityAutoArguments(List<String> excludedFields) {
