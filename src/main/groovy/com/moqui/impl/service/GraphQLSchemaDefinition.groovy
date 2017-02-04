@@ -1725,14 +1725,23 @@ public class GraphQLSchemaDefinition {
 
         private void addElasticSearchAutoArguments(MNode elasticSearchFetcherNode) {
             if (isMutation) return
-
-            // add queryString argument
-            ArgumentDefinition argumentDef = getCachedArgumentDefinition("queryString", "String", "true")
-            if (argumentDef == null) {
-                argumentDef = new ArgumentDefinition(this, "queryString", "String", "true", null, null)
-                putCachedArgumentDefinition(argumentDef)
+            ArgumentDefinition argumentDef
+            if (isList == "true") {
+                // add queryString argument
+                argumentDef = getCachedArgumentDefinition("queryString", "String", "true")
+                if (argumentDef == null) {
+                    argumentDef = new ArgumentDefinition(this, "queryString", "String", "true", null, null)
+                    putCachedArgumentDefinition(argumentDef)
+                }
+                argumentDefMap.put("queryString", argumentDef)
+            } else {
+                argumentDef = getCachedArgumentDefinition("_id", "String", "true")
+                if (argumentDef == null) {
+                    argumentDef = new ArgumentDefinition(this, "_id", "String", "true", null, null)
+                    putCachedArgumentDefinition(argumentDef)
+                }
+                argumentDefMap.put("_id", argumentDef)
             }
-            argumentDefMap.put("queryString", argumentDef)
         }
 
         private void addEntityAutoArguments(List<String> excludedFields) {
