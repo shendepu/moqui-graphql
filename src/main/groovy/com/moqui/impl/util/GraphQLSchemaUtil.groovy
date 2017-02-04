@@ -296,8 +296,8 @@ class GraphQLSchemaUtil {
             relationshipAliasMap.put(dataDocumentRelAlias.relationshipName, dataDocumentRelAlias.documentAlias)
 
         Map<String, Object> docDefMap = [:]
-
-        logger.info("fieldTree of ${dataDocumentId}: ${fieldTree}")
+        docDefMap.put("_id", "id")
+//        logger.info("fieldTree of ${dataDocumentId}: ${fieldTree}")
 
         for (Map.Entry<String, Object> entry in fieldTree) {
             if (entry.value instanceof Map) continue
