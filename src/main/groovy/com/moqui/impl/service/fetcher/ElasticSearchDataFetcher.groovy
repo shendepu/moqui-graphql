@@ -44,6 +44,7 @@ class ElasticSearchDataFetcher extends BaseDataFetcher {
     }
 
     private static localizeFieldPath(ExecutionContext ec, Object parentData, String restPathElement) {
+        if (parentData == null) return
         while (!restPathElement.isEmpty()) {
             if (parentData instanceof List) {
                 for (Object listItem in parentData) localizeFieldPath(ec, listItem, restPathElement)
@@ -70,17 +71,21 @@ class ElasticSearchDataFetcher extends BaseDataFetcher {
                     }
                     parentData.put(currentPathElement, ec.l10n.localize(currentData))
                 }
+            } else {
+                return // not list, map nested structure
             }
         }
     }
 
     private void localizeDocument(Map<String, Object> document) {
+        if (document == null) return
         for (String localizeField in localizeFields) {
             localizeFieldPath(ecf.getExecutionContext(), document, localizeField)
         }
     }
 
     private static void populateResult(Map<String, Object> dataMap, Map<String, Object> dataTreeCurrent) {
+        if (dataTreeCurrent == null) return
         for (Map.Entry<String, Object> entry in dataTreeCurrent) {
             if (entry.value instanceof List) {
                 List<Map<String, Object>> dataTreeChildList = entry.value as List
