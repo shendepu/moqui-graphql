@@ -6,6 +6,7 @@ import org.moqui.context.ExecutionContextFactory
 import org.moqui.entity.EntityException
 import org.moqui.entity.EntityValue
 import org.moqui.impl.context.UserFacadeImpl
+import org.moqui.impl.entity.condition.ListCondition
 import org.moqui.util.MNode
 import org.elasticsearch.client.Client
 import org.elasticsearch.action.get.GetResponse
@@ -130,6 +131,16 @@ class ElasticSearchDataFetcher extends BaseDataFetcher {
             if (fieldDef.isList == "true") {
                 Map<String, Object> paramMap = [indexName  : indexName, documentType: dataDocumentId, flattenDocument: false,
                                                 queryString: environment.arguments.get("queryString")]
+                Map paginationArg = environment.arguments.pagination as Map
+                if (paginationArg) {
+                    if (paginationArg.pageIndex != null) paramMap.put("pageIndex", paginationArg.pageIndex)
+                    if (paginationArg.pageSize != null) paramMap.put("pageSize", paginationArg.pageSize)
+                    if (paginationArg.orderByField != null && !(paginationArg.orderByField as String).isEmpty()) {
+                        List<String> orderByFields = (paginationArg.orderByField as String).split(',').toList()
+                        orderByFields.collect { String it -> it.trim() }
+                        paramMap.put("orderByFields", orderByFields)
+                    }
+                }
 
                 Map<String, Object> ddMap = ec.service.sync().name("org.moqui.search.SearchServices.search#DataDocuments").parameters(paramMap).call()
 
