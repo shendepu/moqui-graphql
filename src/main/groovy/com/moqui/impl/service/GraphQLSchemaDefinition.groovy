@@ -1547,8 +1547,6 @@ public class GraphQLSchemaDefinition {
                         break
                 }
             }
-            if (dataFetcher == null && !GraphQLSchemaUtil.graphQLScalarTypes.keySet().contains(type))
-                dataFetcher = new EmptyDataFetcher(this)
 
             switch (dataFetcherType) {
                 case "entity":
@@ -1700,6 +1698,8 @@ public class GraphQLSchemaDefinition {
             for (String paramName in sd.getInParameterNames()) {
                 MNode parameterNode = sd.getInParameter(paramName)
                 String paramType = parameterNode.attribute("type") ?: "String"
+                if (paramType == "graphql.schema.DataFetchingEnvironment") continue // ignored
+
                 // TODO: get description from parameter description node
                 String paramDescription = ""
 
