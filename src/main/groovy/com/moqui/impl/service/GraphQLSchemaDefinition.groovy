@@ -1548,16 +1548,17 @@ public class GraphQLSchemaDefinition {
                 }
             }
 
+            Map<String, String> keyMap = getDataFetcherKeyMap(dataFetcherNode)
             switch (dataFetcherType) {
                 case "entity":
                 case "interface":
-                    addEntityAutoArguments(new ArrayList<String>())
+                    addEntityAutoArguments(new ArrayList<String>(), keyMap)
                     addPeriodValidArguments()
                     updateArgumentDefs()
                     break
                 case "service":
                     if (isMutation) addInputArgument()
-                    else addServiceAutoArguments(dataFetcherNode)
+                    else addServiceAutoArguments(dataFetcherNode, keyMap)
                     break
                 case "elastic-search":
                     addElasticSearchAutoArguments(dataFetcherNode)
@@ -1595,7 +1596,7 @@ public class GraphQLSchemaDefinition {
             this.description = fieldPropertyMap.get("description")
             this.depreciationReason = fieldPropertyMap.get("depreciationReason")
 
-            addEntityAutoArguments(excludedArguments)
+            addEntityAutoArguments(excludedArguments, [:])
             updateArgumentDefs()
             addInputArgument()
             addPeriodValidArguments()
@@ -1687,7 +1688,15 @@ public class GraphQLSchemaDefinition {
             return baseArgumentDef
         }
 
-        private void addServiceAutoArguments(MNode serviceFetcherNode) {
+        private static Map<String, String> getDataFetcherKeyMap(MNode fetcherNode) {
+            Map<String, String> keyMap = new HashMap<>(1)
+            if (fetcherNode == null) return keyMap
+            for (MNode keyMapNode in fetcherNode.children("key-map"))
+                keyMap.put(keyMapNode.attribute("field-name"), keyMapNode.attribute("related") ?: keyMapNode.attribute("field-name"))
+            return keyMap
+        }
+
+        private void addServiceAutoArguments(MNode serviceFetcherNode, Map<String, String> keyMap) {
             if (isMutation) return
 
             String serviceName = serviceFetcherNode.attribute("service")
@@ -1698,6 +1707,7 @@ public class GraphQLSchemaDefinition {
             for (String paramName in sd.getInParameterNames()) {
                 MNode parameterNode = sd.getInParameter(paramName)
                 String paramType = parameterNode.attribute("type") ?: "String"
+                if (keyMap.values().contains(paramName)) continue
                 if (paramType == "graphql.schema.DataFetchingEnvironment") continue // ignored
 
                 // TODO: get description from parameter description node
@@ -1744,7 +1754,7 @@ public class GraphQLSchemaDefinition {
             }
         }
 
-        private void addEntityAutoArguments(List<String> excludedFields) {
+        private void addEntityAutoArguments(List<String> excludedFields, Map<String, String> explicitKeyMap) {
             if (isMutation) return
             if (GraphQLSchemaUtil.graphQLScalarTypes.keySet().contains(type) || graphQLDirectiveArgumentMap.keySet().contains(type)) return
 
@@ -1755,6 +1765,8 @@ public class GraphQLSchemaDefinition {
             List<String> fieldNames = new ArrayList<>()
             if ("true".equals(isList)) fieldNames.addAll(ed.getFieldNames(true, true))
             else fieldNames.addAll(ed.getFieldNames(true, false))
+
+            fieldNames.removeAll(explicitKeyMap.values())
 
             for (String fieldName in fieldNames) {
                 if (excludedFields.contains(fieldName)) continue

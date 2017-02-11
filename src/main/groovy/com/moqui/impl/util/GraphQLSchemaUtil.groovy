@@ -419,6 +419,11 @@ class GraphQLSchemaUtil {
         }
     }
 
+    static void transformQueryServiceRelArguments(Map<String, Object> source, Map<String, String> relKeyMap, Map<String, Object> inParameterMap) {
+        for (Map.Entry<String, Object> keyMapEntry in relKeyMap)
+            inParameterMap.put(keyMapEntry.value as String, source.get(keyMapEntry.key))
+    }
+
     static void transformQueryServiceArguments(ServiceDefinition sd, Map<String, Object> arguments, Map<String, Object> inParameterMap) {
         for (Map.Entry<String, Object> entry in arguments.entrySet()) {
             String paramName = entry.key

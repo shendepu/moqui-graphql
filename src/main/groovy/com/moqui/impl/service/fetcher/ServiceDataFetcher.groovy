@@ -21,12 +21,16 @@ class ServiceDataFetcher extends BaseDataFetcher {
     String serviceName
     String requireAuthentication
     ServiceDefinition sd
+    Map<String, String> relKeyMap = new HashMap<>()
 
     ServiceDataFetcher(MNode node, FieldDefinition fieldDef, ExecutionContextFactory ecf) {
         super(fieldDef, ecf)
         this.requireAuthentication = node.attribute("require-authentication") ?: fieldDef.requireAuthentication ?: "true"
 
         this.serviceName = node.attribute("service")
+
+        for (MNode keyMapNode in node.children("key-map"))
+            relKeyMap.put(keyMapNode.attribute("field-name"), keyMapNode.attribute("related") ?: keyMapNode.attribute("field-name"))
 
         sd = ((ExecutionContextFactoryImpl) ecf).serviceFacade.getServiceDefinition(serviceName)
         if (sd == null) throw new IllegalArgumentException("Service ${serviceName} not found")
@@ -47,8 +51,15 @@ class ServiceDataFetcher extends BaseDataFetcher {
 
         try {
             Map<String, Object> inputFieldsMap = new HashMap<>()
-            if (fieldDef.isMutation) GraphQLSchemaUtil.transformArguments(environment.arguments, inputFieldsMap)
-            else GraphQLSchemaUtil.transformQueryServiceArguments(sd, environment.arguments, inputFieldsMap)
+            if (fieldDef.isMutation) {
+                GraphQLSchemaUtil.transformArguments(environment.arguments, inputFieldsMap)
+            }
+            else {
+                GraphQLSchemaUtil.transformQueryServiceArguments(sd, environment.arguments, inputFieldsMap)
+                logger.info("environment.source: ${environment.source}")
+                Map source = environment.source as Map<String, Object>
+                GraphQLSchemaUtil.transformQueryServiceRelArguments(source, relKeyMap, inputFieldsMap)
+            }
             logger.info("inputFieldsMap - ${inputFieldsMap}")
 
             Map result
