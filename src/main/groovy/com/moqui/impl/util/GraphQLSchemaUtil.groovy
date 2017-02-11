@@ -430,7 +430,8 @@ class GraphQLSchemaUtil {
             if ("if".equals(paramName)) continue
             if (entry.value == null) continue
             MNode paramNode = sd.getInParameter(paramName)
-            String paramType = paramNode.attribute("type")
+            if (paramNode == null) throw new IllegalArgumentException("Service ${sd.serviceName} missing in parameter ${paramName}")
+            String paramType = paramNode.attribute("type") ?: "String"
             Object paramJavaTypeValue
             logger.info("argument: ${paramName} - ${entry.value}")
             switch (paramType) {
