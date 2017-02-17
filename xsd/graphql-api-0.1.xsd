@@ -413,13 +413,6 @@ along with this software (see the LICENSE.md file). If not, see
         </xs:complexType>
     </xs:element>
 
-    <!-- Depreciated, since 62228e1, there is no need to pre-load object type -->
-    <!--<xs:element name="pre-load-object">-->
-        <!--<xs:complexType>-->
-            <!--<xs:attribute name="object-type" type="xs:string"/>-->
-        <!--</xs:complexType>-->
-    <!--</xs:element>-->
-
     <xs:element name="schema">
         <xs:complexType>
             <xs:sequence>
@@ -430,7 +423,6 @@ along with this software (see the LICENSE.md file). If not, see
                     </xs:choice>
                     <xs:element ref="interface-fetcher"/>
                     <xs:element ref="input-type"/>
-                    <!--<xs:element ref="pre-load-object"/>-->
                 </xs:choice>
             </xs:sequence>
             <xs:attribute name="name" type="xs:string" use="required"/>

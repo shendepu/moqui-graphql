@@ -88,7 +88,6 @@ class GraphQLSchemaDefinition {
     protected final Map<String, GraphQLInputType> schemaInputTypeMap = new HashMap<>()
 
     protected final ArrayList<String> schemaInputTypeNameList = new ArrayList<>()
-    protected final List<String> preLoadObjectTypes = new LinkedList<>()
 
     protected Map<String, GraphQLTypeDefinition> allTypeDefMap = new LinkedHashMap<>()
     protected LinkedList<GraphQLTypeDefinition> allTypeDefSortedList = new LinkedList<>()
@@ -97,10 +96,8 @@ class GraphQLSchemaDefinition {
     protected static Map<String, MNode> interfaceFetcherNodeMap = new HashMap<>()
     protected static Set<String> interfaceResolverTypeSet = new HashSet<>()
 
-    // Only cache scalar field definition
     protected static Map<String, FieldDefinition> fieldDefMap = new HashMap<>()
 
-    // Cache argument of scalar and OperationInputType, DateRageInputType
     protected static Map<String, ArgumentDefinition> argumentDefMap = new HashMap<>()
 
     protected Map<String, InterfaceTypeDefinition> interfaceTypeDefMap = new LinkedHashMap<>()
@@ -260,10 +257,6 @@ class GraphQLSchemaDefinition {
                     case "extend-object":
                         extendObjectDefMap.put(childNode.attribute("name"),
                                                mergeExtendObjectDef(extendObjectDefMap, new ExtendObjectDefinition(childNode, ecf)))
-                        break
-                    case "pre-load-object":
-                        if (!preLoadObjectTypes.contains(childNode.attribute("object-type")))
-                            preLoadObjectTypes.add(childNode.attribute("object-type"))
                         break
                 }
             }
@@ -479,11 +472,6 @@ class GraphQLSchemaDefinition {
 
         GraphQLTypeDefinition queryTypeDef = getTypeDef(queryRootObjectTypeName)
         GraphQLTypeDefinition mutationTypeDef = getTypeDef(mutationRootObjectTypeName)
-
-        for (String preLoadObjectType in preLoadObjectTypes) {
-            GraphQLTypeDefinition preLoadObjectTypeDef = getTypeDef(preLoadObjectType)
-            if (preLoadObjectTypeDef != null) allTypeDefSortedList.add(preLoadObjectTypeDef)
-        }
 
         TreeNode<GraphQLTypeDefinition> rootNode = new TreeNode<>(null)
         TreeNode<GraphQLTypeDefinition> interfaceNode = new TreeNode<>(null)
