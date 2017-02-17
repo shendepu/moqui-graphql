@@ -547,6 +547,7 @@ class GraphQLSchemaUtil {
 
     static String camelCaseToUpperCamel(String camelCase) {
         if (camelCase == null || camelCase.length() == 0) return ""
-        return camelCase.replace(camelCase.charAt(0), Character.toUpperCase(camelCase.charAt(0)))
+
+        return Character.toString(Character.toUpperCase(camelCase.charAt(0))) + camelCase.substring(1)
     }
 }
