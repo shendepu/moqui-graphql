@@ -56,7 +56,7 @@ import static graphql.Scalars.GraphQLInt
 import static graphql.Scalars.GraphQLString
 
 @CompileStatic
-public class GraphQLSchemaDefinition {
+class GraphQLSchemaDefinition {
     protected final static Logger logger = LoggerFactory.getLogger(GraphQLSchemaDefinition.class)
 
     @SuppressWarnings("GrFinalVariableAccess")
@@ -103,10 +103,7 @@ public class GraphQLSchemaDefinition {
     // Cache argument of scalar and OperationInputType, DateRageInputType
     protected static Map<String, ArgumentDefinition> argumentDefMap = new HashMap<>()
 
-//    protected Map<String, UnionTypeDefinition> unionTypeDefMap = new HashMap<>()
-//    protected Map<String, EnumTypeDefinition> enumTypeDefMap = new HashMap<>()
     protected Map<String, InterfaceTypeDefinition> interfaceTypeDefMap = new LinkedHashMap<>()
-//    protected Map<String, ObjectTypeDefinition> objectTypeDefMap = new HashMap<>()
     protected Map<String, ExtendObjectDefinition> extendObjectDefMap = new LinkedHashMap<>()
 
     protected static GraphQLObjectType pageInfoType
@@ -118,15 +115,6 @@ public class GraphQLSchemaDefinition {
     protected static GraphQLArgument paginationArgument
     protected static GraphQLArgument ifArgument
     protected static GraphQLInputObjectField clientMutationIdInputField
-
-    protected Integer graphQLEnumTypeCount = 0
-    protected Integer graphQLUnionTypeCount = 0
-    protected Integer graphQLInterfaceTypeCount = 0
-    protected Integer graphQLObjectTypeCount = 0
-    protected Integer graphQLFieldCount = 0
-    protected Integer graphQLArgumentCount = 1
-    protected Integer graphQLInputTypeCount = 0
-    protected Integer graphQLInputFieldCount = 0
 
     protected static final String KEY_SPLITTER = "__"
     protected static final String NON_NULL_SUFFIX = "_1"
@@ -220,7 +208,7 @@ public class GraphQLSchemaDefinition {
         graphQLInputObjectFieldMap.put("clientMutationId", clientMutationIdInputField)
     }
 
-    public GraphQLSchemaDefinition(ExecutionContextFactory ecf, Map<String, MNode> schemaNodeMap) {
+    GraphQLSchemaDefinition(ExecutionContextFactory ecf, Map<String, MNode> schemaNodeMap) {
         this.ecf = ecf
 
         this.schemaNodeMap = schemaNodeMap.sort { Map.Entry<String, MNode> it ->
@@ -317,22 +305,22 @@ public class GraphQLSchemaDefinition {
         allTypeDefMap.put(rootObjectTypeName,  objectTypeDef)
     }
 
-    public static FieldDefinition getCachedFieldDefinition(String name, String rawTypeName, String nonNull, String isList, String listItemNonNull) {
+    static FieldDefinition getCachedFieldDefinition(String name, String rawTypeName, String nonNull, String isList, String listItemNonNull) {
         return fieldDefMap.get(getFieldKey(name, rawTypeName, nonNull, isList, listItemNonNull))
     }
 
-    public static void putCachedFieldDefinition(FieldDefinition fieldDef) {
+    static void putCachedFieldDefinition(FieldDefinition fieldDef) {
         String fieldKey = getFieldKey(fieldDef.name, fieldDef.type, fieldDef.nonNull, fieldDef.isList, fieldDef.listItemNonNull)
         if (fieldDefMap.get(fieldKey) != null)
             throw new IllegalArgumentException("FieldDefinition [${fieldDef.name} - ${fieldDef.type}] already exists in cache")
         fieldDefMap.put(fieldKey, fieldDef)
     }
 
-    public static ArgumentDefinition getCachedArgumentDefinition(String name, String type, String required) {
+    static ArgumentDefinition getCachedArgumentDefinition(String name, String type, String required) {
         return argumentDefMap.get(getArgumentKey(name, type, required))
     }
 
-    public static String getArgumentTypeName(String type, String fieldIsList) {
+    static String getArgumentTypeName(String type, String fieldIsList) {
         if (!"true".equals(fieldIsList)) return type
         if (GraphQLSchemaUtil.graphQLStringTypes.contains(type) || GraphQLSchemaUtil.graphQLNumericTypes.contains(type) ||
                 GraphQLSchemaUtil.graphQLDateTypes.contains(type))
@@ -342,7 +330,7 @@ public class GraphQLSchemaDefinition {
         return type
     }
 
-    public static void putCachedArgumentDefinition(ArgumentDefinition argDef) {
+    static void putCachedArgumentDefinition(ArgumentDefinition argDef) {
         if (!(GraphQLSchemaUtil.graphQLScalarTypes.containsKey(argDef.type) ||
                 dateRangeInputType.name.equals(argDef.type) ||
                 operationInputType.name.equals(argDef.type))) return
@@ -353,17 +341,17 @@ public class GraphQLSchemaDefinition {
         argumentDefMap.put(argumentKey, argDef)
     }
 
-    public static String getArgumentKey(String name, String type) {
+    static String getArgumentKey(String name, String type) {
         return getArgumentKey(name, type, null)
     }
 
-    public static String getArgumentKey(String name, String type, String required) {
+    static String getArgumentKey(String name, String type, String required) {
         String argumentKey = name + KEY_SPLITTER + type
         if ("true".equals(required)) argumentKey = argumentKey + REQUIRED_SUFFIX
         return argumentKey
     }
 
-    public static void clearAllCachedGraphQLTypes() {
+    static void clearAllCachedGraphQLTypes() {
         graphQLOutputTypeMap.clear()
         graphQLInputTypeMap.clear()
         graphQLEnumTypeMap.clear()
@@ -427,12 +415,12 @@ public class GraphQLSchemaDefinition {
                     String inputTypeName = GraphQLSchemaUtil.camelCaseToUpperCamel(fieldDef.name) + "Input"
                     ServiceDefinition sd = ((ExecutionContextFactoryImpl) ecf).serviceFacade.getServiceDefinition(serviceName)
 
-                    logger.info("======== inputTypeName - ${inputTypeName}")
+//                    logger.info("======== inputTypeName - ${inputTypeName}")
                     Map<String, InputObjectFieldDefinition> inputFieldMap = new LinkedHashMap<>(sd.getInParameterNames().size())
                     for (String parmName in sd.getInParameterNames()) {
                         MNode parmNode = sd.getInParameter(parmName)
                         String inputFieldType = GraphQLSchemaUtil.getGraphQLType(parmNode.attribute("type"))
-                        logger.info("======== inputField ${parmName} - SD type: ${parmNode.attribute("type")}, inputFieldType: ${inputFieldType}")
+//                        logger.info("======== inputField ${parmName} - SD type: ${parmNode.attribute("type")}, inputFieldType: ${inputFieldType}")
                         Object defaultValue = null
 
                         InputObjectFieldDefinition inputFieldDef = new InputObjectFieldDefinition(parmName, inputFieldType, defaultValue, "")
@@ -445,10 +433,13 @@ public class GraphQLSchemaDefinition {
                         InputObjectFieldDefinition inputFieldDef = inputFieldEntry.getValue()
 
                         if ("clientMutationId".equals(inputFieldDef.name)) continue
+
+                        // For now only support input field of scalar type.
                         if (!GraphQLSchemaUtil.graphQLScalarTypes.keySet().contains(inputFieldDef.type))
                             throw new IllegalArgumentException("GraphQLInputObjectField [${inputFieldDef.name} - ${inputFieldDef.type}] should be GraphQLScalarType types")
 
-                        String inputFieldKey = inputFieldDef.name + KEY_SPLITTER + inputFieldDef.type
+                        // TODO: inputFieldKey may need to include defaultValue
+                        String inputFieldKey = getInputFieldKey(inputFieldDef.name, inputFieldDef.type, null)
                         GraphQLInputObjectField inputField = graphQLInputObjectFieldMap.get(inputFieldKey)
                         if (inputField == null) {
                             inputField = GraphQLInputObjectField.newInputObjectField()
@@ -457,6 +448,8 @@ public class GraphQLSchemaDefinition {
                                     .defaultValue(inputFieldDef.defaultValue)
                                     .description(inputFieldDef.description)
                                     .build()
+                            graphQLInputObjectFieldMap.put(inputFieldKey, inputField)
+                            logger.info("======== create InputField ${inputFieldDef.name} - ${inputFieldDef.type}")
                         }
                         inputObjectTypeBuilder.field(inputField)
                     }
@@ -466,6 +459,19 @@ public class GraphQLSchemaDefinition {
                 }
             }
         }
+    }
+
+    private static int unknownInputDefaultValueNum = 0
+    private static getInputFieldKey(String name, String type, Object defaultValue) {
+        String defaultValueKey
+        if (defaultValue == null) {
+            defaultValueKey = "NULL"
+        } else {
+            // TODO: generate a unique key based on defaultValue
+            defaultValueKey = "UNKNOWN" + Integer.toString(unknownInputDefaultValueNum)
+            unknownInputDefaultValueNum++
+        }
+        return name + KEY_SPLITTER + type + KEY_SPLITTER + defaultValueKey
     }
 
     private void populateSortedTypes() {
@@ -574,17 +580,14 @@ public class GraphQLSchemaDefinition {
         }
     }
 
-    public GraphQLSchema getSchema() {
+    GraphQLSchema getSchema() {
         addSchemaInputTypes()
         populateSortedTypes()
-
-        Integer unionTypeCount = 0, enumTypeCount = 0, interfaceTypeCount = 0, objectTypeCount = 0
 
         // Initialize interface type first to prevent null reference when initialize object type
 //        for (GraphQLTypeDefinition typeDef in allTypeDefSortedList) {
 //            if (!("interface".equals(typeDef.type))) continue
 //            addGraphQLInterfaceType((InterfaceTypeDefinition) typeDef)
-//            interfaceTypeCount++
 //        }
 
         for (GraphQLTypeDefinition typeDef in allTypeDefSortedList) {
@@ -592,19 +595,15 @@ public class GraphQLSchemaDefinition {
             switch (typeDef.type) {
                 case "union":
                     addGraphQLUnionType((UnionTypeDefinition) typeDef)
-                    unionTypeCount++
                     break
                 case "enum":
                     addGraphQLEnumType((EnumTypeDefinition) typeDef)
-                    enumTypeCount++
                     break
                 case "interface":
                     addGraphQLInterfaceType((InterfaceTypeDefinition) typeDef)
-                    interfaceTypeCount++
                     break
                 case "object":
                     addGraphQLObjectType((ObjectTypeDefinition) typeDef)
-                    objectTypeCount++
                     break
             }
         }
@@ -624,11 +623,15 @@ public class GraphQLSchemaDefinition {
 
 //        hackCallReplaceTypeReferences(schema)
 
-        logger.info("Schema loaded: ${unionTypeCount} union type, ${enumTypeCount} enum type, ${interfaceTypeCount} interface type, ${objectTypeCount} object type")
-        logger.info("Schema created: ${graphQLUnionTypeCount} union type, ${graphQLEnumTypeCount} enum type, " +
-                "${graphQLInterfaceTypeCount} interface type, ${graphQLObjectTypeCount} object type, ${graphQLInputTypeCount} input type, " +
-                "${graphQLInputFieldCount} input field, ${graphQLFieldCount} field, ${graphQLArgumentCount} argument")
-        logger.info("Globally ${graphQLFieldMap.size()} fields, ${graphQLOutputTypeMap.size()} output types, ${graphQLInputTypeMap.size()} imput types")
+        logger.info("Schema loaded: " +
+                "${graphQLUnionTypeMap.size()} union type, " +
+                "${graphQLEnumTypeMap.size()} enum type, " +
+                "${graphQLInterfaceTypeMap.size()} interface type, " +
+                "${graphQLObjectTypeMap.size()} object type, " +
+                "${graphQLFieldMap.size()} fields, " +
+                "${graphQLInputTypeMap.size()} input types, " +
+                "${graphQLInputObjectFieldMap.size()} input field")
+        
         return schema
     }
 
@@ -1113,7 +1116,7 @@ public class GraphQLSchemaDefinition {
         return argument.build()
     }
 
-    public static class TreeNode<T> {
+    static class TreeNode<T> {
         T data
         public final List<TreeNode<T>> children = new LinkedList<TreeNode<T>>()
 
@@ -1308,7 +1311,7 @@ public class GraphQLSchemaDefinition {
             this.fieldDefMap.putAll(fieldDefMap)
         }
 
-        public void extend(ExtendObjectDefinition extendObjectDef, Map<String, GraphQLTypeDefinition> allTypeDefMap) {
+        void extend(ExtendObjectDefinition extendObjectDef, Map<String, GraphQLTypeDefinition> allTypeDefMap) {
             // Extend interface first, then field.
             for (MNode extendObjectNode in extendObjectDef.extendObjectNodeList) {
                 for (MNode childNode in extendObjectNode.children("interface")) {
@@ -1330,7 +1333,7 @@ public class GraphQLSchemaDefinition {
                 fieldDefMap.remove(excludeFieldName)
         }
 
-        public List<FieldDefinition> getFieldList() {
+        List<FieldDefinition> getFieldList() {
             List<FieldDefinition> fieldList = new LinkedList<>()
             for (Map.Entry<String, FieldDefinition> entry in fieldDefMap)
                 fieldList.add((FieldDefinition) entry.getValue())
@@ -1397,7 +1400,7 @@ public class GraphQLSchemaDefinition {
             }
         }
 
-        public ExtendObjectDefinition merge(ExtendObjectDefinition other) {
+        ExtendObjectDefinition merge(ExtendObjectDefinition other) {
             extendObjectNodeList.addAll(other.extendObjectNodeList)
             resolverField = resolverField ?: other.resolverField
             interfaceList.addAll(other.interfaceList)
@@ -1453,14 +1456,14 @@ public class GraphQLSchemaDefinition {
             attributeMap.put("description", description)
         }
 
-        public String getName() { return name }
-        public String getType() { return attributeMap.get("type") }
-        public String getRequired() { return attributeMap.get("required") }
-        public String getDefaultValue() { return attributeMap.get("defaultValue") }
-        public String getDescription() { return attributeMap.get("description") }
+        String getName() { return name }
+        String getType() { return attributeMap.get("type") }
+        String getRequired() { return attributeMap.get("required") }
+        String getDefaultValue() { return attributeMap.get("defaultValue") }
+        String getDescription() { return attributeMap.get("description") }
 
         @Override
-        public ArgumentDefinition clone() {
+        ArgumentDefinition clone() {
             return new ArgumentDefinition(null, this.name, this.attributeMap)
         }
     }
@@ -1602,7 +1605,7 @@ public class GraphQLSchemaDefinition {
             addPeriodValidArguments()
         }
 
-        public List<ArgumentDefinition> getArgumentList() {
+        List<ArgumentDefinition> getArgumentList() {
             List<ArgumentDefinition> argumentList = new LinkedList<>()
             for (Map.Entry<String, ArgumentDefinition> entry in argumentDefMap) {
                 argumentList.add(entry.getValue())
@@ -1611,7 +1614,7 @@ public class GraphQLSchemaDefinition {
         }
 
         @Override
-        public FieldDefinition clone() {
+        FieldDefinition clone() {
             FieldDefinition other = new FieldDefinition(this.ecf, this.name, this.type)
             other.description = description
             other.depreciationReason = depreciationReason
@@ -1644,15 +1647,15 @@ public class GraphQLSchemaDefinition {
             }
         }
 
-        public void setDataFetcher(BaseDataFetcher dataFetcher) {
+        void setDataFetcher(BaseDataFetcher dataFetcher) {
             this.dataFetcher = dataFetcher
         }
 
-        public void mergeArgument(ArgumentDefinition argumentDef) {
+        void mergeArgument(ArgumentDefinition argumentDef) {
             mergeArgument(argumentDef.name, argumentDef.attributeMap)
         }
 
-        public void mergeArgument(AutoArgumentsDefinition autoArgumentsDef) {
+        void mergeArgument(AutoArgumentsDefinition autoArgumentsDef) {
             String entityName = autoArgumentsDef.entityName
             if (entityName == null || entityName.isEmpty())
                 throw new IllegalArgumentException("Error in auto-arguments in field ${this.name}, no auto-arguments.@entity-name")
@@ -1673,7 +1676,7 @@ public class GraphQLSchemaDefinition {
             }
         }
 
-        public ArgumentDefinition mergeArgument(final String argumentName, Map<String, String> attributeMap) {
+        ArgumentDefinition mergeArgument(final String argumentName, Map<String, String> attributeMap) {
             ArgumentDefinition baseArgumentDef = argumentDefMap.get(argumentName)
             if (baseArgumentDef == null) {
                 baseArgumentDef = getCachedArgumentDefinition(argumentName, attributeMap.get("type"), attributeMap.get("required"))
