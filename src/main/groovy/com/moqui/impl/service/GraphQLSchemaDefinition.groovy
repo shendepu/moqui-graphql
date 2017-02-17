@@ -359,10 +359,27 @@ class GraphQLSchemaDefinition {
         graphQLTypeReferenceMap.clear()
 
         fieldDefMap.clear()
+        argumentDefMap.clear()
 
         interfaceFetcherNodeMap.clear()
+        interfaceResolverTypeSet.clear()
 
         createPredefinedGraphQLTypes()
+    }
+
+    void clearAllCachedDefs() {
+        queryRootFieldMap.clear()
+        mutationRootFieldMap.clear()
+
+        schemaInputTypeMap.clear()
+        schemaInputTypeNameList.clear()
+        allTypeDefMap.clear()
+        allTypeDefSortedList.clear()
+        requiredTypeDefMap.clear()
+        interfaceTypeDefMap.clear()
+        fieldDefMap.clear()
+        argumentDefMap.clear()
+        extendObjectDefMap.clear()
     }
 
     private GraphQLTypeDefinition getTypeDef(String name) {
@@ -619,6 +636,9 @@ class GraphQLSchemaDefinition {
                 "${graphQLFieldMap.size()} fields, " +
                 "${graphQLInputTypeMap.size()} input types, " +
                 "${graphQLInputObjectFieldMap.size()} input field")
+
+        // clear all caches defs
+        clearAllCachedDefs()
         
         return schema
     }
