@@ -1730,7 +1730,7 @@ class GraphQLSchemaDefinition {
                     case "com.moqui.graphql.DateRangeInputType": argType = "DateRangeInputType"; break
                     case "com.moqui.graphql.PaginationInputType": argType = "PaginationInputType"; break
                     default:
-                        argType = getArgumentTypeName(GraphQLSchemaUtil.javaTypeGraphQLMap.get(paramType), isList)
+                        argType = GraphQLSchemaUtil.javaTypeGraphQLMap.get(paramType)
                         break
                 }
                 if (!argType) throw new IllegalArgumentException("Parameter ${paramName} type ${paramType} can't be mapped")
