@@ -304,7 +304,7 @@ class InterfaceBatchedDataFetcher extends BaseDataFetcher implements BatchedData
 
             patchWithConditions(ef, source, ec)
 
-            return ef.list().getPlainValueList(0)
+            return ef.list().getValueMapList()
         }
 
         @Override
@@ -322,7 +322,7 @@ class InterfaceBatchedDataFetcher extends BaseDataFetcher implements BatchedData
             resultMap.put("pageIndex", ef.getPageIndex())
             resultMap.put("pageSize", ef.getPageSize())
             resultMap.put("count", ef.count())
-            resultMap.put("data", ef.list().getPlainValueList(0))
+            resultMap.put("data", ef.list().getValueMapList())
             return resultMap
         }
 

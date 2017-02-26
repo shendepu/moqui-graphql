@@ -43,7 +43,7 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
 
     private Map<String, Object> updateWithInterfaceEV(EntityValue ev, EntityFind efInterface) {
         Map<String, Object> jointOneMap, matchedOne
-        jointOneMap = ev.getPlainValueMap(0)
+        jointOneMap = ev.getMap()
         if (efInterface != null) {
             matchedOne = efInterface.list().find({ ((EntityValue) it).get(interfaceEntityPkField).equals(ev.get(interfaceEntityPkField)) })
             jointOneMap.putAll(matchedOne)

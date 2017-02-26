@@ -122,7 +122,7 @@ class EntityDataFetcher extends BaseEntityDataFetcher {
                             edgesData = new HashMap<>(2)
                             cursor = GraphQLSchemaUtil.base64EncodeCursor(ev, fieldRawType, pkFieldNames)
                             edgesData.put("cursor", cursor)
-                            edgesData.put("node", ev.getPlainValueMap(0))
+                            edgesData.put("node", ev.getMap())
                             edgesDataList.add(edgesData)
                         }
                     } else {
@@ -139,7 +139,7 @@ class EntityDataFetcher extends BaseEntityDataFetcher {
                             edgesData = new HashMap<>(2)
                             cursor = GraphQLSchemaUtil.base64EncodeCursor(ev, fieldRawType, pkFieldNames)
                             edgesData.put("cursor", cursor)
-                            jointOneMap = ev.getPlainValueMap(0)
+                            jointOneMap = ev.getMap()
                             matchedOne = efInterface.list().find({ ((EntityValue) it).get(interfaceEntityPkField).equals(ev.get(interfaceEntityPkField)) })
                             jointOneMap.putAll(matchedOne)
                             edgesData.put("node", jointOneMap)
