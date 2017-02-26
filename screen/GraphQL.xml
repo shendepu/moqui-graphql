@@ -14,13 +14,13 @@
                 GraphQLApi graphQLApi = ec.getTool("GraphQL", GraphQLApi.class)
 
                 if (_requestBodyJsonList == null) {
-                    GraphQLResult result = graphQLApi.execute("${query}", variables)
+                    GraphQLResult result = graphQLApi.execute("${query}", variables ?: [:])
 
                     ec.web.sendJsonResponse(result.responseObj)
                 } else {
                     List queryResultList = []
                     for (Map queryMap in _requestBodyJsonList) {
-                        GraphQLResult result = graphQLApi.execute("${queryMap.query}", queryMap.variables)
+                        GraphQLResult result = graphQLApi.execute("${queryMap.query}", queryMap.variables ?: [:])
                         queryResultList.add(result.responseObj)
                     }
 
