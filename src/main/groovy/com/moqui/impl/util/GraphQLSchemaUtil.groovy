@@ -297,6 +297,7 @@ class GraphQLSchemaUtil {
 
         Map<String, Object> docDefMap = [:]
         docDefMap.put("_id", "id")
+        docDefMap.put("id", "id")
 //        logger.info("fieldTree of ${dataDocumentId}: ${fieldTree}")
 
         for (Map.Entry<String, Object> entry in fieldTree) {
@@ -537,6 +538,11 @@ class GraphQLSchemaUtil {
         String cursor = fieldRawType
         for (String pk in pkFieldNames) cursor = cursor + '|' + ev.get(pk)
         return Base64.getEncoder().encodeToString(cursor.bytes)
+    }
+
+    static String base64EncodeId(String id, String type) {
+        String code = type + '|' + id
+        return Base64.getEncoder().encodeToString(code.bytes)
     }
 
     static String base64EncodeId(Map<String, Object> ev, List<String> pkFieldNames) {
