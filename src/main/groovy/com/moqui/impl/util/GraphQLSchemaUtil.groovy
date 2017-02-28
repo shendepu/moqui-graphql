@@ -110,8 +110,8 @@ class GraphQLSchemaUtil {
 
     protected static final Map<String, String> objectTypeGraphQLMap = [
             Integer   : "Int", Long: "Long", Short: "Short", Float: "Float", Double: "Float",
-            BigDecimal: "BigDecimal", BigInteger: "BigInteger", Boolean: "Boolean", List: "List",
-            Map       : "Map"]
+            BigDecimal: "BigDecimal", BigInteger: "BigInteger", Boolean: "Boolean", Timestamp: "Timestamp",
+            List: "List", Map: "Map"]
 
     static String getGraphQLType(String javaType) {
         if (!javaType) return "String"
