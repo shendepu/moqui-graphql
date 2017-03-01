@@ -42,20 +42,27 @@ class Scalars {
 
         @Override
         Object parseValue(Object input) {
-            return serialize(input)
+            if (input instanceof String) {
+                return Timestamp.valueOf(input)
+            } else if (input instanceof Long) {
+                return new Timestamp(input)
+            } else if (input instanceof Timestamp) {
+                return input
+            }
+            return null
         }
 
         @Override
         Object parseLiteral(Object input) {
             if (input instanceof StringValue) {
-                return Timestamp.valueOf(((StringValue) input).getValue()).getTime()
+                return Timestamp.valueOf(((StringValue) input).getValue())
             } else if (input instanceof IntValue) {
                 BigInteger value = ((IntValue) input).getValue()
                 // Check if out of bounds.
                 if (value.compareTo(LONG_MIN) < 0 || value.compareTo(LONG_MAX) > 0) {
                     throw new GraphQLException("Int literal is too big or too small for a long, would cause overflow");
                 }
-                return new Timestamp(value.longValue()).getTime()
+                return new Timestamp(value.longValue())
             }
             return null
         }
