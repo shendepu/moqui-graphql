@@ -115,7 +115,7 @@ class ElasticSearchDataFetcher extends BaseDataFetcher {
 
     @Override
     Object fetch(DataFetchingEnvironment environment) {
-        logger.info("---- running data fetcher elastic search on index [${indexName}] and document type A${dataDocumentId} ...")
+        logger.info("---- running data fetcher elastic search on index [${indexName}] and document type ${dataDocumentId} ...")
 
         ExecutionContext ec = ecf.getExecutionContext()
         boolean loggedInAnonymous = false
