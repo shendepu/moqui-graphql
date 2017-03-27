@@ -51,13 +51,13 @@
     <service verb="put" noun="ContextWithId">
         <in-parameters><parameter name="ev" type="EntityValue" required="true"/></in-parameters>
         <actions>
-            <service-call name="mgraphql.GraphQLServices.get#Base64Id" in-map="[ev: ev]" out-map="result"/>
+            <service-call name="graphql.GraphQLServices.get#Base64Id" in-map="[ev: ev]" out-map="result"/>
             <script>result.putAll(ev)</script>
         </actions>
     </service>
 
     <service verb="build" noun="Connection">
-        <implements service="mgraphql.GraphQLServices.return#Connection"/>
+        <implements service="graphql.GraphQLServices.return#Connection"/>
         <in-parameters>
             <parameter name="el" type="EntityList"/>
             <parameter name="pageIndex" type="Integer" default-value="0"/>
@@ -71,7 +71,7 @@
                     def edge = [:]
 
                     def node = [:]
-                    Map r = ec.service.sync().name("mgraphql.GraphQLServices.get#Base64Id").parameter("ev", ev).call()
+                    Map r = ec.service.sync().name("graphql.GraphQLServices.get#Base64Id").parameter("ev", ev).call()
                     node.put("id", r.id)
                     node.putAll(ev)
 
