@@ -56,12 +56,14 @@ class BaseEntityDataFetcher extends BaseDataFetcher {
 
         if (interfaceEntityName) {
             EntityDefinition ed = ((ExecutionContextFactoryImpl) ecf).entityFacade.getEntityDefinition(interfaceEntityName)
+            if (ed == null) throw new IllegalArgumentException("Interface entity ${interfaceEntityName} not found")
             if (ed.getFieldNames(true, false).size() != 1)
                 throw new IllegalArgumentException("Entity ${interfaceEntityName} for interface should have one primary key")
             interfaceEntityPkField = ed.getFieldNames(true, false).first()
         }
 
         EntityDefinition ed = ((ExecutionContextFactoryImpl) ecf).entityFacade.getEntityDefinition(entityName)
+        if (ed == null) throw new IllegalArgumentException("Entity ${entityName} not found")
         pkFieldNames.addAll(ed.pkFieldNames)
     }
 }
