@@ -5,6 +5,7 @@ import graphql.schema.DataFetchingEnvironment
 import groovy.transform.CompileStatic
 import org.moqui.context.ExecutionContext
 import org.moqui.context.ExecutionContextFactory
+import org.moqui.entity.EntityValue
 import org.moqui.impl.context.ExecutionContextFactoryImpl
 import org.moqui.impl.context.UserFacadeImpl
 import org.moqui.impl.service.ServiceDefinition
@@ -20,6 +21,7 @@ class ServiceDataFetcher extends BaseDataFetcher {
 
     String serviceName
     String requireAuthentication
+    boolean isEntityAutoService
     ServiceDefinition sd
     Map<String, String> relKeyMap = new HashMap<>()
 
@@ -32,8 +34,13 @@ class ServiceDataFetcher extends BaseDataFetcher {
         for (MNode keyMapNode in node.children("key-map"))
             relKeyMap.put(keyMapNode.attribute("field-name"), keyMapNode.attribute("related") ?: keyMapNode.attribute("field-name"))
 
-        sd = ((ExecutionContextFactoryImpl) ecf).serviceFacade.getServiceDefinition(serviceName)
-        if (sd == null) throw new IllegalArgumentException("Service ${serviceName} not found")
+        this.isEntityAutoService = ((ExecutionContextFactoryImpl) ecf).serviceFacade.isEntityAutoPattern(serviceName)
+        if (this.isEntityAutoService) {
+            if (!fieldDef.isMutation) throw new IllegalArgumentException("Query should not use entity auto service ${serviceName}")
+        } else {
+            sd = ((ExecutionContextFactoryImpl) ecf).serviceFacade.getServiceDefinition(serviceName)
+            if (sd == null) throw new IllegalArgumentException("Service ${serviceName} not found")
+        }
     }
 
     @Override
@@ -65,6 +72,18 @@ class ServiceDataFetcher extends BaseDataFetcher {
             Map result
             if (fieldDef.isMutation) {
                 result = ec.getService().sync().name(serviceName).parameters(inputFieldsMap).call()
+                if (this.isEntityAutoService) {
+                    String verb = ServiceDefinition.getVerbFromName(serviceName)
+                    if (verb == 'delete') { // delete return result object { error, message }
+                        result = [ error: false, message: '' ]
+                    } else {
+                        String entityName = ServiceDefinition.getNounFromName(serviceName)
+                        EntityValue ev = ec.getEntity().find(entityName).condition(result).one()
+                        if (ev) {
+                            result = ec.getService().sync().name("graphql.GraphQLServices.put#ContextWithId").parameter("ev", ev).call()
+                        }
+                    }
+                }
             } else {
                 result = ec.getService().sync().name(serviceName)
                         .parameter("environment", environment)
