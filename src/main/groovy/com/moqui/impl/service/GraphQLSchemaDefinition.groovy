@@ -429,9 +429,11 @@ class GraphQLSchemaDefinition {
                     Map<String, InputObjectFieldDefinition> inputFieldMap
                     if (isEntityAutoService) {
                         // Entity Auto Service only works for mutation which is checked in ServiceDataFetcher initialization.
+                        String verb = ServiceDefinition.getVerbFromName(serviceName)
                         String entityName = ServiceDefinition.getNounFromName(serviceName)
                         EntityDefinition ed = ecfi.entityFacade.getEntityDefinition(entityName)
-                        ArrayList<String> allFields = ed.getAllFieldNames()
+
+                        ArrayList<String> allFields = verb == 'delete' ? ed.getPkFieldNames() : ed.getAllFieldNames()
                         inputFieldMap = new LinkedHashMap<>(allFields.size())
 
                         for (int i = 0; i < allFields.size(); i++) {
