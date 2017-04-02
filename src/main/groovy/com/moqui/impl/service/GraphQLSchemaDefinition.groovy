@@ -452,7 +452,7 @@ class GraphQLSchemaDefinition {
                             MNode parmNode = sd.getInParameter(parmName)
                             Object defaultValue = null
 
-                            String inputFieldNonNull = parmNode.attribute("required") ?: "false"
+                            String inputFieldNonNull = isServiceParameterRequired(parmNode)
                             String inputFieldIsList = GraphQLSchemaUtil.getShortJavaType(parmNode.attribute("type")) == "List" ? "true" : "false"
                             GraphQLInputType fieldInputType =  getInputTypeRecursiveInSD(parmNode, inputTypeName)
 
@@ -512,7 +512,7 @@ class GraphQLSchemaDefinition {
 
                 for (MNode mapEntryNode in node.children) {
                     GraphQLInputType mapEntryRawType = getInputTypeRecursiveInSD(mapEntryNode, inputTypeName)
-                    String mapEntryNonMull = mapEntryNode.attribute("required") ?: "false"
+                    String mapEntryNonMull = isServiceParameterRequired(mapEntryNode)
                     String mapEntryIsList = GraphQLSchemaUtil.getShortJavaType(mapEntryNode.attribute("type")) == "List" ? "true" : "false"
 
                     GraphQLInputObjectField inputObjectField = GraphQLInputObjectField.newInputObjectField()
@@ -530,6 +530,11 @@ class GraphQLSchemaDefinition {
 
         graphQLInputTypeMap.put(inputTypeName, inputType)
         return inputType
+    }
+
+    private static String isServiceParameterRequired(MNode parmNode) {
+        if (parmNode.attribute("default") || parmNode.attribute("default-value")) return "false"
+        return parmNode.attribute("required") ?: "false"
     }
 
     private void populateSortedTypes() {
