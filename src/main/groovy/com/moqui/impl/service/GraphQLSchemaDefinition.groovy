@@ -450,11 +450,14 @@ class GraphQLSchemaDefinition {
                         inputFieldMap = new LinkedHashMap<>(sd.getInParameterNames().size())
                         for (String parmName in sd.getInParameterNames()) {
                             MNode parmNode = sd.getInParameter(parmName)
-                            String inputFieldType = GraphQLSchemaUtil.getGraphQLType(parmNode.attribute("type"))
-                            // logger.info("======== inputField ${parmName} - SD type: ${parmNode.attribute("type")}, inputFieldType: ${inputFieldType}")
                             Object defaultValue = null
 
-                            InputObjectFieldDefinition inputFieldDef = new InputObjectFieldDefinition(parmName, inputFieldType, defaultValue, "")
+                            String inputFieldNonNull = parmNode.attribute("required") ?: "false"
+                            String inputFieldIsList = GraphQLSchemaUtil.getShortJavaType(parmNode.attribute("type")) == "List" ? "true" : "false"
+                            GraphQLInputType fieldInputType =  getInputTypeRecursiveInSD(parmNode, inputTypeName)
+
+                            InputObjectFieldDefinition inputFieldDef = new InputObjectFieldDefinition(parmName, fieldInputType.name, defaultValue, "",
+                                    inputFieldNonNull, inputFieldIsList, "false")
                             inputFieldMap.put(parmName, inputFieldDef)
                         }
                     }
@@ -466,24 +469,7 @@ class GraphQLSchemaDefinition {
 
                         if ("clientMutationId".equals(inputFieldDef.name)) continue
 
-                        // For now only support input field of scalar type.
-                        if (!GraphQLSchemaUtil.graphQLScalarTypes.keySet().contains(inputFieldDef.type))
-                            throw new IllegalArgumentException("GraphQLInputObjectField [${inputFieldDef.name} - ${inputFieldDef.type}] should be GraphQLScalarType types")
-
-                        // TODO: inputFieldKey may need to include defaultValue
-                        String inputFieldKey = getInputFieldKey(inputFieldDef.name, inputFieldDef.type, null)
-                        GraphQLInputObjectField inputField = graphQLInputObjectFieldMap.get(inputFieldKey)
-                        if (inputField == null) {
-                            inputField = GraphQLInputObjectField.newInputObjectField()
-                                    .name(inputFieldDef.name)
-                                    .type(graphQLInputTypeMap.get(inputFieldDef.type))
-                                    .defaultValue(inputFieldDef.defaultValue)
-                                    .description(inputFieldDef.description)
-                                    .build()
-                            graphQLInputObjectFieldMap.put(inputFieldKey, inputField)
-                            logger.info("======== create InputField ${inputFieldDef.name} - ${inputFieldDef.type}")
-                        }
-                        inputObjectTypeBuilder.field(inputField)
+                        inputObjectTypeBuilder.field(buildSchemaInputField(inputFieldDef))
                     }
                     inputObjectTypeBuilder.field(clientMutationIdInputField)
                     GraphQLInputObjectType inputObjectType = inputObjectTypeBuilder.build()
@@ -493,17 +479,57 @@ class GraphQLSchemaDefinition {
         }
     }
 
-    private static int unknownInputDefaultValueNum = 0
-    private static getInputFieldKey(String name, String type, Object defaultValue) {
-        String defaultValueKey
-        if (defaultValue == null) {
-            defaultValueKey = "NULL"
-        } else {
-            // TODO: generate a unique key based on defaultValue
-            defaultValueKey = "UNKNOWN" + Integer.toString(unknownInputDefaultValueNum)
-            unknownInputDefaultValueNum++
+    private GraphQLInputType getInputTypeRecursiveInSD(MNode node, String inputTypeNamePrefix) {
+        // default to String
+        if (node == null) return GraphQLString
+
+        String parmName = node.attribute("name")
+        String parmType = node.attribute("type")
+        String inputTypeName = GraphQLSchemaUtil.getGraphQLType(parmType)
+
+        GraphQLScalarType scalarType = GraphQLSchemaUtil.graphQLScalarTypes.get(inputTypeName)
+        if (scalarType) return scalarType
+
+        inputTypeName = inputTypeNamePrefix + '_' + parmName
+
+        GraphQLInputType inputType = graphQLInputTypeMap.get(inputTypeName)
+        if (inputType) return inputType
+
+        switch (parmType) {
+            case "List":
+                if (node.childNodes.size() > 1) throw new IllegalArgumentException("Parameter ${parmName} as List can't have more than one children")
+                MNode listItemNode = node.children.size() > 0 ? node.child(0) : null
+
+                GraphQLInputType listItemInputType = getInputTypeRecursiveInSD(listItemNode, inputTypeName)
+
+                inputType = listItemInputType
+                break
+            case "Map":
+                if (node.children.size() == 0) throw new IllegalArgumentException("Parameter ${parmName} as Map must has at least one child parameter node")
+
+                GraphQLInputObjectType.Builder builder = GraphQLInputObjectType.newInputObject()
+                    .name(inputTypeName)
+
+                for (MNode mapEntryNode in node.children) {
+                    GraphQLInputType mapEntryRawType = getInputTypeRecursiveInSD(mapEntryNode, inputTypeName)
+                    String mapEntryNonMull = mapEntryNode.attribute("required") ?: "false"
+                    String mapEntryIsList = GraphQLSchemaUtil.getShortJavaType(mapEntryNode.attribute("type")) == "List" ? "true" : "false"
+
+                    GraphQLInputObjectField inputObjectField = GraphQLInputObjectField.newInputObjectField()
+                            .name(mapEntryNode.attribute("name"))
+                            .type(getGraphQLInputType(mapEntryRawType, mapEntryNonMull, mapEntryIsList, "false"))
+                            .build()
+                    builder.field(inputObjectField)
+                }
+                inputType = builder.build()
+                break
+            default:
+                throw new IllegalArgumentException("Type ${inputTypeName} - ${parmType} for input field is not supported")
+                break
         }
-        return name + KEY_SPLITTER + type + KEY_SPLITTER + defaultValueKey
+
+        graphQLInputTypeMap.put(inputTypeName, inputType)
+        return inputType
     }
 
     private void populateSortedTypes() {
@@ -924,6 +950,73 @@ class GraphQLSchemaDefinition {
         return fieldKey
     }
 
+    private static int unknownInputDefaultValueNum = 0
+    private static String getInputFieldKey(InputObjectFieldDefinition inputFieldDef) {
+        return getInputFieldKey(inputFieldDef.name, inputFieldDef.type, inputFieldDef.defaultValue,
+                inputFieldDef.nonNull, inputFieldDef.isList, inputFieldDef.listItemNonNull)
+    }
+    private static String getInputFieldKey(String name, String type, Object defaultValue) {
+        getInputFieldKey(name, type, defaultValue, "false", "false", "false")
+    }
+    private static String getInputFieldKey(String name, String type, Object defaultValue, String nonNull, String isList, String listItemNonNull) {
+        String defaultValueKey
+        if (defaultValue == null) {
+            defaultValueKey = "NULL"
+        } else {
+            // TODO: generate a unique key based on defaultValue
+            defaultValueKey = "UNKNOWN" + Integer.toString(unknownInputDefaultValueNum)
+            unknownInputDefaultValueNum++
+        }
+
+        String inputFieldKey = name + KEY_SPLITTER + type + KEY_SPLITTER + defaultValueKey
+        if ("true".equals(nonNull)) inputFieldKey = inputFieldKey + NON_NULL_SUFFIX
+        if ("true".equals(isList)) {
+            inputFieldKey = inputFieldKey + IS_LIST_SUFFIX
+            if ("true".equals(listItemNonNull)) inputFieldKey = inputFieldKey + LIST_ITEM_NON_NULL_SUFFIX
+        }
+
+        return inputFieldKey
+    }
+
+    private static GraphQLInputType getGraphQLInputType(InputObjectFieldDefinition inputFieldDef) {
+        return getGraphQLInputType(inputFieldDef.type, inputFieldDef.nonNull, inputFieldDef.isList, inputFieldDef.listItemNonNull)
+    }
+
+    private static GraphQLInputType getGraphQLInputType(String rawTypeName, String nonNull, String isList, String listItemNonNull) {
+        GraphQLInputType rawType = graphQLInputTypeMap.get(rawTypeName)
+        if (rawType == null) {
+            rawType = graphQLTypeReferenceMap.get(rawTypeName)
+            if (rawType == null) {
+                rawType = new GraphQLTypeReference(rawTypeName)
+                logger.info("Adding graphQLTypeReferenceMap for input type: ${rawTypeName}")
+                graphQLTypeReferenceMap.put(rawTypeName, (GraphQLTypeReference) rawType)
+            }
+        }
+        return getGraphQLInputType(rawType, nonNull, isList, listItemNonNull)
+    }
+    private static GraphQLInputType getGraphQLInputType(GraphQLInputType rawType, String nonNull, String isList, String listItemNonNull) {
+        String inputTypeKey = rawType.name
+        if ("true".equals(nonNull)) inputTypeKey = inputTypeKey + NON_NULL_SUFFIX
+        if ("true".equals(isList)) {
+            inputTypeKey = inputTypeKey + IS_LIST_SUFFIX
+            if ("true".equals(listItemNonNull)) inputTypeKey = inputTypeKey + LIST_ITEM_NON_NULL_SUFFIX
+        }
+
+        GraphQLInputType wrappedType = graphQLInputTypeMap.get(inputTypeKey)
+        if (wrappedType != null) return wrappedType
+
+        wrappedType = rawType
+        if ("true".equals(isList)) {
+            if ("true".equals(listItemNonNull)) wrappedType = new GraphQLNonNull(wrappedType)
+            wrappedType = new GraphQLList(wrappedType)
+        }
+        if ("true".equals(nonNull)) wrappedType = new GraphQLNonNull(wrappedType)
+
+        if (!inputTypeKey.equals(rawType.name)) graphQLInputTypeMap.put(inputTypeKey, wrappedType)
+
+        return wrappedType
+    }
+
     private static GraphQLInputObjectField createPredefinedInputField(String name, GraphQLInputType type,
                                                               Object defaultValue, String description) {
         GraphQLInputObjectField.Builder fieldBuilder = GraphQLInputObjectField.newInputObjectField()
@@ -1144,6 +1237,31 @@ class GraphQLSchemaDefinition {
         argument = argument.type(argType)
 
         return argument.build()
+    }
+
+    private static GraphQLInputObjectField buildSchemaInputField(InputObjectFieldDefinition inputFieldDef) {
+        String inputFieldKey = getInputFieldKey(inputFieldDef)
+        GraphQLInputObjectField inputObjectField = graphQLInputObjectFieldMap.get(inputFieldKey)
+        if (inputObjectField) return inputObjectField
+
+        GraphQLInputType rawType = graphQLInputTypeMap.get(inputFieldDef.type)
+
+        GraphQLInputType wrapperType = rawType
+        if ("true".equals(inputFieldDef.isList)) {
+            if ("true".equals(inputFieldDef.listItemNonNull)) wrapperType = new GraphQLNonNull(wrapperType)
+            wrapperType = new GraphQLList(wrapperType)
+        }
+        if ("true".equals(inputFieldDef.nonNull)) wrapperType = new GraphQLNonNull(wrapperType)
+
+        GraphQLInputObjectField inputField = GraphQLInputObjectField.newInputObjectField()
+                .name(inputFieldDef.name)
+                .type(wrapperType)
+                .defaultValue(inputFieldDef.defaultValue)
+                .description(inputFieldDef.description)
+                .build()
+
+        graphQLInputObjectFieldMap.put(inputFieldKey, inputField)
+        return inputField
     }
 
     static class TreeNode<T> {
@@ -1846,12 +1964,27 @@ class GraphQLSchemaDefinition {
 
     static class InputObjectFieldDefinition {
         String name, type, description
+        String nonNull, isList, listItemNonNull
         Object defaultValue
 
         InputObjectFieldDefinition(String name, String type, Object defaultValue, String description) {
             this.name = name
             this.type = type
             this.defaultValue = defaultValue
+            this.nonNull = "false"
+            this.isList = "false"
+            this.listItemNonNull = "false"
+            this.description = description
+        }
+        
+        InputObjectFieldDefinition(String name, String type, Object defaultValue, String description,
+                                   String nonNull, String isList, String listItemNonNull) {
+            this.name = name
+            this.type = type
+            this.defaultValue = defaultValue
+            this.nonNull = nonNull
+            this.isList = isList
+            this.listItemNonNull = listItemNonNull
             this.description = description
         }
     }

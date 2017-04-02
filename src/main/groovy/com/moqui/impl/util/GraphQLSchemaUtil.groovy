@@ -108,15 +108,16 @@ class GraphQLSchemaUtil {
     static final List<String> moquiNumericTypes = ["number-integer", "number-float", "number-decimal", "currency-amount", "currency-precise"]
     static final List<String> moquiBoolTypes = ["text-indicator"]
 
-    protected static final Map<String, String> objectTypeGraphQLMap = [
-            Integer   : "Int", Long: "Long", Short: "Short", Float: "Float", Double: "Float",
-            BigDecimal: "BigDecimal", BigInteger: "BigInteger", Boolean: "Boolean", Timestamp: "Timestamp",
-            List: "List", Map: "Map"]
-
     static String getGraphQLType(String javaType) {
         if (!javaType) return "String"
-        if (javaType.contains(".")) javaType = javaType.substring(javaType.lastIndexOf(".") + 1)
-        return objectTypeGraphQLMap.get(javaType) ?: "String"
+        return javaTypeGraphQLMap.get(getShortJavaType(javaType))
+    }
+    
+    static String getShortJavaType(String javaType) {
+        if (!javaType) return ""
+        String shortJavaType = javaType
+        if (javaType.contains(".")) shortJavaType = javaType.substring(javaType.lastIndexOf(".") + 1)
+        return shortJavaType
     }
 
     static void createObjectTypeNodeForAllEntities(ExecutionContextFactory ecf, Map<String, GraphQLTypeDefinition> allTypeNodeMap) {
