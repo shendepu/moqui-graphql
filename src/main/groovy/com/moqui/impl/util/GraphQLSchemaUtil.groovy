@@ -108,7 +108,7 @@ class GraphQLSchemaUtil {
     static final List<String> moquiNumericTypes = ["number-integer", "number-float", "number-decimal", "currency-amount", "currency-precise"]
     static final List<String> moquiBoolTypes = ["text-indicator"]
 
-    static String getGraphQLType(String javaType) {
+    static String getGraphQLTypeNameByJava(String javaType) {
         if (!javaType) return "String"
         return javaTypeGraphQLMap.get(getShortJavaType(javaType))
     }

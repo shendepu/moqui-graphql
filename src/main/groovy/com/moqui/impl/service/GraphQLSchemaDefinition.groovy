@@ -485,7 +485,7 @@ class GraphQLSchemaDefinition {
 
         String parmName = node.attribute("name")
         String parmType = node.attribute("type")
-        String inputTypeName = GraphQLSchemaUtil.getGraphQLType(parmType)
+        String inputTypeName = GraphQLSchemaUtil.getGraphQLTypeNameByJava(parmType)
 
         GraphQLScalarType scalarType = GraphQLSchemaUtil.graphQLScalarTypes.get(inputTypeName)
         if (scalarType) return scalarType
