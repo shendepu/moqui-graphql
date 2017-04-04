@@ -69,10 +69,12 @@
             <iterate list="el" entry="ev">
                 <script>
                     def edge = [:]
-
                     def node = [:]
-                    Map r = ec.service.sync().name("graphql.GraphQLServices.get#Base64Id").parameter("ev", ev).call()
-                    node.put("id", r.id)
+
+                    if (!ev.getPrimaryKeys().values().contains(null)) {
+                        Map r = ec.service.sync().name("graphql.GraphQLServices.get#Base64Id").parameter("ev", ev).call()
+                        node.put("id", r.id)
+                    }
                     node.putAll(ev)
 
                     edge.put("node", node)
