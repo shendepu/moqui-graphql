@@ -67,11 +67,12 @@
         <actions>
             <set field="edges" from="[]"/>
             <iterate list="el" entry="ev">
-                <script>
+                <script><![CDATA[
                     def edge = [:]
                     def node = [:]
 
-                    if (!ev.getPrimaryKeys().values().contains(null)) {
+                    Map<String, Object> primaryKeys = ev.getPrimaryKeys()
+                    if (primaryKeys.size() > 0 && !primaryKeys.values().contains(null)) {
                         Map r = ec.service.sync().name("graphql.GraphQLServices.get#Base64Id").parameter("ev", ev).call()
                         node.put("id", r.id)
                     }
@@ -79,7 +80,7 @@
 
                     edge.put("node", node)
                     edges.add(edge)
-                </script>
+                ]]></script>
             </iterate>
             <set field="pageInfo" from="[pageIndex: pageIndex, pageSize: pageSize, totalCount: totalCount]"/>
         </actions>
