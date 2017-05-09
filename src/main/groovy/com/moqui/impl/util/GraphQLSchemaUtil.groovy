@@ -529,27 +529,23 @@ class GraphQLSchemaUtil {
         }
     }
 
-    static String base64EncodeCursor(EntityValue ev, String fieldRawType, List<String> pkFieldNames) {
-        String cursor = fieldRawType
-        for (String pk in pkFieldNames) cursor = cursor + '|' + ev.get(pk)
-        return Base64.getEncoder().encodeToString(cursor.bytes)
+    static String encodeRelayCursor(EntityValue ev, List<String> pkFieldNames) {
+        return encodeRelayId(ev.getMap(), pkFieldNames)
     }
 
-    static String base64EncodeCursor(Map<String, Object> ev, String fieldRawType, List<String> pkFieldNames) {
-        String cursor = fieldRawType
-        for (String pk in pkFieldNames) cursor = cursor + '|' + ev.get(pk)
-        return Base64.getEncoder().encodeToString(cursor.bytes)
+    static String encodeRelayCursor(Map<String, Object> ev, List<String> pkFieldNames) {
+        return encodeRelayId(ev, pkFieldNames)
     }
 
-    static String base64EncodeId(String id, String type) {
-        String code = type + '|' + id
-        return Base64.getEncoder().encodeToString(code.bytes)
+    static String encodeRelayId(EntityValue ev, List<String> pkFieldNames) {
+        return encodeRelayId(ev.getMap(), pkFieldNames)
     }
 
-    static String base64EncodeId(Map<String, Object> ev, List<String> pkFieldNames) {
-        String code = pkFieldNames.size() > 0 ? ev.get(pkFieldNames[0]) : ""
-        for (int i = 1; i < pkFieldNames.size(); i++) code = code + "|" + ev.get(pkFieldNames[i])
-        return Base64.getEncoder().encodeToString(code.bytes)
+    static String encodeRelayId(Map<String, Object> ev, List<String> pkFieldNames) {
+        if (pkFieldNames.size() == 0) throw new IllegalArgumentException("Entity value must have primary keys to generate id")
+        String id = ev.get(pkFieldNames[0])
+        for (int i = 1; i < pkFieldNames.size(); i++) id = id + '|' + ev.get(pkFieldNames[i])
+        return id
     }
 
     static String camelCaseToUpperCamel(String camelCase) {

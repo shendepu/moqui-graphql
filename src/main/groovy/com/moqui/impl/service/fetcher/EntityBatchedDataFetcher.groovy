@@ -198,7 +198,7 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
                         }
                     if (evSelf == null) return
                     jointOneMap = updateWithInterfaceEV(evSelf, efInterface)
-                    cursor = GraphQLSchemaUtil.base64EncodeCursor(jointOneMap, fieldRawType, pkFieldNames)
+                    cursor = GraphQLSchemaUtil.encodeRelayCursor(jointOneMap, pkFieldNames)
                     jointOneMap.put("id", cursor)
                     DataFetcherUtils.localize(jointOneMap, actualLocalizedFields, ec)
                     resultList.set(index, jointOneMap)
@@ -235,7 +235,7 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
                             }
                         edgesDataList = elSource.collect { ev ->
                             edgesData = new HashMap<>(2)
-                            cursor = GraphQLSchemaUtil.base64EncodeCursor(ev, fieldRawType, pkFieldNames)
+                            cursor = GraphQLSchemaUtil.encodeRelayCursor(ev, pkFieldNames)
                             jointOneMap = updateWithInterfaceEV(ev, efInterface)
 
                             jointOneMap.put("id", cursor)
@@ -283,11 +283,11 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
                         if (el != null && el.size() > 0) {
                             EntityFind efInterface = requireInterfaceEF ? getInterfaceEntityFind(ec, ef) : null
 
-                            pageInfo.put("startCursor", GraphQLSchemaUtil.base64EncodeCursor(el.get(0), fieldRawType, pkFieldNames))
-                            pageInfo.put("endCursor", GraphQLSchemaUtil.base64EncodeCursor(el.get(el.size() - 1), fieldRawType, pkFieldNames))
+                            pageInfo.put("startCursor", GraphQLSchemaUtil.encodeRelayCursor(el.get(0), pkFieldNames))
+                            pageInfo.put("endCursor", GraphQLSchemaUtil.encodeRelayCursor(el.get(el.size() - 1), pkFieldNames))
                             edgesDataList = el.collect { EntityValue ev ->
                                 edgesData = new HashMap<>(2)
-                                cursor = GraphQLSchemaUtil.base64EncodeCursor(ev, fieldRawType, pkFieldNames)
+                                cursor = GraphQLSchemaUtil.encodeRelayCursor(ev, pkFieldNames)
                                 jointOneMap = updateWithInterfaceEV(ev, efInterface)
                                 jointOneMap.put("id", cursor)
                                 DataFetcherUtils.localize(jointOneMap, actualLocalizedFields, ec)

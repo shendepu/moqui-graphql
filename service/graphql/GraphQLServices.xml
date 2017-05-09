@@ -31,8 +31,7 @@
         </out-parameters>
     </service>
 
-
-    <service verb="get" noun="Base64Id">
+    <service verb="get" noun="RelayId">
         <in-parameters><parameter name="ev" type="EntityValue" required="true"/></in-parameters>
         <out-parameters><parameter name="id" required="true"/></out-parameters>
         <actions>
@@ -43,7 +42,7 @@
 
                 EntityDefinition ed = (ev as EntityValueImpl).getEntityDefinition()
 
-                id = GraphQLSchemaUtil.base64EncodeCursor(ev, ed.getEntityName(), ed.getPkFieldNames())
+                id = GraphQLSchemaUtil.encodeRelayId(ev, ed.getPkFieldNames())
             ]]></script>
         </actions>
     </service>
@@ -51,7 +50,7 @@
     <service verb="put" noun="ContextWithId">
         <in-parameters><parameter name="ev" type="EntityValue" required="true"/></in-parameters>
         <actions>
-            <service-call name="graphql.GraphQLServices.get#Base64Id" in-map="[ev: ev]" out-map="result"/>
+            <service-call name="graphql.GraphQLServices.get#RelayId" in-map="[ev: ev]" out-map="result"/>
             <script>result.putAll(ev)</script>
         </actions>
     </service>
@@ -72,10 +71,13 @@
                     def node = [:]
 
                     Map<String, Object> primaryKeys = ev.getPrimaryKeys()
+                    String id
                     if (primaryKeys.size() > 0 && !primaryKeys.values().contains(null)) {
-                        Map r = ec.service.sync().name("graphql.GraphQLServices.get#Base64Id").parameter("ev", ev).call()
-                        node.put("id", r.id)
+                        id = GraphQLSchemaUtil.encodeRelayId(ev, ed.getPkFieldNames())
+                    } else {
+                        id = ev_index
                     }
+                    node.put("id", id)
                     node.putAll(ev)
 
                     edge.put("node", node)

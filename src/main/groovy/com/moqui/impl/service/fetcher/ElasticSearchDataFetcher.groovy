@@ -167,7 +167,7 @@ class ElasticSearchDataFetcher extends BaseDataFetcher {
                     Map<String, Object> edgeMap = new HashMap<>(2)
                     Map<String, Object> nodeMap = new HashMap<>()
                     populateResult(nodeMap, document)
-                    nodeMap.put("id", GraphQLSchemaUtil.base64EncodeId(document._id as String, "FT" + document._type as String))
+                    nodeMap.put("id", document._id as String)
                     edgeMap.put("node", nodeMap)
                     // no cursor
                     edgesDataList.add(edgeMap)
@@ -186,7 +186,7 @@ class ElasticSearchDataFetcher extends BaseDataFetcher {
                 localizeDocument(document)
 
                 populateResult(resultMap, document)
-                resultMap.put("id", GraphQLSchemaUtil.base64EncodeId(document._id as String, "FT" + document._type as String))
+                resultMap.put("id", document._id as String)
                 return resultMap
             }
 

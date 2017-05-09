@@ -116,11 +116,11 @@ class EntityDataFetcher extends BaseEntityDataFetcher {
                     // Do nothing
                 } else {
                     if (interfaceEntityName == null || interfaceEntityName.isEmpty() || entityName.equals(interfaceEntityName)) {
-                        pageInfo.put("startCursor", GraphQLSchemaUtil.base64EncodeCursor(el.get(0), fieldRawType, pkFieldNames))
-                        pageInfo.put("endCursor", GraphQLSchemaUtil.base64EncodeCursor(el.get(el.size() - 1), fieldRawType, pkFieldNames))
+                        pageInfo.put("startCursor", GraphQLSchemaUtil.encodeRelayCursor(el.get(0), pkFieldNames))
+                        pageInfo.put("endCursor", GraphQLSchemaUtil.encodeRelayCursor(el.get(el.size() - 1), pkFieldNames))
                         for (EntityValue ev in el) {
                             edgesData = new HashMap<>(2)
-                            cursor = GraphQLSchemaUtil.base64EncodeCursor(ev, fieldRawType, pkFieldNames)
+                            cursor = GraphQLSchemaUtil.encodeRelayCursor(ev, pkFieldNames)
                             edgesData.put("cursor", cursor)
                             edgesData.put("node", ev.getMap())
                             edgesDataList.add(edgesData)
@@ -133,11 +133,11 @@ class EntityDataFetcher extends BaseEntityDataFetcher {
 
                         Map<String, Object> jointOneMap, matchedOne
 
-                        pageInfo.put("startCursor", GraphQLSchemaUtil.base64EncodeCursor(el.get(0), fieldRawType, pkFieldNames))
-                        pageInfo.put("endCursor", GraphQLSchemaUtil.base64EncodeCursor(el.get(el.size() - 1), fieldRawType, pkFieldNames))
+                        pageInfo.put("startCursor", GraphQLSchemaUtil.encodeRelayCursor(el.get(0), pkFieldNames))
+                        pageInfo.put("endCursor", GraphQLSchemaUtil.encodeRelayCursor(el.get(el.size() - 1), pkFieldNames))
                         for (EntityValue ev in el) {
                             edgesData = new HashMap<>(2)
-                            cursor = GraphQLSchemaUtil.base64EncodeCursor(ev, fieldRawType, pkFieldNames)
+                            cursor = GraphQLSchemaUtil.encodeRelayCursor(ev, pkFieldNames)
                             edgesData.put("cursor", cursor)
                             jointOneMap = ev.getMap()
                             matchedOne = efInterface.list().find({ ((EntityValue) it).get(interfaceEntityPkField).equals(ev.get(interfaceEntityPkField)) })

@@ -183,7 +183,7 @@ class InterfaceBatchedDataFetcher extends BaseDataFetcher implements BatchedData
                         interfaceValueList.find { Map<String, Object> it -> matchParentByRelKeyMap(sourceItem, it, relKeyMap) }
 
                     if (jointOneMap == null) return
-                    cursor = GraphQLSchemaUtil.base64EncodeCursor(jointOneMap, fieldRawType, [primaryField])
+                    cursor = GraphQLSchemaUtil.encodeRelayCursor(jointOneMap, [primaryField])
                     jointOneMap.put("id", cursor)
                     resultList.set(index, jointOneMap)
                 }
@@ -207,7 +207,7 @@ class InterfaceBatchedDataFetcher extends BaseDataFetcher implements BatchedData
 
                         edgesDataList = jointOneList.collect { Map<String, Object> it ->
                             edgesData = new HashMap<>(2)
-                            cursor = GraphQLSchemaUtil.base64EncodeCursor(it, fieldRawType, [primaryField])
+                            cursor = GraphQLSchemaUtil.encodeRelayCursor(it, [primaryField])
                             it.put("id", cursor)
                             edgesData.put("cursor", cursor)
                             edgesData.put("node", it)
@@ -244,11 +244,11 @@ class InterfaceBatchedDataFetcher extends BaseDataFetcher implements BatchedData
                         edgesDataList = new ArrayList(interfaceValueList.size())
 
                         if (interfaceValueList != null && interfaceValueList.size() > 0) {
-                            pageInfo.put("startCursor", GraphQLSchemaUtil.base64EncodeCursor(interfaceValueList.get(0), fieldRawType, [primaryField]))
-                            pageInfo.put("endCursor", GraphQLSchemaUtil.base64EncodeCursor(interfaceValueList.get(interfaceValueList.size() - 1), fieldRawType, [primaryField]))
+                            pageInfo.put("startCursor", GraphQLSchemaUtil.encodeRelayCursor(interfaceValueList.get(0), [primaryField]))
+                            pageInfo.put("endCursor", GraphQLSchemaUtil.encodeRelayCursor(interfaceValueList.get(interfaceValueList.size() - 1), [primaryField]))
                             edgesDataList = interfaceValueList.collect { Map<String, Object> it ->
                                 edgesData = new HashMap<>(2)
-                                cursor = GraphQLSchemaUtil.base64EncodeCursor(it, fieldRawType, [primaryField])
+                                cursor = GraphQLSchemaUtil.encodeRelayCursor(it, [primaryField])
                                 it.put("id", cursor)
                                 edgesData.put("cursor", cursor)
                                 edgesData.put("node", it)
