@@ -41,6 +41,7 @@ import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
 import java.sql.Timestamp
+import java.util.concurrent.atomic.AtomicBoolean
 
 import static graphql.Scalars.GraphQLBigDecimal
 import static graphql.Scalars.GraphQLBigInteger
@@ -290,7 +291,9 @@ class GraphQLSchemaUtil {
         // build the field tree, nested Maps for relationship field path elements and field alias String for field name path elements
         Map<String, Object> fieldTree = [:]
         Map<String, String> fieldAliasPathMap = [:]
-        EntityDataDocument.populateFieldTreeAndAliasPathMap(dataDocumentFieldList, primaryPkFieldNames, fieldTree, fieldAliasPathMap)
+        AtomicBoolean hasExprMut = new AtomicBoolean(false)
+        EntityDataDocument.populateFieldTreeAndAliasPathMap(dataDocumentFieldList, primaryPkFieldNames, fieldTree, fieldAliasPathMap, hasExprMut, true)
+
         // make the relationship alias Map
         Map relationshipAliasMap = [:]
         for (EntityValue dataDocumentRelAlias in dataDocumentRelAliasList)
@@ -299,15 +302,8 @@ class GraphQLSchemaUtil {
         Map<String, Object> docDefMap = [:]
         docDefMap.put("_id", "id")
         docDefMap.put("id", "id")
-//        logger.info("fieldTree of ${dataDocumentId}: ${fieldTree}")
 
-        for (Map.Entry<String, Object> entry in fieldTree) {
-            if (entry.value instanceof Map) continue
-            FieldInfo fieldInfo = primaryEd.getFieldInfo(entry.key as String)
-            if (fieldInfo == null) throw new EntityException("Can't find field ${entry.key} in entity ${primaryEntityName} for data docuemnet ${dataDocumentId}")
-            docDefMap.put(entry.value as String, fieldInfo.type)
-        }
-        populateDataDocDefinitionRelatedMap(docDefMap, primaryEd, fieldTree, relationshipAliasMap, false)
+        populateDataDocDefinitionRelatedMap(docDefMap, primaryEd, fieldTree, relationshipAliasMap, true)
 
         return docDefMap
     }
@@ -315,36 +311,47 @@ class GraphQLSchemaUtil {
     private static populateDataDocDefinitionRelatedMap(Map<String, Object> parentDocMap, EntityDefinition parentEd,
                                                        Map<String, Object> fieldTreeCurrent, Map relationshipAliasMap, boolean setFields) {
         for (Map.Entry<String, Object> fieldTreeEntry in fieldTreeCurrent) {
-            if (fieldTreeEntry.value instanceof Map) {
-                String relationshipName = fieldTreeEntry.key
-                Map<String, Object> fieldTreeChild = fieldTreeEntry.value as Map
+            String fieldEntryKey = fieldTreeEntry.key
+            Object fieldEntryValue = fieldTreeEntry.value
+            if (fieldEntryValue instanceof Map) {
+                String relationshipName = fieldEntryKey
+                Map<String, Object> fieldTreeChild = fieldEntryValue as Map
 
                 RelationshipInfo relationshipInfo = parentEd.getRelationshipInfo(relationshipName)
                 String relDocumentAlias = relationshipAliasMap.get(relationshipName) ?: relationshipInfo.shortAlias ?: relationshipName
                 EntityDefinition relatedEd = relationshipInfo.relatedEd
                 boolean isOneRelationship = relationshipInfo.isTypeOne
 
-                boolean recurseSetFields = true
                 if (isOneRelationship) {
-                    populateDataDocDefinitionRelatedMap(parentDocMap, relatedEd, fieldTreeChild, relationshipAliasMap, recurseSetFields)
+                    populateDataDocDefinitionRelatedMap(parentDocMap, relatedEd, fieldTreeChild, relationshipAliasMap, true)
                 } else {
-                    recurseSetFields = false
                     Map<String, Object> relatedDocMap = [:]
                     for (Map.Entry<String, Object> fieldTreeChildEntry in fieldTreeChild) {
                         if (fieldTreeChildEntry.value instanceof Map) continue
+                        if (!(fieldTreeChildEntry.value instanceof ArrayList))
+                            throw new IllegalArgumentException("Field tree value ${fieldTreeChildEntry.value} is not instance of ArrayList")
+
                         FieldInfo fieldInfo = relatedEd.getFieldInfo(fieldTreeChildEntry.key as String)
                         if (fieldInfo == null) throw new EntityException("Can't find field ${fieldTreeChildEntry.key} in entity ${relatedEd.getEntityName()}")
-                        relatedDocMap.put(fieldTreeChildEntry.value as String, fieldInfo.type)
+                        ArrayList<String> fieldAliasList = (ArrayList<String>) fieldTreeChildEntry.value
+                        for (int i = 0; i < fieldAliasList.size(); i++) {
+                            String fieldAlias = fieldAliasList.get(i)
+                            relatedDocMap.put(fieldAlias, fieldInfo.type)
+                        }
                     }
-                    populateDataDocDefinitionRelatedMap(relatedDocMap, relatedEd, fieldTreeChild, relationshipAliasMap, recurseSetFields)
+                    populateDataDocDefinitionRelatedMap(relatedDocMap, relatedEd, fieldTreeChild, relationshipAliasMap, false)
                     parentDocMap.put(relDocumentAlias, relatedDocMap)
                 }
 
-            } else {
-                if (setFields) {
-                    FieldInfo fieldInfo = parentEd.getFieldInfo(fieldTreeEntry.key as String)
-                    if (fieldInfo == null) throw new EntityException("Can't find field ${fieldTreeEntry.key} in entity ${parentEd.getEntityName()}")
-                    parentDocMap.put(fieldTreeEntry.value as String, fieldInfo.type)
+            } else if (fieldEntryValue instanceof ArrayList) {
+                if (setFields && !fieldEntryKey.startsWith("(")) {
+                    ArrayList<String> fieldAliasList = (ArrayList<String>) fieldEntryValue
+                    for (int i = 0; i < fieldAliasList.size(); i++) {
+                        String fieldAlias = (String) fieldAliasList.get(i)
+                        FieldInfo fieldInfo = parentEd.getFieldInfo(fieldEntryKey)
+                        if (fieldInfo == null) throw new EntityException("Can't find field ${fieldEntryKey} in entity ${parentEd.getEntityName()}")
+                        parentDocMap.put(fieldAlias as String, fieldInfo.type)
+                    }
                 }
             }
         }
