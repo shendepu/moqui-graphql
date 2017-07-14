@@ -1149,6 +1149,7 @@ class GraphQLSchemaDefinition {
                 .name("FakeTypeReferenceContainer")
                 .description("This is only for contain GraphQLTypeReference so GraphQLSchema includes all of GraphQLTypeReference.")
 
+        boolean hasFakeField = false
         List<String> fakeFieldNameList = new ArrayList<>()
         // fields for GraphQLTypeReference
         for (Map.Entry<String, GraphQLTypeReference> entry in graphQLTypeReferenceMap) {
@@ -1157,6 +1158,7 @@ class GraphQLSchemaDefinition {
             FieldDefinition fieldDef = new FieldDefinition(ecf, entry.key, entry.key)
             graphQLObjectTypeBuilder.field(buildSchemaField(fieldDef))
             fakeFieldNameList.add(entry.key)
+            hasFakeField = true
         }
 
         // fields for resolver type of interface
@@ -1170,16 +1172,20 @@ class GraphQLSchemaDefinition {
             FieldDefinition fieldDef = new FieldDefinition(ecf, resolverType, resolverType)
             graphQLObjectTypeBuilder.field(buildSchemaField(fieldDef))
             fakeFieldNameList.add(resolverType)
+            hasFakeField = true
         }
 
-        GraphQLObjectType fakeObjectType = graphQLObjectTypeBuilder.build()
+        if (hasFakeField) {
+            GraphQLObjectType fakeObjectType = graphQLObjectTypeBuilder.build()
 
-        GraphQLFieldDefinition fakeField = GraphQLFieldDefinition.newFieldDefinition()
-            .name("fakeTypeReferenceContainer")
-            .type(fakeObjectType)
-            .build()
+            GraphQLFieldDefinition fakeField = GraphQLFieldDefinition.newFieldDefinition()
+                    .name("fakeTypeReferenceContainer")
+                    .type(fakeObjectType)
+                    .build()
 
-        queryObjectTypeBuilder.field(fakeField)
+            queryObjectTypeBuilder.field(fakeField)
+        }
+
         GraphQLObjectType queryObjectType = queryObjectTypeBuilder.build()
 
         graphQLObjectTypeMap.put(queryRootObjectTypeName, queryObjectType)
