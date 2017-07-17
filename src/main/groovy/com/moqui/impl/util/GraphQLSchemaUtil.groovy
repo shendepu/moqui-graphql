@@ -109,6 +109,20 @@ class GraphQLSchemaUtil {
     static final List<String> moquiNumericTypes = ["number-integer", "number-float", "number-decimal", "currency-amount", "currency-precise"]
     static final List<String> moquiBoolTypes = ["text-indicator"]
 
+    // this is reverse mapping between elasticsearch type and moqui entity field type.
+    // used by `getDataDocDefinition` only due to data document field which is calculation, And it has a fieldType
+    // defining the type in elasticsearch types, but we need the entity field type instead.
+    static final Map<String, String> esTypeEntityMap = [
+            "keyword": "text-medium",
+            "date": "date",
+            "text": "text-medium",
+            "integer": "number-integer",
+            "long": "number-integer",
+            "float": "number-float",
+            "double": "number-decimal",
+            "binary": "binary-very-long"
+    ]
+
     static String getGraphQLTypeNameByJava(String javaType) {
         if (!javaType) return "String"
         return javaTypeGraphQLMap.get(getShortJavaType(javaType))
@@ -284,78 +298,84 @@ class GraphQLSchemaUtil {
         EntityList dataDocumentFieldList = dataDocument.findRelated("moqui.entity.document.DataDocumentField", null, null, true, false)
         EntityList dataDocumentRelAliasList = dataDocument.findRelated("moqui.entity.document.DataDocumentRelAlias", null, null, true, false)
 
+        Map<String, String> relationshipAliasMap = [:]
+        for (EntityValue dataDocumentRelAlias in dataDocumentRelAliasList)
+            relationshipAliasMap.put((String) dataDocumentRelAlias.relationshipName, (String) dataDocumentRelAlias.documentAlias)
+
         String primaryEntityName = dataDocument.primaryEntityName
         EntityDefinition primaryEd = efi.getEntityDefinition(primaryEntityName)
-        List<String> primaryPkFieldNames = primaryEd.getPkFieldNames()
-
-        // build the field tree, nested Maps for relationship field path elements and field alias String for field name path elements
-        Map<String, Object> fieldTree = [:]
-        Map<String, String> fieldAliasPathMap = [:]
-        AtomicBoolean hasExprMut = new AtomicBoolean(false)
-        EntityDataDocument.populateFieldTreeAndAliasPathMap(dataDocumentFieldList, primaryPkFieldNames, fieldTree, fieldAliasPathMap, hasExprMut, true)
-
-        // make the relationship alias Map
-        Map relationshipAliasMap = [:]
-        for (EntityValue dataDocumentRelAlias in dataDocumentRelAliasList)
-            relationshipAliasMap.put(dataDocumentRelAlias.relationshipName, dataDocumentRelAlias.documentAlias)
 
         Map<String, Object> docDefMap = [:]
         docDefMap.put("_id", "id")
         docDefMap.put("id", "id")
 
-        populateDataDocDefinitionRelatedMap(docDefMap, primaryEd, fieldTree, relationshipAliasMap, true)
+        List<String> remainingPKFields = new ArrayList<>(primaryEd.getPkFieldNames())
+        for (EntityValue dataDocumentField in dataDocumentFieldList) {
+            String fieldPath = (String) dataDocumentField.fieldPath
+            ArrayList<String> fieldPathElementList = EntityDataDocument.fieldPathToList(fieldPath)
+            if (fieldPathElementList.size() == 1) {
+                String fieldName = ((String) dataDocumentField.fieldNameAlias) ?: fieldPath
+                String esFieldType = (String) dataDocumentField.fieldType ?: "double" // in moqui-elasticsearch, the default type is `double`
+                if (fieldPath.startsWith("(")) {
+                    if (!esFieldType) throw new IllegalArgumentException("Could not find fieldType for field [${fieldName}]")
+                    String fieldType = esTypeEntityMap.get(esFieldType)
+                    if (!fieldType) throw new IllegalArgumentException("Could not find entity field type for elasticsearch type [${esFieldType}]")
 
-        return docDefMap
-    }
-
-    private static populateDataDocDefinitionRelatedMap(Map<String, Object> parentDocMap, EntityDefinition parentEd,
-                                                       Map<String, Object> fieldTreeCurrent, Map relationshipAliasMap, boolean setFields) {
-        for (Map.Entry<String, Object> fieldTreeEntry in fieldTreeCurrent) {
-            String fieldEntryKey = fieldTreeEntry.key
-            Object fieldEntryValue = fieldTreeEntry.value
-            if (fieldEntryValue instanceof Map) {
-                String relationshipName = fieldEntryKey
-                Map<String, Object> fieldTreeChild = fieldEntryValue as Map
-
-                RelationshipInfo relationshipInfo = parentEd.getRelationshipInfo(relationshipName)
-                String relDocumentAlias = relationshipAliasMap.get(relationshipName) ?: relationshipInfo.shortAlias ?: relationshipName
-                EntityDefinition relatedEd = relationshipInfo.relatedEd
-                boolean isOneRelationship = relationshipInfo.isTypeOne
-
-                if (isOneRelationship) {
-                    populateDataDocDefinitionRelatedMap(parentDocMap, relatedEd, fieldTreeChild, relationshipAliasMap, true)
+                    docDefMap.put(fieldName, fieldType)
                 } else {
-                    Map<String, Object> relatedDocMap = [:]
-                    for (Map.Entry<String, Object> fieldTreeChildEntry in fieldTreeChild) {
-                        if (fieldTreeChildEntry.value instanceof Map) continue
-                        if (!(fieldTreeChildEntry.value instanceof ArrayList))
-                            throw new IllegalArgumentException("Field tree value ${fieldTreeChildEntry.value} is not instance of ArrayList")
-
-                        FieldInfo fieldInfo = relatedEd.getFieldInfo(fieldTreeChildEntry.key as String)
-                        if (fieldInfo == null) throw new EntityException("Can't find field ${fieldTreeChildEntry.key} in entity ${relatedEd.getEntityName()}")
-                        ArrayList<String> fieldAliasList = (ArrayList<String>) fieldTreeChildEntry.value
-                        for (int i = 0; i < fieldAliasList.size(); i++) {
-                            String fieldAlias = fieldAliasList.get(i)
-                            relatedDocMap.put(fieldAlias, fieldInfo.type)
-                        }
-                    }
-                    populateDataDocDefinitionRelatedMap(relatedDocMap, relatedEd, fieldTreeChild, relationshipAliasMap, false)
-                    parentDocMap.put(relDocumentAlias, relatedDocMap)
+                    FieldInfo fieldInfo = primaryEd.getFieldInfo(fieldPath)
+                    if (fieldInfo == null) throw new EntityException("Could not find field [${fieldPath}] for entity [${primaryEd.getFullEntityName()}] in DataDocument [${dataDocumentId}]")
+                    docDefMap.put(fieldName, fieldInfo.type)
+                    if (remainingPKFields.contains(fieldPath)) remainingPKFields.remove(fieldPath)
                 }
+                
+                continue
+            }
 
-            } else if (fieldEntryValue instanceof ArrayList) {
-                if (setFields && !fieldEntryKey.startsWith("(")) {
-                    ArrayList<String> fieldAliasList = (ArrayList<String>) fieldEntryValue
-                    for (int i = 0; i < fieldAliasList.size(); i++) {
-                        String fieldAlias = (String) fieldAliasList.get(i)
-                        FieldInfo fieldInfo = parentEd.getFieldInfo(fieldEntryKey)
-                        if (fieldInfo == null) throw new EntityException("Can't find field ${fieldEntryKey} in entity ${parentEd.getEntityName()}")
-                        parentDocMap.put(fieldAlias as String, fieldInfo.type)
+            Map<String, Object> currentDocDefMap = docDefMap
+            EntityDefinition currentEd = primaryEd
+            int fieldPathElementListSize = fieldPathElementList.size()
+            for (int i = 0; i < fieldPathElementListSize; i++) {
+                String fieldPathElement = (String) fieldPathElementList.get(i)
+                if (i < (fieldPathElementListSize - 1)) {
+                    RelationshipInfo relInfo = currentEd.getRelationshipInfo(fieldPathElement)
+                    if (relInfo == null) throw new EntityException("Could not find relationship [${fieldPathElement}] for entity [${currentEd.getFullEntityName()}] in DataDocument [${dataDocumentId}]")
+                    currentEd = relInfo.relatedEd
+                    if (currentEd == null) throw new EntityException("Could not find entity [${relInfo.relatedEntityName}] in DataDocument [${dataDocumentId}]")
+
+                    // only put type many in sub-objects, same as DataDocument generation
+                    if (!relInfo.isTypeOne) {
+                        String objectName = relationshipAliasMap.get(fieldPathElement) ?: fieldPathElement
+                        Map<String, Object> subDocDefMap = (Map<String, Object>) currentDocDefMap.get(objectName)
+                        if (subDocDefMap == null) subDocDefMap = new HashMap<>()
+
+                        currentDocDefMap.put(objectName, subDocDefMap)
+                        currentDocDefMap = subDocDefMap
+                    }
+                } else {
+                    String fieldName = (String) dataDocumentField.fieldNameAlias ?: fieldPathElement
+                    String esFieldType = (String) dataDocumentField.fieldType ?: "double" // in moqui-elasticsearch, the default type is `double`
+                    if (fieldPathElement.startsWith("(")) {
+                        if (!esFieldType) throw new IllegalArgumentException("Could not find fieldType for field [${fieldName}]")
+                        String fieldType = esTypeEntityMap.get(esFieldType)
+                        if (!fieldType) throw new IllegalArgumentException("Could not find entity field type for elasticsearch type [${esFieldType}]")
+
+                        currentDocDefMap.put(fieldName, fieldType)
+                    } else {
+                        FieldInfo fieldInfo = currentEd.getFieldInfo(fieldPathElement)
+                        if (fieldInfo == null) throw new EntityException("Could not find field [${fieldPathElement}] for entity [${currentEd.getFullEntityName()}] in DataDocument [${dataDocumentId}]")
+                        currentDocDefMap.put(fieldName, fieldInfo.type)
                     }
                 }
             }
         }
 
+        for (String remainingPkName in remainingPKFields) {
+            FieldInfo fieldInfo = primaryEd.getFieldInfo(remainingPkName)
+            docDefMap.put(remainingPkName, fieldInfo.type)
+        }
+
+        return docDefMap
     }
 
     static void mergeFieldDefinition(MNode fieldNode, Map<String, FieldDefinition> fieldDefMap, ExecutionContextFactory ecf) {
