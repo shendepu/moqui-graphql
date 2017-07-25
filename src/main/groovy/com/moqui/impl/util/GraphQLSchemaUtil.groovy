@@ -96,12 +96,18 @@ class GraphQLSchemaUtil {
     ] as Map<String, String>
 
     static final Map<String, String> javaTypeGraphQLMap = [
-            "String"        : "String",     "CharSequence"  : "String",
-            "Date"          : "String",     "Time"          : "String",
-            "Timestamp"     : "Timestamp",
-            "Integer"       : "Int",        "Long"          : "Long",           "BigInteger": "BigInteger",
-            "Float"         : "Float",      "Double"        : "Float",          "BigDecimal": "BigDecimal",
-            "Boolean"       : "Boolean"
+            "String"        : "String",     "java.lang.String"          : "String",
+            "CharSequence"  : "String",     "java.lang.CharSequence"    : "String",
+            "Date"          : "String",     "java.sql.Date"             : "String",
+            "Time"          : "String",     "java.sql.Time"             : "String",
+            "Timestamp"     : "Timestamp",  "java.sql.Timestamp"        : "Timestamp",
+            "Integer"       : "Int",        "java.lang.Integer"         : "Int",
+            "Long"          : "Long",       "java.lang.Long"            : "Long",
+            "BigInteger"    : "BigInteger", "java.math.BigInteger"      : "BigInteger",
+            "Float"         : "Float",      "java.lang.Float"           : "Float",
+            "Double"        : "Float",      "java.lang.Double"          : "Float",
+            "BigDecimal"    : "BigDecimal", "java.math.BigDecimal"      : "BigDecimal",
+            "Boolean"       : "Boolean",    "java.lang.Boolean"         : "Boolean"
     ] as Map<String, String>
 
     static final List<String> moquiStringTypes = ["id", "id-long", "text-short", "text-medium", "text-long", "text-very-long"]
