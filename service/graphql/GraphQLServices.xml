@@ -87,4 +87,40 @@
             <set field="pageInfo" from="[pageIndex: pageIndex, pageSize: pageSize, totalCount: totalCount]"/>
         </actions>
     </service>
+
+    <service verb="build" noun="ConnectionByList">
+        <implements service="graphql.GraphQLServices.return#Connection"/>
+        <in-parameters>
+            <parameter name="el" type="List"/>
+            <parameter name="pkFieldNames" type="List"><parameter name="fieldName"/></parameter>
+            <parameter name="pageIndex" type="Integer" default-value="0"/>
+            <parameter name="pageSize" type="Integer" default-value="20"/>
+            <parameter name="totalCount" type="Integer" default-value="0"/>
+        </in-parameters>
+        <actions>
+            <script>
+                import com.moqui.impl.util.GraphQLSchemaUtil
+            </script>
+            <set field="edges" from="[]"/>
+            <iterate list="el" entry="ev">
+                <script><![CDATA[
+                    def edge = [:]
+                    def node = [:]
+
+                    String id
+                    if (pkFieldNames.size() > 0 && !pkFieldNames.contains(null)) {
+                        id = GraphQLSchemaUtil.encodeRelayId(ev, pkFieldNames)
+                    } else {
+                        id = ev_index
+                    }
+                    node.put("id", id)
+                    node.putAll(ev)
+
+                    edge.put("node", node)
+                    edges.add(edge)
+                ]]></script>
+            </iterate>
+            <set field="pageInfo" from="[pageIndex: pageIndex, pageSize: pageSize, totalCount: totalCount]"/>
+        </actions>
+    </service>
 </services>
