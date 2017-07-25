@@ -44,7 +44,7 @@ class GraphQLApi {
     GraphQLApi(ExecutionContextFactory ecf) {
         this.ecf = ecf
 
-        String graphQLTtiProperty = System.getProperty("moshi.humanres.resume_parser.tti")
+        String graphQLTtiProperty = System.getProperty("service.graphql.graphql.tti")
         graphQLTTI = graphQLTtiProperty ? graphQLTtiProperty.toLong() * 1000 : Long.MAX_VALUE
 
         loadSchemaNode()
