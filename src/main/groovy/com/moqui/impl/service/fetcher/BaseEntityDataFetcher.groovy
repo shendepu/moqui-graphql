@@ -24,15 +24,20 @@ class BaseEntityDataFetcher extends BaseDataFetcher {
     BaseEntityDataFetcher (MNode node, FieldDefinition fieldDef, ExecutionContextFactory ecf) {
         super(fieldDef, ecf)
 
+        String entityName = node.attribute("entity-name")
+        EntityDefinition ed = ((ExecutionContextFactoryImpl) ecf).entityFacade.getEntityDefinition(entityName)
+        if (ed == null) throw new IllegalArgumentException("Entity ${entityName} not found")
+        String singlePkFieldName = ed.getPkFieldNames().size() == 1 ? ed.getPkFieldNames().get(0) : null
+
         Map<String, String> keyMap = new HashMap<>()
         for (MNode keyMapNode in node.children("key-map"))
-            keyMap.put(keyMapNode.attribute("field-name"), keyMapNode.attribute("related") ?: keyMapNode.attribute("field-name"))
+            keyMap.put(keyMapNode.attribute("field-name"), keyMapNode.attribute("related") ?: singlePkFieldName ?: keyMapNode.attribute("field-name"))
 
         for (MNode localizeFieldNode in node.children("localize-field")) {
             if (!localizeFields.contains(localizeFieldNode.attribute("name")))
                 localizeFields.add(localizeFieldNode.attribute("name"))
         }
-        initializeFields(node.attribute("entity-name"), node.attribute("interface-entity-name"), keyMap)
+        initializeFields(entityName, node.attribute("interface-entity-name"), keyMap)
     }
 
     BaseEntityDataFetcher (ExecutionContextFactory ecf, FieldDefinition fieldDef, String entityName, Map<String, String> relKeyMap ) {
