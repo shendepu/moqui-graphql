@@ -64,6 +64,9 @@
             <parameter name="totalCount" type="Integer" default-value="0"/>
         </in-parameters>
         <actions>
+            <script>
+                import com.moqui.impl.util.GraphQLSchemaUtil
+            </script>
             <set field="edges" from="[]"/>
             <iterate list="el" entry="ev">
                 <script><![CDATA[
@@ -73,7 +76,7 @@
                     Map<String, Object> primaryKeys = ev.getPrimaryKeys()
                     String id
                     if (primaryKeys.size() > 0 && !primaryKeys.values().contains(null)) {
-                        id = GraphQLSchemaUtil.encodeRelayId(ev, ed.getPkFieldNames())
+                        id = GraphQLSchemaUtil.encodeRelayId(ev, primaryKeys.keySet().asList())
                     } else {
                         id = ev_index
                     }
