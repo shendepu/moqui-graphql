@@ -1,13 +1,12 @@
 package com.moqui.impl.service.fetcher
 
-import com.moqui.impl.util.GraphQLSchemaUtil
 import graphql.schema.DataFetchingEnvironment
+import groovy.transform.CompileStatic
 import org.moqui.context.ExecutionContext
 import org.moqui.context.ExecutionContextFactory
 import org.moqui.entity.EntityException
 import org.moqui.entity.EntityValue
 import org.moqui.impl.context.UserFacadeImpl
-import org.moqui.impl.entity.condition.ListCondition
 import org.moqui.util.MNode
 import org.elasticsearch.client.Client
 import org.elasticsearch.action.get.GetResponse
@@ -17,16 +16,22 @@ import org.slf4j.LoggerFactory
 
 import static com.moqui.impl.service.GraphQLSchemaDefinition.FieldDefinition
 
+@CompileStatic
 class ElasticSearchDataFetcher extends BaseDataFetcher {
     protected final static Logger logger = LoggerFactory.getLogger(ElasticSearchDataFetcher.class)
 
     String dataDocumentId
     String indexName
+    String queryFormat
     String requireAuthentication
     List<String> localizeFields = new ArrayList<>()
 
+    private static final String searchByStringServiceName = "org.moqui.search.SearchServices.search#DataDocuments"
+    private static final String searchByJsonServiceName = "graphql.search.SearchServices.search#DataDocumentsByJson"
+
     ElasticSearchDataFetcher(MNode node, FieldDefinition fieldDef, ExecutionContextFactory ecf) {
         super(fieldDef, ecf)
+        this.queryFormat = node.attribute("query-format") ?: "string"
         this.requireAuthentication = node.attribute("require-authentication") ?: fieldDef.requireAuthentication ?: "true"
 
         dataDocumentId = node.attribute("data-document-id")
@@ -61,7 +66,7 @@ class ElasticSearchDataFetcher extends BaseDataFetcher {
                     restPathElement = ""
                 }
 
-                Object currentData = parentData.get(currentPathElement)
+                Object currentData = ((Map) parentData).get(currentPathElement)
                 if (currentData == null) return
 
                 if (currentData instanceof List || currentData instanceof Map) {
@@ -71,7 +76,7 @@ class ElasticSearchDataFetcher extends BaseDataFetcher {
                         logger.warn("Localize field of data document is not on leaf")
                         return
                     }
-                    parentData.put(currentPathElement, ec.l10n.localize(currentData))
+                    ((Map) parentData).put(currentPathElement, ec.l10n.localize((String) currentData))
                 }
             } else {
                 return // not list, map nested structure
@@ -130,8 +135,10 @@ class ElasticSearchDataFetcher extends BaseDataFetcher {
         try {
 
             if (fieldDef.isList == "true") {
-                Map<String, Object> paramMap = [indexName  : indexName, documentType: dataDocumentId, flattenDocument: false,
-                                                queryString: environment.arguments.get("queryString")]
+                Map<String, Object> paramMap = [indexName  : indexName, documentType: dataDocumentId, flattenDocument: false] as HashMap
+                if (queryFormat == "string") paramMap.put("queryString", environment.arguments.get("queryString"))
+                if (queryFormat == "json") paramMap.put("queryJson", environment.arguments.get("queryJson"))
+
                 Map paginationArg = environment.arguments.pagination as Map
                 if (paginationArg) {
                     if (paginationArg.pageIndex != null) paramMap.put("pageIndex", paginationArg.pageIndex)
@@ -143,7 +150,8 @@ class ElasticSearchDataFetcher extends BaseDataFetcher {
                     }
                 }
 
-                Map<String, Object> ddMap = ec.service.sync().name("org.moqui.search.SearchServices.search#DataDocuments").parameters(paramMap).call()
+                String searchServiceName = queryFormat == "json" ? searchByJsonServiceName : searchByStringServiceName
+                Map<String, Object> ddMap = ec.service.sync().name(searchServiceName).parameters(paramMap).call()
 
                 int pageIndex = ddMap.documentListPageIndex as Integer
                 int pageSize = ddMap.documentListPageSize as Integer

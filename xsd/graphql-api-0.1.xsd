@@ -278,6 +278,14 @@ along with this software (see the LICENSE.md file). If not, see
                 <xs:element minOccurs="0" maxOccurs="unbounded" ref="localize-field"/>
             </xs:sequence>
             <xs:attribute name="data-document-id" type="name-upper" use="required"/>
+            <xs:attribute name="query-format" default="string">
+                <xs:simpleType>
+                    <xs:restriction base="xs:token">
+                        <xs:enumeration value="string"/>
+                        <xs:enumeration value="json"/>
+                    </xs:restriction>
+                </xs:simpleType>
+            </xs:attribute>
             <xs:attribute name="require-authentication" type="authc-options" default="true"/>
         </xs:complexType>
     </xs:element>

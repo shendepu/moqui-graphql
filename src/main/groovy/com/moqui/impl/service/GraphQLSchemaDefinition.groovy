@@ -1899,13 +1899,14 @@ class GraphQLSchemaDefinition {
             if (isMutation) return
             ArgumentDefinition argumentDef
             if (isList == "true") {
+                String queryParamName = elasticSearchFetcherNode.attribute("query-format") == "json" ? "queryJson" : "queryString"
                 // add queryString argument
-                argumentDef = getCachedArgumentDefinition("queryString", "String", "true")
+                argumentDef = getCachedArgumentDefinition(queryParamName, "String", "true")
                 if (argumentDef == null) {
-                    argumentDef = new ArgumentDefinition(this, "queryString", "String", "true", null, null)
+                    argumentDef = new ArgumentDefinition(this, queryParamName, "String", "true", null, null)
                     putCachedArgumentDefinition(argumentDef)
                 }
-                argumentDefMap.put("queryString", argumentDef)
+                argumentDefMap.put(queryParamName, argumentDef)
             } else {
                 argumentDef = getCachedArgumentDefinition("_id", "String", "true")
                 if (argumentDef == null) {
