@@ -90,6 +90,7 @@ class ServiceDataFetcher extends BaseDataFetcher {
                         .parameters(inputFieldsMap).call()
             }
             if (result && result.get("_graphql_result_null")) return null
+            if (result && result.get("_graphql_result_primitive")) return result.get("_graphql_result_primitive")
             return result
         } finally {
             if (loggedInAnonymous) ((UserFacadeImpl) ec.getUser()).logoutAnonymousOnly()
