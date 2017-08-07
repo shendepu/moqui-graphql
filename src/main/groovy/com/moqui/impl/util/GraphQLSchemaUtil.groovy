@@ -23,6 +23,7 @@ import com.moqui.impl.service.fetcher.EntityBatchedDataFetcher
 import com.moqui.impl.service.fetcher.ServiceDataFetcher
 import graphql.schema.GraphQLScalarType
 import groovy.transform.CompileStatic
+import org.apache.commons.codec.digest.DigestUtils
 import org.moqui.context.ExecutionContext
 import org.moqui.context.ExecutionContextFactory
 import org.moqui.entity.EntityException
@@ -521,20 +522,20 @@ class GraphQLSchemaUtil {
                     }
                 }
                 */
+                Map argValueMap = (LinkedHashMap) argValue
+                if (argValueMap.get("value") != null) inputFieldsMap.put(argName, argValueMap.get("value"))
+                if (argValueMap.get("op") != null) inputFieldsMap.put(argName + "_op", argValueMap.get("op"))
+                if (argValueMap.get("not") != null) inputFieldsMap.put(argName + "_not", argValueMap.get("not"))
+                if (argValueMap.get("ic") != null) inputFieldsMap.put(argName + "_ic", argValueMap.get("ic"))
+                inputFieldsMap.put("pageIndex", argValueMap.get("pageIndex") ?: 0)
+                inputFieldsMap.put("pageSize", argValueMap.get("pageSize") ?: 20)
+                if (argValueMap.get("pageNoLimit") != null) inputFieldsMap.put("pageNoLimit", argValueMap.get("pageNoLimit"))
+                if (argValueMap.get("orderByField") != null) inputFieldsMap.put("orderByField", argValueMap.get("orderByField"))
 
-                if (argValue.get("value") != null) inputFieldsMap.put(argName, argValue.get("value"))
-                if (argValue.get("op") != null) inputFieldsMap.put(argName + "_op", argValue.get("op"))
-                if (argValue.get("not") != null) inputFieldsMap.put(argName + "_not", argValue.get("not"))
-                if (argValue.get("ic") != null) inputFieldsMap.put(argName + "_ic", argValue.get("ic"))
-                inputFieldsMap.put("pageIndex", argValue.get("pageIndex") ?: 0)
-                inputFieldsMap.put("pageSize", argValue.get("pageSize") ?: 20)
-                if (argValue.get("pageNoLimit") != null) inputFieldsMap.put("pageNoLimit", argValue.get("pageNoLimit"))
-                if (argValue.get("orderByField") != null) inputFieldsMap.put("orderByField", argValue.get("orderByField"))
-
-                if (argValue.get("period") != null) inputFieldsMap.put(argName + "_period", argValue.get("period"))
-                if (argValue.get("poffset") != null) inputFieldsMap.put(argName + "_poffset", argValue.get("poffset"))
-                if (argValue.get("from") != null) inputFieldsMap.put(argName + "_from", argValue.get("from"))
-                if (argValue.get("thru") != null) inputFieldsMap.put(argName + "_thru", argValue.get("thru"))
+                if (argValueMap.get("period") != null) inputFieldsMap.put(argName + "_period", argValueMap.get("period"))
+                if (argValueMap.get("poffset") != null) inputFieldsMap.put(argName + "_poffset", argValueMap.get("poffset"))
+                if (argValueMap.get("from") != null) inputFieldsMap.put(argName + "_from", argValueMap.get("from"))
+                if (argValueMap.get("thru") != null) inputFieldsMap.put(argName + "_thru", argValueMap.get("thru"))
 
             } else {
                 // periodValid_ type argument is handled specially
@@ -585,5 +586,13 @@ class GraphQLSchemaUtil {
         if (camelCase == null || camelCase.length() == 0) return ""
 
         return Character.toString(Character.toUpperCase(camelCase.charAt(0))) + camelCase.substring(1)
+    }
+
+    static String sha1HexShort(String text) {
+        return sha1HexShort(text, 7)
+    }
+
+    static String sha1HexShort(String text, int length) {
+        return DigestUtils.sha1Hex(text.getBytes()).substring(0, length)
     }
 }
