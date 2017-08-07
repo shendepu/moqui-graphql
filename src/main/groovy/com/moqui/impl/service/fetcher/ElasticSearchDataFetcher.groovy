@@ -27,7 +27,7 @@ class ElasticSearchDataFetcher extends BaseDataFetcher {
     List<String> localizeFields = new ArrayList<>()
 
     private static final String searchByStringServiceName = "org.moqui.search.SearchServices.search#DataDocuments"
-    private static final String searchByJsonServiceName = "graphql.search.SearchServices.search#DataDocumentsByJson"
+    private static final String searchByJsonServiceName = "com.moqui.search.SearchServices.search#DataDocumentsByJson"
 
     ElasticSearchDataFetcher(MNode node, FieldDefinition fieldDef, ExecutionContextFactory ecf) {
         super(fieldDef, ecf)

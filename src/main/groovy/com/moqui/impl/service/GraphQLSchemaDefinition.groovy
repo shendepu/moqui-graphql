@@ -414,13 +414,14 @@ class GraphQLSchemaDefinition {
         for (Map.Entry<String, GraphQLTypeDefinition> entry in allTypeDefMap) {
             if (!(entry.getValue() instanceof ObjectTypeDefinition)) continue
             for (FieldDefinition fieldDef in ((ObjectTypeDefinition) entry.getValue()).fieldList) {
-                if (!fieldDef.isMutation) continue
-                if (fieldDef.dataFetcher == null)
-                    throw new IllegalArgumentException("FieldDefinition [${fieldDef.name} - ${fieldDef.type}] as mutation must have a data fetcher")
-                if (fieldDef.dataFetcher instanceof EmptyDataFetcher)
-                    throw new IllegalArgumentException("FieldDefinition [${fieldDef.name} - ${fieldDef.type}] as mutation can't have empty data fetcher")
+                if (fieldDef.isMutation) {
+                    if (fieldDef.dataFetcher == null)
+                        throw new IllegalArgumentException("FieldDefinition [${fieldDef.name} - ${fieldDef.type}] as mutation must have a data fetcher")
+                    if (fieldDef.dataFetcher instanceof EmptyDataFetcher)
+                        throw new IllegalArgumentException("FieldDefinition [${fieldDef.name} - ${fieldDef.type}] as mutation can't have empty data fetcher")
+                }
 
-                if (fieldDef.dataFetcher instanceof ServiceDataFetcher) {
+                if (fieldDef.dataFetcher instanceof ServiceDataFetcher && fieldDef.isMutation) {
                     String serviceName = ((ServiceDataFetcher) fieldDef.dataFetcher).serviceName
                     String inputTypeName = GraphQLSchemaUtil.camelCaseToUpperCamel(fieldDef.name) + "Input"
 
@@ -475,6 +476,23 @@ class GraphQLSchemaDefinition {
                     GraphQLInputObjectType inputObjectType = inputObjectTypeBuilder.build()
                     graphQLInputTypeMap.put(inputTypeName, inputObjectType)
                 }
+
+                if (fieldDef.dataFetcher instanceof ServiceDataFetcher && !fieldDef.isMutation) {
+                    String serviceName = ((ServiceDataFetcher) fieldDef.dataFetcher).serviceName
+                    String inputTypeName = GraphQLSchemaUtil.camelCaseToUpperCamel(fieldDef.name)
+
+                    boolean isEntityAutoService = ((ServiceDataFetcher) fieldDef.dataFetcher).isEntityAutoService
+
+                    if (isEntityAutoService) {
+                        throw new IllegalArgumentException("Entity auto service is not supported for query field")
+                    } else {
+                        ServiceDefinition sd = ecfi.serviceFacade.getServiceDefinition(serviceName)
+                        for (String parmName in sd.getInParameterNames()) {
+                            MNode parmNode = sd.getInParameter(parmName)
+                            getInputTypeRecursiveInSD(parmNode, inputTypeName)
+                        }
+                    }
+                }
             }
         }
     }
@@ -523,11 +541,18 @@ class GraphQLSchemaDefinition {
                 }
                 inputType = builder.build()
                 break
+            case "com.moqui.graphql.PaginationInputType":
+                return paginationInputType
+            case "com.moqui.graphql.OperationInputType":
+                return operationInputType
+            case "com.moqui.graphql.DateRangeInputType":
+                return dateRangeInputType
             default:
                 throw new IllegalArgumentException("Type ${inputTypeName} - ${parmType} for input field is not supported")
                 break
         }
 
+        logger.info("Cache ${inputTypeName} for ${inputType}")
         graphQLInputTypeMap.put(inputTypeName, inputType)
         return inputType
     }
@@ -1228,6 +1253,7 @@ class GraphQLSchemaDefinition {
 
     private static GraphQLArgument buildSchemaArgument(ArgumentDefinition argumentDef) {
         String argumentName = argumentDef.name
+
         GraphQLArgument.Builder argument = GraphQLArgument.newArgument()
                 .name(argumentName)
                 .description(argumentDef.description)
@@ -1244,6 +1270,7 @@ class GraphQLSchemaDefinition {
 //                argType = graphQLInputTypeMap.get("OperationInputType")
 //            }
 //        }
+        if (argumentDef.isList) argType = new GraphQLList(argType)
 
         argument = argument.type(argType)
 
@@ -1587,10 +1614,12 @@ class GraphQLSchemaDefinition {
 
     static class ArgumentDefinition implements Cloneable {
         String name
+        boolean isList = false
         Map<String, String> attributeMap = new LinkedHashMap<>()
 
         ArgumentDefinition(MNode node, FieldDefinition fieldDef) {
             this.name = node.attribute("name")
+            if (node.attribute("type") == "List") this.isList = true
             attributeMap.put("type", node.attribute("type"))
             attributeMap.put("required", node.attribute("required") ?: "false")
             attributeMap.put("defaultValue", node.attribute("default-value"))
@@ -1608,7 +1637,12 @@ class GraphQLSchemaDefinition {
         }
 
         ArgumentDefinition(FieldDefinition fieldDef, String name, String type, String required, String defaultValue, String description) {
+            this(fieldDef, name, type, required, false, defaultValue, description)
+        }
+
+        ArgumentDefinition(FieldDefinition fieldDef, String name, String type, String required, boolean isList, String defaultValue, String description) {
             this.name = name
+            this.isList = isList
             attributeMap.put("type", type)
             attributeMap.put("required", required)
             attributeMap.put("defaultValue", defaultValue)
@@ -1720,7 +1754,7 @@ class GraphQLSchemaDefinition {
                     break
                 case "service":
                     if (isMutation) addInputArgument()
-                    else addServiceAutoArguments(dataFetcherNode, keyMap)
+                    else addQueryAutoArguments(dataFetcherNode, keyMap)
                     break
                 case "elastic-search":
                     addElasticSearchAutoArguments(dataFetcherNode)
@@ -1760,7 +1794,6 @@ class GraphQLSchemaDefinition {
 
             addEntityAutoArguments(excludedArguments, [:])
             updateArgumentDefs()
-            addInputArgument()
             addPeriodValidArguments()
         }
 
@@ -1858,7 +1891,7 @@ class GraphQLSchemaDefinition {
             return keyMap
         }
 
-        private void addServiceAutoArguments(MNode serviceFetcherNode, Map<String, String> keyMap) {
+        private void addQueryAutoArguments(MNode serviceFetcherNode, Map<String, String> keyMap) {
             if (isMutation) return
 
             String serviceName = serviceFetcherNode.attribute("service")
@@ -1875,11 +1908,19 @@ class GraphQLSchemaDefinition {
                 // TODO: get description from parameter description node
                 String paramDescription = ""
 
+                boolean argIsList = false
                 String argType
                 switch (paramType) {
                     case "com.moqui.graphql.OperationInputType": argType = "OperationInputType"; break
                     case "com.moqui.graphql.DateRangeInputType": argType = "DateRangeInputType"; break
                     case "com.moqui.graphql.PaginationInputType": argType = "PaginationInputType"; break
+                    case "List":
+                        argIsList = true
+                        argType = GraphQLSchemaUtil.camelCaseToUpperCamel(this.name) + "_" + paramName
+                        break
+                    case "Map":
+                        argType = GraphQLSchemaUtil.camelCaseToUpperCamel(this.name) + "_" + paramName
+                        break
                     default:
                         argType = GraphQLSchemaUtil.javaTypeGraphQLMap.get(paramType)
                         break
@@ -1888,7 +1929,7 @@ class GraphQLSchemaDefinition {
 
                 ArgumentDefinition argumentDef = getCachedArgumentDefinition(paramName, argType, null)
                 if (argumentDef == null) {
-                    argumentDef = new ArgumentDefinition(this, paramName, argType, null, null, paramDescription)
+                    argumentDef = new ArgumentDefinition(this, paramName, argType, null, argIsList, null, paramDescription)
                     putCachedArgumentDefinition(argumentDef)
                 }
                 argumentDefMap.put(paramName, argumentDef)
