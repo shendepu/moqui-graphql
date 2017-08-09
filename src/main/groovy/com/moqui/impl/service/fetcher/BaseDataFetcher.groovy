@@ -51,7 +51,7 @@ abstract class BaseDataFetcher implements DataFetcher {
         } catch (DataFetchingException e) {
             throw e
         } catch (Throwable t) {
-            throw new DataFetchingException("UNKNOWN", t.getStackTrace().toString())
+            throw new DataFetchingException("UNKNOWN", t.getMessage() + "\n" + t.getStackTrace().toString())
         } finally {
             if (ecf != null) ecf.getExecutionContext().getMessage().clearErrors()
         }
