@@ -166,7 +166,7 @@ class GraphQLSchemaDefinition {
 
         // Predefined GraphQLInputObject
         paginationInputType = GraphQLInputObjectType.newInputObject().name("PaginationInputType")
-                .field(createPredefinedInputField("pageIndex", GraphQLInt, "0", "Page index for pagination, default 0"))
+                .field(createPredefinedInputField("pageIndex", GraphQLInt, 0, "Page index for pagination, default 0"))
                 .field(createPredefinedInputField("pageSize", GraphQLInt, 20, "Page size for pagination, default 20"))
                 .field(createPredefinedInputField("pageNoLimit", GraphQLBoolean, false, "Page no limit for pagination, default false"))
                 .field(createPredefinedInputField("orderByField", GraphQLString, null, "OrderBy field for pagination. \ne.g. \n" +
