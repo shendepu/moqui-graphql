@@ -449,6 +449,8 @@ class GraphQLSchemaUtil {
             case "Double": return value as Double
             case "BigDecimal": return value as BigDecimal
             case "Boolean": return value as Boolean
+            case "List": return value as List
+            case "Map": return value as Map
             default:
                 throw new IllegalArgumentException("Can't cast value [${value}] to Java type ${javaType}")
                 break
