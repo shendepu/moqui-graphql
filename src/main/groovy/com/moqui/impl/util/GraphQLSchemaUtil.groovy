@@ -276,7 +276,6 @@ class GraphQLSchemaUtil {
                 addNestFTObjectTypeNode(ecf, childObjectTypeName, dataDocDefChild, allTypeDefMap)
 
                 FieldDefinition fieldDef = new FieldDefinition(ecf, fieldName, childObjectTypeName, [isList: "true"])
-                fieldDef.setDataFetcher(new EmptyDataFetcher(fieldDef))
 
                 fieldDefMap.put(fieldName, fieldDef)
 
