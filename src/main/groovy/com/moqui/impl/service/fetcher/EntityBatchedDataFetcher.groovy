@@ -55,20 +55,6 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
         return !(interfaceEntityName == null || interfaceEntityName.isEmpty() || entityName.equals(interfaceEntityName))
     }
 
-    private static boolean requirePagination(DataFetchingEnvironment environment) {
-        List sources = (List) environment.source
-
-        Map<String, Object> arguments = (Map) environment.arguments
-        List<Field> fields = (List) environment.fields
-        boolean result = false
-        result = result || arguments.get("pagination") != null
-        if (result) return true
-        result = result || fields.find({ it.name == "pageInfo" }) != null
-        if (!result) result = sources.size() == 1
-
-        return result
-    }
-
     private EntityFind patchWithInCondition(EntityFind ef, DataFetchingEnvironment environment) {
         if (relKeyMap.size() != 1)
             throw new IllegalArgumentException("pathWithIdsCondition should only be used when there is just one relationship key map")
@@ -211,7 +197,7 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
                 List<Map<String, Object>> edgesDataList
 
                 // No pagination needed pageInfo is not in the field selection set, so no need to construct it.
-                if (!requirePagination(environment)) {
+                if (!GraphQLSchemaUtil.requirePagination(environment)) {
 //                    logger.info("---- branch batched data fetcher entity without pagination for entity [${entityName}] with operation [${operation}] ----")
                     inputFieldsMap.put("noPageLimit", "true")
                     EntityFind ef = ec.entity.find(entityName).searchFormMap(inputFieldsMap, null, null, null, true)

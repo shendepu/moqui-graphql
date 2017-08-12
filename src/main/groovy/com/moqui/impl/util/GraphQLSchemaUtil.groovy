@@ -21,6 +21,8 @@ import com.moqui.impl.service.fetcher.BaseDataFetcher
 import com.moqui.impl.service.fetcher.EmptyDataFetcher
 import com.moqui.impl.service.fetcher.EntityBatchedDataFetcher
 import com.moqui.impl.service.fetcher.ServiceDataFetcher
+import graphql.language.Field
+import graphql.schema.DataFetchingEnvironment
 import graphql.schema.GraphQLScalarType
 import groovy.transform.CompileStatic
 import org.apache.commons.codec.digest.DigestUtils
@@ -453,6 +455,20 @@ class GraphQLSchemaUtil {
                 throw new IllegalArgumentException("Can't cast value [${value}] to Java type ${javaType}")
                 break
         }
+    }
+
+
+    static boolean requirePagination(DataFetchingEnvironment environment) {
+        List sources = (List) environment.source
+
+        Map<String, Object> arguments = (Map) environment.arguments
+        List<Field> fields = (List) environment.fields
+        Map paginationArg = arguments.get("pagination") as Map
+        if (paginationArg?.get("pageNoLimit")) return false
+        if (paginationArg != null) return true
+        if (fields.find({ it.name == "pageInfo" }) != null) return true
+        if (sources.size() == 1) return true
+        return false
     }
 
     static void transformQueryServiceRelArguments(Map<String, Object> source, Map<String, String> relKeyMap, Map<String, Object> inParameterMap) {

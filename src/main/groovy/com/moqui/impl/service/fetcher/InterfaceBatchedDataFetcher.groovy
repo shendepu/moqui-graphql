@@ -79,20 +79,6 @@ class InterfaceBatchedDataFetcher extends BaseDataFetcher implements BatchedData
         }
     }
 
-    private static boolean requirePagination(DataFetchingEnvironment environment) {
-        List sources = (List) environment.source
-
-        Map<String, Object> arguments = (Map) environment.arguments
-        List<Field> fields = (List) environment.fields
-        boolean result = false
-        result = result || arguments.get("pagination") != null
-        if (result) return true
-        result = result || fields.find({ it.name == "pageInfo" }) != null
-        if (!result) result = sources.size() == 1
-
-        return result
-    }
-
     private List<Map<String, Object>> mergeWithConcreteValue(List<Map<String, Object>> interfaceValueList) {
         Set<String> resolverValues = new HashSet<>()
 
@@ -192,7 +178,7 @@ class InterfaceBatchedDataFetcher extends BaseDataFetcher implements BatchedData
                 Map<String, Object> edgesData
                 List<Map<String, Object>> edgesDataList
 
-                if (!requirePagination(environment)) {
+                if (!GraphQLSchemaUtil.requirePagination(environment)) {
 //                    logger.warn("running list with batch")
                     inputFieldsMap.put("noPageLimit", "true")
                     List<Map<String, Object>> interfaceValueList = defaultFetcher.searchFormMap((List) environment.source, inputFieldsMap, environment)
