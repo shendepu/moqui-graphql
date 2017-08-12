@@ -210,7 +210,6 @@ class GraphQLSchemaUtil {
 
             Map<String, String> fieldPropertyMap = new HashMap<>()
             if (relInfo.type.startsWith("one")) {
-                if ("one".equals(relInfo.type)) fieldPropertyMap.put("nonNull", "true")
             } else {
                 fieldPropertyMap.put("isList", "true")
             }
