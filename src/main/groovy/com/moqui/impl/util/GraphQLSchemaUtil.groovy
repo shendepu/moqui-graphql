@@ -390,7 +390,7 @@ class GraphQLSchemaUtil {
         if (fieldDef != null) {
             if (fieldNode.attribute("type")) fieldDef.type = fieldNode.attribute("type")
             if (fieldNode.attribute("non-null")) fieldDef.nonNull = fieldNode.attribute("non-null")
-            if (fieldNode.attribute("is-list")) fieldDef.nonNull = fieldNode.attribute("is-list")
+            if (fieldNode.attribute("is-list")) fieldDef.isList = fieldNode.attribute("is-list")
             if (fieldNode.attribute("list-item-non-null")) fieldDef.listItemNonNull = fieldNode.attribute("list-item-non-null")
             if (fieldNode.attribute("require-authentication")) fieldDef.requireAuthentication = fieldNode.attribute("require-authentication")
             for (MNode childNode in fieldNode.children) {
