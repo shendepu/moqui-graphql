@@ -103,6 +103,28 @@
         <actions>
             <script>
                 import com.moqui.impl.util.GraphQLSchemaUtil
+
+                static private Object buildFieldRecursive(Object obj) {
+                    if (obj instanceof List) {
+                        List edges = []
+
+                        for (Object item in (List) obj) {
+                            Map edge = [:]
+                            Map node = buildFieldRecursive(item)
+                            edge.put("node", node)
+                            edges.add(edge)
+                        }
+                        return [edges: edges]
+                    } else if (obj instanceof Map) {
+                        Map map = [:]
+                        for (Map.Entry entry in (Map) obj) {
+                            map.put((String) entry.key, buildFieldRecursive(entry.value))
+                        }
+                        return map
+                    } else {
+                        return obj
+                    }
+                }
             </script>
             <set field="edges" from="[]"/>
             <iterate list="el" entry="ev">
@@ -116,17 +138,8 @@
                         node.put("id", id)
                     }
 
-                    node.putAll(ev)
-
-                    for (Map.Entry<String, Object> entry in ev) {
-                        if (entry.value instanceof List) {
-                            Map outMap = ec.service.sync().name("graphql.GraphQLServices.build#ConnectionByList").parameters([el: entry.value]).call()
-                            node.put(entry.key, [edges: outMap.edges])
-                            ec.logger.info("key: ${entry.key}, outMap: ${outMap}")
-                        } else {
-                            node.put(entry.key, entry.value)
-                        }
-                    }
+                    Map map = buildFieldRecursive(ev)
+                    node.putAll(map)
 
                     edge.put("node", node)
                     edges.add(edge)
