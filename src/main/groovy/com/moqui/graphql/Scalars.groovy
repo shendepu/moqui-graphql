@@ -31,6 +31,7 @@ class Scalars {
         @Override
         Object serialize(Object input) {
             if (input instanceof String) {
+                if (input == "" || input == null) return null
                 return Timestamp.valueOf(input).getTime()
             } else if (input instanceof Long) {
                 return new Timestamp(input).getTime()
