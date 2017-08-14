@@ -38,6 +38,7 @@ import graphql.schema.GraphQLTypeReference
 import graphql.schema.GraphQLUnionType
 import graphql.schema.SchemaUtil
 import graphql.schema.TypeResolver
+import graphql.TypeResolutionEnvironment
 import groovy.transform.CompileStatic
 import org.moqui.context.ExecutionContextFactory
 import org.moqui.impl.context.ExecutionContextFactoryImpl
@@ -749,7 +750,6 @@ class GraphQLSchemaDefinition {
             allTypeDefMap.put(interfaceTypeDef.name, interfaceTypeDef)
             interfaceTypeDefMap.put(interfaceTypeDef.name, interfaceTypeDef)
 
-            objectTypeDef.convertToInterface = true
             objectTypeDef.extend(extendObjectDef, allTypeDefMap)
             // Interface need the object to do resolve
             requiredTypeDefMap.put(objectTypeDef.name, objectTypeDef)
@@ -758,6 +758,7 @@ class GraphQLSchemaDefinition {
         // Extend object
         for (Map.Entry<String, ExtendObjectDefinition> entry in extendObjectDefMap) {
             ExtendObjectDefinition extendObjectDef = (ExtendObjectDefinition) entry.getValue()
+            if (extendObjectDef.convertToInterface) continue
 
             String name = entry.getKey()
             ObjectTypeDefinition objectTypeDef = (ObjectTypeDefinition) allTypeDefMap.get(name)
@@ -1107,8 +1108,8 @@ class GraphQLSchemaDefinition {
                 .name(interfaceTypeName)
                 .description(interfaceTypeDef.description)
 
-        for (FieldDefinition fieldNode in interfaceTypeDef.fieldList) {
-            interfaceTypeBuilder.field(buildSchemaField(fieldNode))
+        for (FieldDefinition fieldDef in interfaceTypeDef.fieldList) {
+            interfaceTypeBuilder.field(buildSchemaField(fieldDef))
         }
 
         // TODO: Add typeResolver for type, one way is to add a service as resolver
@@ -1118,7 +1119,9 @@ class GraphQLSchemaDefinition {
 
             interfaceTypeBuilder.typeResolver(new TypeResolver() {
                 @Override
-                GraphQLObjectType getType(Object object) {
+                GraphQLObjectType getType(TypeResolutionEnvironment env) {
+                    Object object = env.getObject()
+                    logger.warn("env: ${env}")
                     String resolverFieldValue = ((Map) object).get(interfaceTypeDef.resolverField)
                     String resolvedTypeName = interfaceTypeDef.resolverMap.get(resolverFieldValue)
 
@@ -2012,6 +2015,12 @@ class GraphQLSchemaDefinition {
                 }
                 argumentDefMap.put(periodValidArgName, argumentDef)
             }
+        }
+
+        String toString() {
+            return "FieldDefinition{name=${name}, type=${type}, nonNull=${nonNull}, isList=${isList}, " +
+                    "listItemNonNull=${listItemNonNull}, requireAuthentication=${requireAuthentication}, " +
+                    "isMutation=${isMutation}, argumentDefMap=${argumentDefMap}"
         }
     }
 
