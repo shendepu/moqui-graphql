@@ -548,6 +548,8 @@ class GraphQLSchemaDefinition {
                 return operationInputType
             case "com.moqui.graphql.DateRangeInputType":
                 return dateRangeInputType
+            case "graphql.schema.DataFetchingEnvironment":
+                return null
             default:
                 throw new IllegalArgumentException("Type ${inputTypeName} - ${parmType} for input field is not supported")
                 break
