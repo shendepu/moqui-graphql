@@ -1121,7 +1121,6 @@ class GraphQLSchemaDefinition {
                 @Override
                 GraphQLObjectType getType(TypeResolutionEnvironment env) {
                     Object object = env.getObject()
-                    logger.warn("env: ${env}")
                     String resolverFieldValue = ((Map) object).get(interfaceTypeDef.resolverField)
                     String resolvedTypeName = interfaceTypeDef.resolverMap.get(resolverFieldValue)
 
