@@ -13,12 +13,14 @@
  */
 package com.moqui.graphql
 
+import graphql.GraphQLException
 import groovy.transform.CompileStatic
 
 @CompileStatic
-class DataFetchingException extends RuntimeException {
+class DataFetchingException extends GraphQLException {
     public String errorCode
-    public DataFetchingException(String errorCode, String message) {
+
+    DataFetchingException(String errorCode, String message) {
         super(message)
         this.errorCode = errorCode
     }
