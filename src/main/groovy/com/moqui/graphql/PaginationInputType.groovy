@@ -1,14 +1,15 @@
 package com.moqui.graphql
 
 class PaginationInputType {
-    public int pageIndex
-    public int pageSize
-    public boolean pageNoLimit
+    public Integer pageIndex
+    public Integer pageSize
+    public Boolean pageNoLimit
     public String orderByField
-    public int first
+    public Integer first
     public String after
-    public int last
+    public Integer last
     public String before
+    public String type  // 'offset' or 'cursor-after' or 'cursor-before'
 
     PaginationInputType(Map m) {
         this.pageIndex = m.pageIndex
@@ -19,6 +20,7 @@ class PaginationInputType {
         this.after = m.after
         this.last = m.last
         this.before = m.before
+        this.type = m.type ?: 'offset'
     }
 
     PaginationInputType(int pageIndex, int pageSize, boolean pageNoLimit, String orderByField) {
@@ -33,5 +35,17 @@ class PaginationInputType {
         this.after = after
         this.last = last
         this.before = before
+    }
+
+    @Override
+    String toString() {
+        switch (type) {
+            case 'offset':
+                return "[type: ${type}, pageIndex: ${pageIndex}, pageSize: ${pageSize}, pageNoLimit: ${pageNoLimit}, orderByField: ${orderByField}]"
+            case "cursor-after":
+                return "[type: ${type}, after: ${after}, first: ${first}, pageNoLimit: ${pageNoLimit}, orderByField: ${orderByField}]"
+            case "cursor-before":
+                return "[type: ${type}, before: ${before}, last: ${last}, pageNoLimit: ${pageNoLimit}, orderByField: ${orderByField}]"
+        }
     }
 }

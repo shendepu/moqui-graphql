@@ -176,6 +176,7 @@ class GraphQLSchemaDefinition {
                 .field(createPredefinedInputField("after", GraphQLString, null, "Forward pagination argument takes the cursor, default null"))
                 .field(createPredefinedInputField("last", GraphQLInt, 20, "Backward pagination argument takes a non‐negative integer, default 20"))
                 .field(createPredefinedInputField("before", GraphQLString, null, "Backward pagination argument takes the cursor, default null"))
+                .field(createPredefinedInputField("type", GraphQLString, null, "Pagination type either 'offset' or 'cursor'"))
                 .build()
         graphQLInputTypeMap.put("PaginationInputType", paginationInputType)
 
