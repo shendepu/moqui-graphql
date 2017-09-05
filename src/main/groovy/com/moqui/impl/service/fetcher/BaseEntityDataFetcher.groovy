@@ -20,11 +20,13 @@ class BaseEntityDataFetcher extends BaseDataFetcher {
     String fieldRawType
     Map<String, String> relKeyMap = new HashMap<>()
     List<String> localizeFields = new ArrayList<>()
+    boolean useCache = false
 
     BaseEntityDataFetcher (MNode node, FieldDefinition fieldDef, ExecutionContextFactory ecf) {
         super(fieldDef, ecf)
 
         String entityName = node.attribute("entity-name")
+        useCache = "true" == node.attribute("cache")
         EntityDefinition ed = ((ExecutionContextFactoryImpl) ecf).entityFacade.getEntityDefinition(entityName)
         if (ed == null) throw new IllegalArgumentException("Entity ${entityName} not found")
         String singlePkFieldName = ed.getPkFieldNames().size() == 1 ? ed.getPkFieldNames().get(0) : null

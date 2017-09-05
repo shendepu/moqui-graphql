@@ -38,7 +38,9 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
         if (!requireInterfaceEntity()) return null
         List<Object> pkValues = new ArrayList<>()
         for (EntityValue ev in ef.list()) pkValues.add(ev.get(interfaceEntityPkField))
-        return ec.entity.find(interfaceEntityName).condition(interfaceEntityPkField, ComparisonOperator.IN, pkValues)
+        return ec.entity.find(interfaceEntityName)
+                .condition(interfaceEntityPkField, ComparisonOperator.IN, pkValues)
+                .useCache(useCache)
     }
 
     private Map<String, Object> updateWithInterfaceEV(EntityValue ev, EntityFind efInterface) {
@@ -107,7 +109,7 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
 
     @Override
     Object fetch(DataFetchingEnvironment environment) {
-        logger.info("running batched data fetcher entity for entity [${entityName}] with operation [${operation}] ...")
+        logger.info("running batched data fetcher entity for entity [${entityName}] with operation [${operation}], use cache [${useCache}] ...")
 //        logger.info("source     - ${environment.source}")
 //        logger.info("arguments  - ${environment.arguments}")
 //        logger.info("context    - ${environment.context}")
@@ -164,7 +166,9 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
             //          - Even no pagination, how to apply limit equally to each actual find if they are combined into one.
             //
             if (operation == "one") {
-                EntityFind ef = ec.entity.find(entityName).searchFormMap(inputFieldsMap, null, null, null, false)
+                EntityFind ef = ec.entity.find(entityName)
+                        .searchFormMap(inputFieldsMap, null, null, null, false)
+                        .useCache(useCache)
                 patchWithConditions(ef, environment, ec)
 
                 EntityList el = ef.list()
@@ -200,7 +204,9 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
                 if (!GraphQLSchemaUtil.requirePagination(environment)) {
 //                    logger.info("---- branch batched data fetcher entity without pagination for entity [${entityName}] with operation [${operation}] ----")
                     inputFieldsMap.put("noPageLimit", "true")
-                    EntityFind ef = ec.entity.find(entityName).searchFormMap(inputFieldsMap, null, null, null, true)
+                    EntityFind ef = ec.entity.find(entityName)
+                            .searchFormMap(inputFieldsMap, null, null, null, true)
+                            .useCache(useCache)
                     GraphQLSchemaUtil.addPeriodValidArguments(ec, ef, environment.arguments)
 
                     patchWithConditions(ef, environment, ec)
@@ -239,7 +245,9 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
 //                    logger.info("---- branch batched data fetcher entity with pagination for entity [${entityName}] with operation [${operation}] ----")
                     ((List) environment.source).eachWithIndex { Object object, int index ->
                         Map sourceItem = (Map) object
-                        EntityFind ef = ec.entity.find(entityName).searchFormMap(inputFieldsMap, null, null, null, true)
+                        EntityFind ef = ec.entity.find(entityName)
+                                .searchFormMap(inputFieldsMap, null, null, null, true)
+                                .useCache(useCache)
                         GraphQLSchemaUtil.addPeriodValidArguments(ec, ef, environment.arguments)
 
                         for (Map.Entry<String, String> entry in relKeyMap.entrySet()) {
