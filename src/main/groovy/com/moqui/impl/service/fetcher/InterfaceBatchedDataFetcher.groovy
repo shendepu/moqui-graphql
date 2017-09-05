@@ -117,7 +117,7 @@ class InterfaceBatchedDataFetcher extends BaseDataFetcher implements BatchedData
 
     @Override
     Object fetch(DataFetchingEnvironment environment) {
-        logger.info("---- running interface data fetcher with operation [${operation}] ...")
+        logger.info("---- running interface bached data fetcher with operation [${operation}] ...")
 //        logger.info("source     - ${environment.source}")
 //        logger.info("arguments  - ${environment.arguments}")
 //        logger.info("context    - ${environment.context}")
@@ -275,11 +275,13 @@ class InterfaceBatchedDataFetcher extends BaseDataFetcher implements BatchedData
 
     static class InternalEntityDataFetcher extends InternalDataFetcher {
         String entityName
+        boolean useCache
 
         InternalEntityDataFetcher(MNode node, FieldDefinition fieldDef, ExecutionContextFactory ecf, Map<String, String> relKeyMap) {
             super(fieldDef, ecf, relKeyMap)
 
             entityName = node.attribute("entity-name")
+            useCache = "true" == node.attribute("cache")
         }
 
         @Override
@@ -289,6 +291,7 @@ class InterfaceBatchedDataFetcher extends BaseDataFetcher implements BatchedData
             if (environment) GraphQLSchemaUtil.addPeriodValidArguments(ec, ef, environment.arguments)
 
             patchWithConditions(ef, source, ec)
+            ef.useCache(useCache)
 
             return ef.list().getValueMapList()
         }
@@ -302,6 +305,7 @@ class InterfaceBatchedDataFetcher extends BaseDataFetcher implements BatchedData
             patchWithConditions(ef, source, ec)
 
             if (!ef.getLimit()) ef.limit(100)
+            ef.useCache(useCache)
 
             Map<String, Object> resultMap = new HashMap<>()
 

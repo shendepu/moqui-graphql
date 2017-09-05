@@ -207,6 +207,7 @@ along with this software (see the LICENSE.md file). If not, see
                                             <xs:element minOccurs="0" maxOccurs="unbounded" ref="localize-field"/>
                                         </xs:sequence>
                                         <xs:attribute name="entity-name"/>
+                                        <xs:attribute name="cache" type="xs:boolean" default="false"/>
                                     </xs:complexType>
                                 </xs:element>
                                 <xs:element name="service-fetcher">
@@ -229,6 +230,7 @@ along with this software (see the LICENSE.md file). If not, see
                                             <xs:element minOccurs="0" maxOccurs="unbounded" ref="localize-field"/>
                                         </xs:sequence>
                                         <xs:attribute name="entity-name"/>
+                                        <xs:attribute name="cache" type="xs:boolean" default="false"/>
                                     </xs:complexType>
                                 </xs:element>
                                 <xs:element name="service-fetcher">
