@@ -87,7 +87,19 @@
                     edges.add(edge)
                 ]]></script>
             </iterate>
-            <set field="pageInfo" from="[pageIndex: pageIndex, pageSize: pageSize, totalCount: totalCount]"/>
+
+            <script><![CDATA[
+                int pageMaxIndex = ((totalCount - 1) as BigDecimal).divide(pageSize as BigDecimal, 0, BigDecimal.ROUND_DOWN).intValue()
+                int pageRangeLow = pageIndex * pageSize + 1
+                int pageRangeHigh = (pageIndex * pageSize) + pageSize
+                if (pageRangeHigh > totalCount) pageRangeHigh = totalCount
+                boolean hasPreviousPage = pageIndex > 0
+                boolean hasNextPage = pageMaxIndex > pageIndex
+
+                pageInfo = ['pageIndex'      : pageIndex, 'pageSize': pageSize, 'totalCount': totalCount,
+                            'pageMaxIndex'   : pageMaxIndex, 'pageRangeLow': pageRangeLow, 'pageRangeHigh': pageRangeHigh,
+                            'hasPreviousPage': hasPreviousPage, 'hasNextPage': hasNextPage]
+            ]]></script>
         </actions>
     </service>
 
@@ -99,6 +111,11 @@
             <parameter name="pageIndex" type="Integer" default-value="0"/>
             <parameter name="pageSize" type="Integer" default-value="20"/>
             <parameter name="totalCount" type="Integer" default-value="0"/>
+            <parameter name="type" default-value="offset"/>
+            <parameter name="startCursor"/>
+            <parameter name="endCursor"/>
+            <parameter name="hasNextPage" type="Boolean"/>
+            <parameter name="hasPreviousPage" type="Boolean"/>
         </in-parameters>
         <actions>
             <script>
@@ -145,7 +162,44 @@
                     edges.add(edge)
                 ]]></script>
             </iterate>
-            <set field="pageInfo" from="[pageIndex: pageIndex, pageSize: pageSize, totalCount: totalCount]"/>
+            <service-call name="graphql.GraphqlServices.build#PageInfo" in-map="context" out-map="context"/>
+        </actions>
+    </service>
+
+    <service verb="build" noun="PageInfo" authenticate="anonymous-view">
+        <in-parameters>
+            <parameter name="pageIndex" type="Integer" default-value="0"/>
+            <parameter name="pageSize" type="Integer" default-value="20"/>
+            <parameter name="totalCount" type="Integer" default-value="0"/>
+            <parameter name="type" default-value="offset"/>
+            <parameter name="startCursor"/>
+            <parameter name="endCursor"/>
+            <parameter name="hasNextPage" type="Boolean"/>
+            <parameter name="hasPreviousPage" type="Boolean"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="pageInfo" type="Map"/>
+        </out-parameters>
+        <actions>
+            <script><![CDATA[
+                switch (type) {
+                    case "offset":
+                        int pageMaxIndex = ((totalCount - 1) as BigDecimal).divide(pageSize as BigDecimal, 0, BigDecimal.ROUND_DOWN).intValue()
+                        int pageRangeLow = pageIndex * pageSize + 1
+                        int pageRangeHigh = (pageIndex * pageSize) + pageSize
+                        if (pageRangeHigh > totalCount) pageRangeHigh = totalCount
+                        boolean hasPreviousPage = pageIndex > 0
+                        boolean hasNextPage = pageMaxIndex > pageIndex
+
+                        pageInfo = ['pageIndex'      : pageIndex, 'pageSize': pageSize, 'totalCount': totalCount,
+                                    'pageMaxIndex'   : pageMaxIndex, 'pageRangeLow': pageRangeLow, 'pageRangeHigh': pageRangeHigh,
+                                    'hasPreviousPage': hasPreviousPage, 'hasNextPage': hasNextPage]
+                        break
+                    case "cursor-after":
+                        pageInfo = [hasNextPage:hasNextPage, endCursor:endCursor]
+                        break
+                }
+            ]]></script>
         </actions>
     </service>
 </services>
