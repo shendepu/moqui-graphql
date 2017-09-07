@@ -676,6 +676,14 @@ class GraphQLSchemaDefinition {
 //            if (!("interface".equals(typeDef.type))) continue
 //            addGraphQLInterfaceType((InterfaceTypeDefinition) typeDef)
 //        }
+        for (GraphQLTypeDefinition typeDef in allTypeDefSortedList) {
+            logger.info("Traversing allTypeDefSortedList: ${typeDef.name}")
+            switch (typeDef.type) {
+                case "interface":
+                    addGraphQLInterfaceType((InterfaceTypeDefinition) typeDef)
+                    break
+            }
+        }
 
         for (GraphQLTypeDefinition typeDef in allTypeDefSortedList) {
             logger.info("Traversing allTypeDefSortedList: ${typeDef.name}")
@@ -685,9 +693,6 @@ class GraphQLSchemaDefinition {
                     break
                 case "enum":
                     addGraphQLEnumType((EnumTypeDefinition) typeDef)
-                    break
-                case "interface":
-                    addGraphQLInterfaceType((InterfaceTypeDefinition) typeDef)
                     break
                 case "object":
                     addGraphQLObjectType((ObjectTypeDefinition) typeDef)
