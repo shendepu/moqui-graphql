@@ -55,6 +55,40 @@
         </actions>
     </service>
 
+    <service verb="merge" noun="InterfaceWithDerived">
+        <in-parameters>
+            <parameter name="interfaceList" type="List" required="true"/>
+            <parameter name="entityName" required="true"/>
+            <parameter name="primaryField" required="true"/>
+            <parameter name="resolveField" required="true"/>
+            <parameter name="resolveValue" required="true"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="interfaceList" type="List"/>
+        </out-parameters>
+        <actions>
+            <script><![CDATA[
+                import org.moqui.context.ExecutionContext
+                import org.moqui.entity.EntityFind
+                import org.moqui.entity.EntityValue
+                import org.moqui.impl.entity.EntityConditionFactoryImpl
+
+                ExecutionContext ec = context.ec
+                EntityConditionFactoryImpl cf = (EntityConditionFactoryImpl) ec.entity.conditionFactory
+
+                List derivedList = interfaceList.findAll({ it -> it.get(resolveField) == resolveValue })
+                List derivedIds = derivedList.collect({ it -> it.get(primaryField) })
+                EntityFind ef = ec.entity.find((String) entityName)
+                        .condition(cf.makeActionConditionDirect((String) primaryField, "in", derivedIds, null, null, false, false, false, "false"))
+
+                ef.list().each { EntityValue ev ->
+                    Map interfaceMap = interfaceList.find({ it -> it.get(primaryField) == ev.get(primaryField) }) as Map
+                    interfaceMap.putAll(ev.getMap())
+                }
+            ]]></script>
+        </actions>
+    </service>
+
     <service verb="build" noun="Connection" authenticate="anonymous-view">
         <implements service="graphql.GraphQLServices.return#Connection"/>
         <in-parameters>
