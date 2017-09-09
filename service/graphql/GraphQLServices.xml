@@ -55,7 +55,7 @@
         </actions>
     </service>
 
-    <service verb="merge" noun="InterfaceWithDerived">
+    <service verb="augment" noun="InterfaceWithDerived">
         <in-parameters>
             <parameter name="interfaceList" type="List"/>
             <parameter name="primaryField" required="true"/>
