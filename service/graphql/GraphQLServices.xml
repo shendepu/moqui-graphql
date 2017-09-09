@@ -57,11 +57,13 @@
 
     <service verb="merge" noun="InterfaceWithDerived">
         <in-parameters>
-            <parameter name="interfaceList" type="List" required="true"/>
-            <parameter name="entityName" required="true"/>
+            <parameter name="interfaceList" type="List"/>
             <parameter name="primaryField" required="true"/>
             <parameter name="resolveField" required="true"/>
-            <parameter name="resolveValue" required="true"/>
+            <parameter name="objectDefList" type="List"><parameter name="objectDef" type="Map">
+                <parameter name="entityName" required="true"/>
+                <parameter name="resolveValue" required="true"/>
+            </parameter></parameter>
         </in-parameters>
         <out-parameters>
             <parameter name="interfaceList" type="List"/>
@@ -73,17 +75,24 @@
                 import org.moqui.entity.EntityValue
                 import org.moqui.impl.entity.EntityConditionFactoryImpl
 
+                if (!interfaceList) return
+
                 ExecutionContext ec = context.ec
                 EntityConditionFactoryImpl cf = (EntityConditionFactoryImpl) ec.entity.conditionFactory
 
-                List derivedList = interfaceList.findAll({ it -> it.get(resolveField) == resolveValue })
-                List derivedIds = derivedList.collect({ it -> it.get(primaryField) })
-                EntityFind ef = ec.entity.find((String) entityName)
-                        .condition(cf.makeActionConditionDirect((String) primaryField, "in", derivedIds, null, null, false, false, false, "false"))
+                for (Map objectDef in objectDefList) {
+                    String entityName = objectDef.entityName
+                    String resolveValue = objectDef.resolveValue
 
-                ef.list().each { EntityValue ev ->
-                    Map interfaceMap = interfaceList.find({ it -> it.get(primaryField) == ev.get(primaryField) }) as Map
-                    interfaceMap.putAll(ev.getMap())
+                    List derivedList = interfaceList.findAll({ it -> it.get(resolveField) == resolveValue })
+                    List derivedIds = derivedList.collect({ it -> it.get(primaryField) })
+                    EntityFind ef = ec.entity.find((String) entityName)
+                            .condition(cf.makeActionConditionDirect((String) primaryField, "in", derivedIds, null, null, false, false, false, "false"))
+
+                    ef.list().each { EntityValue ev ->
+                        Map interfaceMap = interfaceList.find({ it -> it.get(primaryField) == ev.get(primaryField) }) as Map
+                        interfaceMap.putAll(ev.getMap())
+                    }
                 }
             ]]></script>
         </actions>
