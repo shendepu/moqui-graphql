@@ -48,8 +48,12 @@
     </service>
 
     <service verb="put" noun="ContextWithId" authenticate="anonymous-view">
-        <in-parameters><parameter name="ev" type="EntityValue" required="true"/></in-parameters>
+        <in-parameters><parameter name="ev" type="EntityValue"/></in-parameters>
         <actions>
+            <if condition="!ev">
+                <script>result.put("_graphql_result_null", true)</script>
+                <return/></if>
+            
             <service-call name="graphql.GraphQLServices.get#RelayId" in-map="[ev: ev]" out-map="result"/>
             <script>result.putAll(ev)</script>
         </actions>
