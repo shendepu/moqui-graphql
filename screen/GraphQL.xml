@@ -13,9 +13,11 @@
 
                 GraphQLApi graphQLApi = ec.getTool("GraphQL", GraphQLApi.class)
 
+                long startTime = System.currentTimeMillis()
                 if (_requestBodyJsonList == null) {
                     GraphQLResult result = graphQLApi.execute("${query}", variables ?: [:])
 
+                    ec.web.response.addIntHeader('X-Run-Time-ms', (System.currentTimeMillis() - startTime) as int)
                     ec.web.sendJsonResponse(result.responseObj)
                 } else {
                     List queryResultList = []
@@ -24,6 +26,7 @@
                         queryResultList.add(result.responseObj)
                     }
 
+                    ec.web.response.addIntHeader('X-Run-Time-ms', (System.currentTimeMillis() - startTime) as int)
                     ec.web.sendJsonResponse(queryResultList)
                 }
             ]]></script>
