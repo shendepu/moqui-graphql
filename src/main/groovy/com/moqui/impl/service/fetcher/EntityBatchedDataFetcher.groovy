@@ -241,7 +241,7 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
                 // No pagination needed pageInfo is not in the field selection set, so no need to construct it.
                 if (!GraphQLSchemaUtil.requirePagination(environment)) {
 //                    logger.info("---- branch batched data fetcher entity without pagination for entity [${entityName}] with operation [${operation}] ----")
-                    inputFieldsMap.put("noPageLimit", "true")
+                    inputFieldsMap.put("pageNoLimit", "true")
                     EntityFind ef = ec.entity.find(entityName)
                             .searchFormMap(inputFieldsMap, null, null, null, true)
 
