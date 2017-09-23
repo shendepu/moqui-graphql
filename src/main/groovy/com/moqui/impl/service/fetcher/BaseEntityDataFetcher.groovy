@@ -26,9 +26,15 @@ class BaseEntityDataFetcher extends BaseDataFetcher {
         super(fieldDef, ecf)
 
         String entityName = node.attribute("entity-name")
-        useCache = "true" == node.attribute("cache")
         EntityDefinition ed = ((ExecutionContextFactoryImpl) ecf).entityFacade.getEntityDefinition(entityName)
         if (ed == null) throw new IllegalArgumentException("Entity ${entityName} not found")
+
+        if (node.attribute("cache")) {
+            useCache = ("true" == node.attribute("cache")) && !ed.entityInfo.neverCache
+        } else {
+            useCache = "true" == ed.entityInfo.useCache
+        }
+
         String singlePkFieldName = ed.getPkFieldNames().size() == 1 ? ed.getPkFieldNames().get(0) : null
 
         Map<String, String> keyMap = new HashMap<>()
@@ -49,6 +55,8 @@ class BaseEntityDataFetcher extends BaseDataFetcher {
     BaseEntityDataFetcher (ExecutionContextFactory ecf, FieldDefinition fieldDef, String entityName,
                            String interfaceEntityName, Map<String, String> relKeyMap) {
         super(fieldDef, ecf)
+        EntityDefinition ed = ((ExecutionContextFactoryImpl) ecf).entityFacade.getEntityDefinition(entityName)
+        useCache = "true" == ed.entityInfo.useCache
         initializeFields(entityName, interfaceEntityName, relKeyMap)
     }
 
