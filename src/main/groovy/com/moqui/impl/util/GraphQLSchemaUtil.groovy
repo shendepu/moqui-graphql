@@ -459,7 +459,7 @@ class GraphQLSchemaUtil {
 
 
     static boolean requirePagination(DataFetchingEnvironment environment) {
-        List sources = (List) environment.source
+        List<Map> sources = (List<Map>) environment.source
 
         Map<String, Object> arguments = (Map) environment.arguments
         List<Field> fields = (List) environment.fields
@@ -467,7 +467,7 @@ class GraphQLSchemaUtil {
         if (paginationArg?.get("pageNoLimit")) return false
         if (paginationArg != null) return true
         if (fields.find({ it.name == "pageInfo" }) != null) return true
-        if (sources.size() == 1) return true
+        if (sources.size() == 1 && sources.get(0).size() == 0) return true
         return false
     }
 
