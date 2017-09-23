@@ -10,7 +10,9 @@ import org.moqui.entity.EntityCondition
 import org.moqui.entity.EntityCondition.ComparisonOperator
 import org.moqui.entity.EntityCondition.JoinOperator
 import org.moqui.entity.EntityFind
+import org.moqui.impl.context.ExecutionContextFactoryImpl
 import org.moqui.impl.context.UserFacadeImpl
+import org.moqui.impl.entity.EntityDefinition
 import org.moqui.util.MNode
 
 import org.slf4j.Logger
@@ -30,12 +32,14 @@ class InterfaceBatchedDataFetcher extends BaseDataFetcher implements BatchedData
     InternalDataFetcher defaultFetcher
     Map<String, String> relKeyMap = new HashMap<>(1)
     Map<String, InternalDataFetcher> resolverFetcherMap = new HashMap<>(1)
+    boolean useCache
 
     InterfaceBatchedDataFetcher(MNode node, MNode refNode, FieldDefinition fieldDef, ExecutionContextFactory ecf) {
         super(fieldDef, ecf)
 
         primaryField = node.attribute("primary-field") ?: (refNode != null ? refNode.attribute("primary-field") : "")
         resolverField = node.attribute("resolver-field") ?: (refNode != null ? refNode.attribute("resolver-field") : "")
+        useCache = "true" == node.attribute("cache")
 
         Map<String, String> pkRelMap = new HashMap<>(1)
         pkRelMap.put(primaryField, primaryField)
@@ -106,6 +110,17 @@ class InterfaceBatchedDataFetcher extends BaseDataFetcher implements BatchedData
         return interfaceValueList
     }
 
+    private Map<String, Object> mergeWithConcreteValue(Map<String, Object> interfaceValue) {
+        if (interfaceValue == null) return interfaceValue
+        String resolverValue = interfaceValue.get(resolverField)
+        InternalDataFetcher resolverFetcher = resolverFetcherMap.get(resolverValue)
+        if (resolverFetcher == null) return interfaceValue
+
+        Map<String, Object> concreteValue = resolverFetcher.searchFormMap(interfaceValue, [:], null)
+        if (concreteValue != null) interfaceValue.putAll(concreteValue)
+        return interfaceValue
+    }
+
     private static boolean matchParentByRelKeyMap(Map<String, Object> sourceItem, Map<String, Object> self, Map<String, String> relKeyMap) {
         int found = -1
         for (Map.Entry<String, String> entry in relKeyMap.entrySet()) {
@@ -158,20 +173,34 @@ class InterfaceBatchedDataFetcher extends BaseDataFetcher implements BatchedData
 
             if (operation == "one") {
 //                logger.warn("running one operation")
-                List<Map<String, Object>> interfaceValueList = defaultFetcher.searchFormMap((List) environment.source, inputFieldsMap, environment)
+                if (!useCache) {
+                    List<Map<String, Object>> interfaceValueList = defaultFetcher.searchFormMap((List) environment.source, inputFieldsMap, environment)
 
-                mergeWithConcreteValue(interfaceValueList)
+                    mergeWithConcreteValue(interfaceValueList)
 
-                ((List) environment.source).eachWithIndex{ Object object, int index ->
-                    Map sourceItem = (Map) object
+                    ((List) environment.source).eachWithIndex { Object object, int index ->
+                        Map sourceItem = (Map) object
 
-                    jointOneMap = relKeyCount == 0 ? (interfaceValueList.size() > 0 ? interfaceValueList[0] : null) :
-                        interfaceValueList.find { Map<String, Object> it -> matchParentByRelKeyMap(sourceItem, it, relKeyMap) }
+                        jointOneMap = relKeyCount == 0 ? (interfaceValueList.size() > 0 ? interfaceValueList[0] : null) :
+                                interfaceValueList.find { Map<String, Object> it -> matchParentByRelKeyMap(sourceItem, it, relKeyMap) }
 
-                    if (jointOneMap == null) return
-                    cursor = GraphQLSchemaUtil.encodeRelayCursor(jointOneMap, [primaryField])
-                    jointOneMap.put("id", cursor)
-                    resultList.set(index, jointOneMap)
+                        if (jointOneMap == null) return
+                        cursor = GraphQLSchemaUtil.encodeRelayCursor(jointOneMap, [primaryField])
+                        jointOneMap.put("id", cursor)
+                        resultList.set(index, jointOneMap)
+                    }
+                } else {
+                    ((List) environment.source).eachWithIndex{ Object object, int index ->
+                        Map sourceItem = (Map) object
+
+                        Map<String, Object> interfaceValue = defaultFetcher.searchFormMap(sourceItem, inputFieldsMap, environment)
+                        mergeWithConcreteValue(interfaceValue)
+                        if (interfaceValue == null) return
+
+                        cursor = GraphQLSchemaUtil.encodeRelayCursor(interfaceValue, [primaryField])
+                        interfaceValue.put("id", cursor)
+                        resultList.set(index, jointOneMap)
+                    } 
                 }
             } else { // Operation == "list"
                 Map<String, Object> resultMap
@@ -268,6 +297,7 @@ class InterfaceBatchedDataFetcher extends BaseDataFetcher implements BatchedData
         }
 
         abstract List<Map<String, Object>> searchFormMap(List<Object> source, Map<String, Object> inputFieldsMap, DataFetchingEnvironment environment)
+        abstract Map<String, Object> searchFormMap(Map sourceItem, Map<String, Object> inputFieldsMap, DataFetchingEnvironment environment)
         abstract Map<String, Object> searchFormMapWithPagination(List<Object> source, Map<String, Object> inputFieldsMap, DataFetchingEnvironment environment)
 
 //        abstract List<Map<String, Object>> getByPkField(String pkField, List<String> pkValues)
@@ -275,13 +305,21 @@ class InterfaceBatchedDataFetcher extends BaseDataFetcher implements BatchedData
 
     static class InternalEntityDataFetcher extends InternalDataFetcher {
         String entityName
-        boolean useCache
+        boolean useCache = false
 
         InternalEntityDataFetcher(MNode node, FieldDefinition fieldDef, ExecutionContextFactory ecf, Map<String, String> relKeyMap) {
             super(fieldDef, ecf, relKeyMap)
 
             entityName = node.attribute("entity-name")
-            useCache = "true" == node.attribute("cache")
+
+            EntityDefinition ed = ((ExecutionContextFactoryImpl) ecf).entityFacade.getEntityDefinition(entityName)
+            if (ed == null) throw new IllegalArgumentException("Entity ${entityName} not found")
+
+            if (node.attribute("cache")) {
+                useCache = ("true" == node.attribute("cache")) && !ed.entityInfo.neverCache
+            } else {
+                useCache = "true" == ed.entityInfo.useCache
+            }
         }
 
         @Override
@@ -291,9 +329,21 @@ class InterfaceBatchedDataFetcher extends BaseDataFetcher implements BatchedData
             if (environment) GraphQLSchemaUtil.addPeriodValidArguments(ec, ef, environment.arguments)
 
             patchWithConditions(ef, source, ec)
+            ef.offset(null).limit(null)
             ef.useCache(useCache)
 
             return ef.list().getValueMapList()
+        }
+
+        @Override
+        Map<String, Object> searchFormMap(Map sourceItem, Map<String, Object> inputFieldsMap, DataFetchingEnvironment environment) {
+            ExecutionContext ec = ecf.getExecutionContext()
+            EntityFind ef = ec.entity.find(entityName).searchFormMap(inputFieldsMap, null, null, null, false)
+            if (environment) GraphQLSchemaUtil.addPeriodValidArguments(ec, ef, environment.arguments)
+
+            patchFindOneWithConditions(ef, sourceItem, ec)
+            ef.useCache(useCache)
+            return ef.one().getMap()
         }
 
         @Override
@@ -366,6 +416,15 @@ class InterfaceBatchedDataFetcher extends BaseDataFetcher implements BatchedData
             return ef
         }
 
+        private EntityFind patchFindOneWithConditions(EntityFind ef, Map sourceItem, ExecutionContext ec) {
+            if (relKeyMap.size() == 0) return ef
+            for (Map.Entry<String, String> entry in relKeyMap.entrySet()) {
+                String relParentFieldName = entry.getKey()
+                String relFieldName = entry.getValue()
+                ef.condition(relFieldName, sourceItem.get(relParentFieldName))
+            }
+            return ef
+        }
     }
 
     static class InternalServiceDataFetcher extends InternalDataFetcher {
@@ -375,12 +434,17 @@ class InterfaceBatchedDataFetcher extends BaseDataFetcher implements BatchedData
 
         @Override
         List<Map<String, Object>> searchFormMap(List<Object> source, Map<String, Object> inputFieldsMap, DataFetchingEnvironment environment) {
+            throw new IllegalArgumentException("The method is not supported yet.")
+        }
 
+        @Override
+        Map<String, Object> searchFormMap(Map sourceItem, Map<String, Object> inputFieldsMap, DataFetchingEnvironment environment) {
+            throw new IllegalArgumentException("The method is not supported yet.")
         }
 
         @Override
         Map<String, Object> searchFormMapWithPagination(List<Object> source, Map<String, Object> inputFieldsMap, DataFetchingEnvironment environment) {
-            return null
+            throw new IllegalArgumentException("The method is not supported yet.")
         }
     }
 }

@@ -249,6 +249,7 @@ along with this software (see the LICENSE.md file). If not, see
             <xs:attribute name="resolver-field"/>
             <xs:attribute name="name" type="xs:string"/>
             <xs:attribute name="ref" type="xs:string"/>
+            <xs:attribute name="cache" type="xs:boolean" default="false"/>
             <xs:assert test="(@name and @primary-field and resolver-field) or (@ref)"/>
         </xs:complexType>
     </xs:element>

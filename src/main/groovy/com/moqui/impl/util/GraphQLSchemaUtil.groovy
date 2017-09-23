@@ -485,7 +485,6 @@ class GraphQLSchemaUtil {
             if (paramNode == null) throw new IllegalArgumentException("Service ${sd.serviceName} missing in parameter ${paramName}")
             String paramType = paramNode.attribute("type") ?: "String"
             Object paramJavaTypeValue
-            logger.info("argument: ${paramName} - ${entry.value}")
             switch (paramType) {
                 case "com.moqui.graphql.OperationInputType":
                     paramJavaTypeValue = new OperationInputType(entry.value as Map); break
