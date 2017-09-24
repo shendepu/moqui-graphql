@@ -183,7 +183,7 @@ class InterfaceBatchedDataFetcher extends BaseDataFetcher implements BatchedData
                         Map sourceItem = (Map) object
                         Map<String, Object> interfaceValue = defaultFetcher.searchFormMap(sourceItem, inputFieldsMap, environment)
                         mergeWithConcreteValue(interfaceValue)
-                        interfaceValueList.add(interfaceValue)
+                        if (interfaceValue) interfaceValueList.add(interfaceValue)
                     }
                 }
 
@@ -345,7 +345,7 @@ class InterfaceBatchedDataFetcher extends BaseDataFetcher implements BatchedData
             if (environment) GraphQLSchemaUtil.addPeriodValidArguments(ec, ef, environment.arguments)
 
             patchFindOneWithConditions(ef, sourceItem, ec)
-            return ef.one().getMap()
+            return ef.one()?.getMap()
         }
 
         @Override

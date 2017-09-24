@@ -40,37 +40,15 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
         return !(interfaceEntityName == null || interfaceEntityName.isEmpty() || entityName.equals(interfaceEntityName))
     }
 
-    private EntityFind getInterfaceEntityFind(ExecutionContext ec, EntityFind ef) {
-        if (!interfaceRequired) return null
-        List<Object> pkValues = new ArrayList<>()
-        for (EntityValue ev in ef.list()) pkValues.add(ev.get(interfaceEntityPkField))
-        return ec.entity.find(interfaceEntityName)
-                .condition(interfaceEntityPkField, ComparisonOperator.IN, pkValues)
-                .useCache(useCache)
-    }
-
-    private List<Map<String, Object>> getInterfaceValueList(ExecutionContext ec, List<Map<String, Object>> concreteValueList) {
-        if (!interfaceRequired) return null
-        List<Object> pkValues = new ArrayList<>()
-        for (Map concreteValue in concreteValueList) pkValues.add(concreteValue.get(interfaceEntityPkField))
-        return ec.entity.find(interfaceEntityName).useCache(useCache)
-            .condition(interfaceEntityPkField, ComparisonOperator.IN, pkValues.toSet().sort())
-            .list().getValueMapList()
-    }
-
-    private Map<String, Object> updateWithInterfaceEV(EntityValue ev, EntityFind efInterface) {
-        Map<String, Object> jointOneMap, matchedOne
-        jointOneMap = ev.getMap()
-        if (efInterface != null) {
-            matchedOne = efInterface.list().find({ ((EntityValue) it).get(interfaceEntityPkField).equals(ev.get(interfaceEntityPkField)) })
-            jointOneMap.putAll(matchedOne)
-        }
-        return jointOneMap
-    }
-
     private List<Map<String, Object>> mergeWithInterfaceValue(ExecutionContext ec, List<Map<String, Object>> concreteValueList) {
         if (!interfaceRequired) return concreteValueList
-        List<Map<String, Object>> interfaceValueList = getInterfaceValueList(ec, concreteValueList)
+
+        List<Object> pkValues = new ArrayList<>()
+        for (Map concreteValue in concreteValueList) pkValues.add(concreteValue.get(interfaceEntityPkField))
+        List<Map<String, Object>> interfaceValueList = ec.entity.find(interfaceEntityName).useCache(useCache)
+                .condition(interfaceEntityPkField, ComparisonOperator.IN, pkValues.toSet().sort())
+                .list().getValueMapList()
+        
         interfaceValueList = interfaceValueList.collect({ Map<String, Object> interfaceValue ->
             Map<String, Object> concreteValue = concreteValueList.find({ Map<String, Object> it -> it.get(interfaceEntityPkField) == interfaceValue.get(interfaceEntityPkField)})
             if (concreteValue) interfaceValue.putAll(concreteValue)
@@ -84,7 +62,7 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
         if (!interfaceRequired) return concreteValue
         Map jointOneMap = ec.entity.find(interfaceEntityName).useCache(useCache)
             .condition(interfaceEntityPkField, concreteValue.get(interfaceEntityPkField))
-            .one().getMap()
+            .one()?.getMap()
         if (jointOneMap != null) jointOneMap.putAll(concreteValue)
         return jointOneMap
     }
@@ -223,9 +201,8 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
                         EntityFind efConcrete = ec.entity.find(entityName).useCache(useCache)
                                 .searchFormMap(inputFieldsMap, null, null, null, false)
                         patchFindOneWithConditions(efConcrete, sourceItem, ec)
-                        Map concreteValue = efConcrete.one()
-                        jointOneMap = mergeWithInterfaceValue(ec, concreteValue)
-                        jointValueList.add(jointOneMap)
+                        jointOneMap = mergeWithInterfaceValue(ec, efConcrete.one()?.getMap())
+                        if (jointOneMap) jointValueList.add(jointOneMap)
                     }
                 }
 
@@ -233,7 +210,7 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
                     Map sourceItem = (Map) object
 
                     jointOneMap = (relKeyCount == 0 ? (jointValueList.size() > 0 ? jointValueList[0] : null) :
-                            jointValueList.find { Object it -> GraphQLSchemaUtil.matchParentByRelKeyMap(sourceItem, it as Map<String, Object>, relKeyMap) }) as Map<String, Object>
+                            jointValueList.find { Object it -> DataFetcherUtils.matchParentByRelKeyMap(sourceItem, it as Map<String, Object>, relKeyMap) }) as Map<String, Object>
 
                     if (jointOneMap == null) return
                     cursor = GraphQLSchemaUtil.encodeRelayCursor(jointOneMap, pkFieldNames)
@@ -266,7 +243,7 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
                         if (relKeyCount == 0) {
                             matchedJointValueList = jointValueList
                         } else {
-                            matchedJointValueList = jointValueList.findAll { Object it -> GraphQLSchemaUtil.matchParentByRelKeyMap(sourceItem, it as Map<String, Object>, relKeyMap) }
+                            matchedJointValueList = jointValueList.findAll { Object it -> DataFetcherUtils.matchParentByRelKeyMap(sourceItem, it as Map<String, Object>, relKeyMap) }
 
                         }
                         edgesDataList = matchedJointValueList.collect { Object it ->
@@ -275,7 +252,7 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
                             cursor = GraphQLSchemaUtil.encodeRelayCursor(matchedJointOneMap, pkFieldNames)
 
                             matchedJointOneMap.put("id", cursor)
-                            DataFetcherUtils.localize(jointOneMap, actualLocalizedFields, ec)
+                            DataFetcherUtils.localize(matchedJointOneMap, actualLocalizedFields, ec)
                             edgesData.put("cursor", cursor)
                             edgesData.put("node", matchedJointOneMap)
                             return edgesData
@@ -315,18 +292,17 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
                                                         'pageMaxIndex'   : pageMaxIndex, 'pageRangeLow': pageRangeLow, 'pageRangeHigh': pageRangeHigh,
                                                         'hasPreviousPage': hasPreviousPage, 'hasNextPage': hasNextPage] as Map<String, Object>
 
-                        EntityList el = ef.list()
-                        edgesDataList = new ArrayList(el.size())
+                        List<Map<String, Object>> jointValueList = mergeWithInterfaceValue(ec, ef.list().getValueMapList())
 
-                        if (el != null && el.size() > 0) {
-                            EntityFind efInterface = interfaceRequired ? getInterfaceEntityFind(ec, ef) : null
+                        edgesDataList = new ArrayList(0)
 
-                            pageInfo.put("startCursor", GraphQLSchemaUtil.encodeRelayCursor(el.get(0), pkFieldNames))
-                            pageInfo.put("endCursor", GraphQLSchemaUtil.encodeRelayCursor(el.get(el.size() - 1), pkFieldNames))
-                            edgesDataList = el.collect { EntityValue ev ->
+                        if (jointValueList != null && jointValueList.size() > 0) {
+                            pageInfo.put("startCursor", GraphQLSchemaUtil.encodeRelayCursor(jointValueList.get(0), pkFieldNames))
+                            pageInfo.put("endCursor", GraphQLSchemaUtil.encodeRelayCursor(jointValueList.get(jointValueList.size() - 1), pkFieldNames))
+                            edgesDataList = jointValueList.collect { Map<String, Object> it ->
+                                jointOneMap = it
                                 edgesData = new HashMap<>(2)
-                                cursor = GraphQLSchemaUtil.encodeRelayCursor(ev, pkFieldNames)
-                                jointOneMap = updateWithInterfaceEV(ev, efInterface)
+                                cursor = GraphQLSchemaUtil.encodeRelayCursor(jointOneMap, pkFieldNames)
                                 jointOneMap.put("id", cursor)
                                 DataFetcherUtils.localize(jointOneMap, actualLocalizedFields, ec)
                                 edgesData.put("cursor", cursor)

@@ -91,4 +91,14 @@ class DataFetcherUtils {
 
         return actualLocalizedFields
     }
+
+
+    static boolean matchParentByRelKeyMap(Map<String, Object> sourceItem, Map<String, Object> self, Map<String, String> relKeyMap) {
+        int found = -1
+        for (Map.Entry<String, String> entry in relKeyMap.entrySet()) {
+            found = (found == -1) ? (sourceItem.get(entry.key) == self.get(entry.value) ? 1 : 0)
+                    : (found == 1 && sourceItem.get(entry.key) == self.get(entry.value) ? 1 : 0)
+        }
+        return found == 1
+    }
 }
