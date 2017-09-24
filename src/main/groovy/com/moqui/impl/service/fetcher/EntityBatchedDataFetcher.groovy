@@ -19,8 +19,11 @@ import static com.moqui.impl.service.GraphQLSchemaDefinition.FieldDefinition
 
 @CompileStatic
 class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedDataFetcher {
+    private boolean interfaceRequired
+    
     EntityBatchedDataFetcher(MNode node, FieldDefinition fieldDef, ExecutionContextFactory ecf) {
         super(node, fieldDef, ecf)
+        interfaceRequired = requireInterface()
 
     }
 
@@ -30,10 +33,15 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
 
     EntityBatchedDataFetcher(ExecutionContextFactory ecf, FieldDefinition fieldDef, String entityName, String interfaceEntityName, Map<String, String> relKeyMap) {
         super(ecf, fieldDef, entityName, interfaceEntityName, relKeyMap)
+        interfaceRequired = requireInterface()
+    }
+
+    private boolean requireInterface () {
+        return !(interfaceEntityName == null || interfaceEntityName.isEmpty() || entityName.equals(interfaceEntityName))
     }
 
     private EntityFind getInterfaceEntityFind(ExecutionContext ec, EntityFind ef) {
-        if (!requireInterfaceEntity()) return null
+        if (!interfaceRequired) return null
         List<Object> pkValues = new ArrayList<>()
         for (EntityValue ev in ef.list()) pkValues.add(ev.get(interfaceEntityPkField))
         return ec.entity.find(interfaceEntityName)
@@ -41,12 +49,13 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
                 .useCache(useCache)
     }
 
-    private EntityValue getInterfaceEntityValue(ExecutionContext ec, EntityValue ev) {
-        if (!requireInterfaceEntity()) return null
-        String pkValue = ev.get(interfaceEntityPkField)
-        return ec.entity.find(interfaceEntityName)
-            .condition(interfaceEntityPkField, pkValue)
-            .useCache(useCache).one()
+    private List<Map<String, Object>> getInterfaceValueList(ExecutionContext ec, List<Map<String, Object>> concreteValueList) {
+        if (!interfaceRequired) return null
+        List<Object> pkValues = new ArrayList<>()
+        for (Map concreteValue in concreteValueList) pkValues.add(concreteValue.get(interfaceEntityPkField))
+        return ec.entity.find(interfaceEntityName).useCache(useCache)
+            .condition(interfaceEntityPkField, ComparisonOperator.IN, pkValues.toSet().sort())
+            .list().getValueMapList()
     }
 
     private Map<String, Object> updateWithInterfaceEV(EntityValue ev, EntityFind efInterface) {
@@ -59,8 +68,25 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
         return jointOneMap
     }
 
-    private boolean requireInterfaceEntity() {
-        return !(interfaceEntityName == null || interfaceEntityName.isEmpty() || entityName.equals(interfaceEntityName))
+    private List<Map<String, Object>> mergeWithInterfaceValue(ExecutionContext ec, List<Map<String, Object>> concreteValueList) {
+        if (!interfaceRequired) return concreteValueList
+        List<Map<String, Object>> interfaceValueList = getInterfaceValueList(ec, concreteValueList)
+        interfaceValueList = interfaceValueList.collect({ Map<String, Object> interfaceValue ->
+            Map<String, Object> concreteValue = concreteValueList.find({ Map<String, Object> it -> it.get(interfaceEntityPkField) == interfaceValue.get(interfaceEntityPkField)})
+            if (concreteValue) interfaceValue.putAll(concreteValue)
+            return interfaceValue
+        })
+        
+        return interfaceValueList
+    }
+
+    private Map<String, Object> mergeWithInterfaceValue(ExecutionContext ec, Map<String, Object> concreteValue) {
+        if (!interfaceRequired) return concreteValue
+        Map jointOneMap = ec.entity.find(interfaceEntityName).useCache(useCache)
+            .condition(interfaceEntityPkField, concreteValue.get(interfaceEntityPkField))
+            .one().getMap()
+        if (jointOneMap != null) jointOneMap.putAll(concreteValue)
+        return jointOneMap
     }
 
     private EntityFind patchWithInCondition(EntityFind ef, DataFetchingEnvironment environment) {
@@ -165,7 +191,6 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
             List<Map<String, Object>> resultList = new ArrayList<>((sourceItemCount != 0 ? sourceItemCount : 1) as int)
             for (int i = 0; i < sourceItemCount; i++) resultList.add(null)
 
-            boolean requireInterfaceEF = requireInterfaceEntity()
             Map<String, Object> jointOneMap
             String cursor
 
@@ -182,57 +207,41 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
             //          - Even no pagination, how to apply limit equally to each actual find if they are combined into one.
             //
             if (operation == "one") {
+                List<Map<String, Object>> jointValueList
                 if (!useCache) {
-                    EntityFind ef = ec.entity.find(entityName)
-                            .searchFormMap(inputFieldsMap, null, null, null, false)
+                    EntityFind efConcrete = ec.entity.find(entityName)
                             .useCache(useCache)
-                    patchWithConditions(ef, environment, ec)
+                            .searchFormMap(inputFieldsMap, null, null, null, false)
 
-                    EntityList el = ef.list()
-                    EntityFind efInterface = requireInterfaceEF ? getInterfaceEntityFind(ec, ef) : null
+                    patchWithConditions(efConcrete, environment, ec)
+                    jointValueList = mergeWithInterfaceValue(ec, efConcrete.list().getValueMapList())
 
-//                logger.info("---- branch batched data fetcher entity with ${((List) environment.source).size()} source for entity [${entityName}] with operation [${operation}] ----")
+                } else {
+                    jointValueList = new ArrayList<>(sourceItemCount)
                     ((List) environment.source).eachWithIndex { Object object, int index ->
                         Map sourceItem = (Map) object
-                        EntityValue evSelf = relKeyCount == 0 ? ef.one()
-                                : el.find { EntityValue ev ->
-                            int found = -1
-                            for (Map.Entry<String, String> entry in relKeyMap.entrySet()) {
-                                found = (found == -1) ? (sourceItem.get(entry.getKey()) == ev.get(entry.getValue()) ? 1 : 0)
-                                        : (found == 1 && sourceItem.get(entry.getKey()) == ev.get(entry.getValue()) ? 1 : 0)
-                            }
-                            return found == 1
-                        }
-                        if (evSelf == null) return
-                        jointOneMap = updateWithInterfaceEV(evSelf, efInterface)
-                        cursor = GraphQLSchemaUtil.encodeRelayCursor(jointOneMap, pkFieldNames)
-                        jointOneMap.put("id", cursor)
-                        DataFetcherUtils.localize(jointOneMap, actualLocalizedFields, ec)
-                        resultList.set(index, jointOneMap)
+                        EntityFind efConcrete = ec.entity.find(entityName).useCache(useCache)
+                                .searchFormMap(inputFieldsMap, null, null, null, false)
+                        patchFindOneWithConditions(efConcrete, sourceItem, ec)
+                        Map concreteValue = efConcrete.one()
+                        jointOneMap = mergeWithInterfaceValue(ec, concreteValue)
+                        jointValueList.add(jointOneMap)
                     }
-
-                    return resultList
-                } else {
-                    // When use cache, it is more efficient to iterate and get value from entity.record.one cache
-                    ((List) environment.source).eachWithIndex{ Object object, int index ->
-                        Map sourceItem = (Map) object
-                        EntityFind ef = ec.entity.find(entityName)
-                            .searchFormMap(inputFieldsMap, null, null, null, false)
-                        patchFindOneWithConditions(ef, sourceItem, ec)
-                        ef.useCache(useCache)
-
-                        EntityValue evSelf = ef.one()
-                        if (evSelf == null) return
-                        EntityValue evInterface = requireInterfaceEF ? getInterfaceEntityValue(ec, evSelf) : null
-                        jointOneMap = evSelf.getMap()
-                        if (evInterface) jointOneMap.putAll(evInterface.getMap())
-                        cursor = GraphQLSchemaUtil.encodeRelayCursor(jointOneMap, pkFieldNames)
-                        jointOneMap.put("id", cursor)
-                        DataFetcherUtils.localize(jointOneMap, actualLocalizedFields, ec)
-                        resultList.set(index, jointOneMap)
-                    }
-                    return resultList
                 }
+
+                ((List) environment.source).eachWithIndex { Object object, int index ->
+                    Map sourceItem = (Map) object
+
+                    jointOneMap = (relKeyCount == 0 ? (jointValueList.size() > 0 ? jointValueList[0] : null) :
+                            jointValueList.find { Object it -> GraphQLSchemaUtil.matchParentByRelKeyMap(sourceItem, it as Map<String, Object>, relKeyMap) }) as Map<String, Object>
+
+                    if (jointOneMap == null) return
+                    cursor = GraphQLSchemaUtil.encodeRelayCursor(jointOneMap, pkFieldNames)
+                    jointOneMap.put("id", cursor)
+                    DataFetcherUtils.localize(jointOneMap, actualLocalizedFields, ec)
+                    resultList.set(index, jointOneMap)
+                }
+                return resultList
             } else { // Operation == "list"
                 Map<String, Object> resultMap
                 Map<String, Object> edgesData
@@ -240,38 +249,35 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
 
                 // No pagination needed pageInfo is not in the field selection set, so no need to construct it.
                 if (!GraphQLSchemaUtil.requirePagination(environment)) {
-//                    logger.info("---- branch batched data fetcher entity without pagination for entity [${entityName}] with operation [${operation}] ----")
+//                    logger.info("---- not require pagination ----")
                     inputFieldsMap.put("pageNoLimit", "true")
-                    EntityFind ef = ec.entity.find(entityName)
+                    EntityFind efConcrete = ec.entity.find(entityName)
+                            .useCache(useCache)
                             .searchFormMap(inputFieldsMap, null, null, null, true)
 
-                    GraphQLSchemaUtil.addPeriodValidArguments(ec, ef, environment.arguments)
-                    patchWithConditions(ef, environment, ec)
-                    ef.offset(null).limit(null).useCache(useCache)
+                    GraphQLSchemaUtil.addPeriodValidArguments(ec, efConcrete, environment.arguments)
+                    patchWithConditions(efConcrete, environment, ec)
 
-                    EntityList el = ef.list()
-                    EntityFind efInterface = requireInterfaceEF ? getInterfaceEntityFind(ec, ef) : null
+                    List<Map<String, Object>> jointValueList = mergeWithInterfaceValue(ec, efConcrete.list().getValueMapList())
 
                     ((List) environment.source).eachWithIndex { Object object, int index ->
                         Map sourceItem = (Map) object
-                        EntityList elSource = relKeyCount == 0 ? el
-                            : el.findAll { EntityValue ev ->
-                                int found = -1
-                                for (Map.Entry<String, String> entry in relKeyMap.entrySet()) {
-                                    found = (found == -1) ? (sourceItem.get(entry.getKey()) == ev.get(entry.getValue()) ? 1 : 0)
-                                            : (found == 1 && sourceItem.get(entry.getKey()) == ev.get(entry.getValue()) ? 1 : 0)
-                                }
-                                return found == 1
-                            }
-                        edgesDataList = elSource.collect { ev ->
-                            edgesData = new HashMap<>(2)
-                            cursor = GraphQLSchemaUtil.encodeRelayCursor(ev, pkFieldNames)
-                            jointOneMap = updateWithInterfaceEV(ev, efInterface)
+                        List<Map<String, Object>> matchedJointValueList
+                        if (relKeyCount == 0) {
+                            matchedJointValueList = jointValueList
+                        } else {
+                            matchedJointValueList = jointValueList.findAll { Object it -> GraphQLSchemaUtil.matchParentByRelKeyMap(sourceItem, it as Map<String, Object>, relKeyMap) }
 
-                            jointOneMap.put("id", cursor)
+                        }
+                        edgesDataList = matchedJointValueList.collect { Object it ->
+                            Map<String, Object> matchedJointOneMap = it as Map<String, Object>
+                            edgesData = new HashMap<>(2)
+                            cursor = GraphQLSchemaUtil.encodeRelayCursor(matchedJointOneMap, pkFieldNames)
+
+                            matchedJointOneMap.put("id", cursor)
                             DataFetcherUtils.localize(jointOneMap, actualLocalizedFields, ec)
                             edgesData.put("cursor", cursor)
-                            edgesData.put("node", jointOneMap)
+                            edgesData.put("node", matchedJointOneMap)
                             return edgesData
                         }
 
@@ -280,7 +286,7 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
                         resultList.set(index, resultMap)
                     }
                 } else { // Used pagination or field selection set includes pageInfo
-//                    logger.info("---- branch batched data fetcher entity with pagination for entity [${entityName}] with operation [${operation}] ----")
+//                    logger.info("---- require pagination ----")
                     ((List) environment.source).eachWithIndex { Object object, int index ->
                         Map sourceItem = (Map) object
                         EntityFind ef = ec.entity.find(entityName)
@@ -313,7 +319,7 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
                         edgesDataList = new ArrayList(el.size())
 
                         if (el != null && el.size() > 0) {
-                            EntityFind efInterface = requireInterfaceEF ? getInterfaceEntityFind(ec, ef) : null
+                            EntityFind efInterface = interfaceRequired ? getInterfaceEntityFind(ec, ef) : null
 
                             pageInfo.put("startCursor", GraphQLSchemaUtil.encodeRelayCursor(el.get(0), pkFieldNames))
                             pageInfo.put("endCursor", GraphQLSchemaUtil.encodeRelayCursor(el.get(el.size() - 1), pkFieldNames))
