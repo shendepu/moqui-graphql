@@ -35,11 +35,20 @@ class BaseEntityDataFetcher extends BaseDataFetcher {
             useCache = "true" == ed.entityInfo.useCache
         }
 
-        String singlePkFieldName = ed.getPkFieldNames().size() == 1 ? ed.getPkFieldNames().get(0) : null
-
         Map<String, String> keyMap = new HashMap<>()
-        for (MNode keyMapNode in node.children("key-map"))
-            keyMap.put(keyMapNode.attribute("field-name"), keyMapNode.attribute("related") ?: singlePkFieldName ?: keyMapNode.attribute("field-name"))
+        for (MNode keyMapNode in node.children("key-map")) {
+            String fieldName = keyMapNode.attribute("field-name")
+            String relFn = keyMapNode.attribute("related")
+            if (!relFn) {
+                if (ed.isField(fieldName)) {
+                    relFn = fieldName
+                } else {
+                    if (ed.getPkFieldNames().size() == 1) relFn = ed.getPkFieldNames().get(0)
+                }
+            }
+            if (!relFn) throw new IllegalArgumentException("The key-map.@related of Entity ${entityName} should be specified")
+            keyMap.put(fieldName, relFn)
+        }
 
         for (MNode localizeFieldNode in node.children("localize-field")) {
             if (!localizeFields.contains(localizeFieldNode.attribute("name")))

@@ -40,6 +40,7 @@ import graphql.schema.SchemaUtil
 import graphql.schema.TypeResolver
 import graphql.TypeResolutionEnvironment
 import groovy.transform.CompileStatic
+import org.moqui.context.ExecutionContext
 import org.moqui.context.ExecutionContextFactory
 import org.moqui.impl.context.ExecutionContextFactoryImpl
 import org.moqui.impl.entity.EntityDefinition
@@ -1754,7 +1755,7 @@ class GraphQLSchemaDefinition {
                 }
             }
 
-            Map<String, String> keyMap = getDataFetcherKeyMap(dataFetcherNode)
+            Map<String, String> keyMap = getDataFetcherKeyMap(dataFetcherNode, ecf)
             switch (dataFetcherType) {
                 case "entity":
                 case "interface":
@@ -1893,11 +1894,30 @@ class GraphQLSchemaDefinition {
             return baseArgumentDef
         }
 
-        private static Map<String, String> getDataFetcherKeyMap(MNode fetcherNode) {
+        private static Map<String, String> getDataFetcherKeyMap(MNode fetcherNode, ExecutionContextFactory ecf) {
             Map<String, String> keyMap = new HashMap<>(1)
             if (fetcherNode == null) return keyMap
-            for (MNode keyMapNode in fetcherNode.children("key-map"))
-                keyMap.put(keyMapNode.attribute("field-name"), keyMapNode.attribute("related") ?: keyMapNode.attribute("field-name"))
+
+            if (fetcherNode.name == "entity-fetcher") {
+                String entityName = fetcherNode.attribute("entity-name")
+                EntityDefinition ed = ((ExecutionContextFactoryImpl) ecf).entityFacade.getEntityDefinition(entityName)
+                for (MNode keyMapNode in fetcherNode.children("key-map")) {
+                    String fieldName = keyMapNode.attribute("field-name")
+                    String relFn = keyMapNode.attribute("related")
+                    if (!relFn) {
+                        if (ed.isField(fieldName)) {
+                            relFn = fieldName
+                        } else {
+                            if (ed.getPkFieldNames().size() == 1) relFn = ed.getPkFieldNames().get(0)
+                        }
+                    }
+                    if (!relFn) throw new IllegalArgumentException("The key-map.@related of Entity ${entityName} should be specified")
+                    keyMap.put(fieldName, relFn)
+                }
+            } else {
+                for (MNode keyMapNode in fetcherNode.children("key-map"))
+                    keyMap.put(keyMapNode.attribute("field-name"), keyMapNode.attribute("related") ?: keyMapNode.attribute("field-name"))
+            }
             return keyMap
         }
 
