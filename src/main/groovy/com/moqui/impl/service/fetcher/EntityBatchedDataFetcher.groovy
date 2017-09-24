@@ -6,12 +6,8 @@ import graphql.schema.DataFetchingEnvironment
 import groovy.transform.CompileStatic
 import org.moqui.context.ExecutionContext
 import org.moqui.context.ExecutionContextFactory
-import org.moqui.entity.EntityCondition
 import org.moqui.entity.EntityCondition.ComparisonOperator
-import org.moqui.entity.EntityCondition.JoinOperator
 import org.moqui.entity.EntityFind
-import org.moqui.entity.EntityList
-import org.moqui.entity.EntityValue
 import org.moqui.impl.context.UserFacadeImpl
 import org.moqui.util.MNode
 
@@ -65,66 +61,6 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
             .one()?.getMap()
         if (jointOneMap != null) jointOneMap.putAll(concreteValue)
         return jointOneMap
-    }
-
-    private EntityFind patchWithInCondition(EntityFind ef, DataFetchingEnvironment environment) {
-        if (relKeyMap.size() != 1)
-            throw new IllegalArgumentException("pathWithIdsCondition should only be used when there is just one relationship key map")
-        int sourceItemCount = ((List) environment.source).size()
-        String relParentFieldName, relFieldName
-        List<Object> ids = new ArrayList<>(sourceItemCount)
-        relParentFieldName = relKeyMap.keySet().asList().get(0)
-        relFieldName = relKeyMap.values().asList().get(0)
-
-        for (Object sourceItem in (List) environment.source) {
-            Object relFieldValue = ((Map) sourceItem).get(relParentFieldName)
-            if (relFieldValue != null) ids.add(relFieldValue)
-        }
-
-        ef.condition(relFieldName, ComparisonOperator.IN, ids)
-        return ef
-    }
-
-    private EntityFind patchWithTupleOrCondition(EntityFind ef, DataFetchingEnvironment environment, ExecutionContext ec) {
-        EntityCondition orCondition = null
-
-        for (Object object in (List) environment.source) {
-            EntityCondition tupleCondition = null
-            Map sourceItem = (Map) object
-            for (Map.Entry<String, String> entry in relKeyMap.entrySet()) {
-                if (tupleCondition == null)
-                    tupleCondition = ec.entity.conditionFactory.makeCondition(entry.getValue(), ComparisonOperator.EQUALS, sourceItem.get(entry.getKey()))
-                else
-                    tupleCondition = ec.entity.conditionFactory.makeCondition(tupleCondition, JoinOperator.AND,
-                            ec.entity.conditionFactory.makeCondition(entry.getValue(), ComparisonOperator.EQUALS, sourceItem.get(entry.getKey())))
-            }
-
-            if (orCondition == null) orCondition = tupleCondition
-            else orCondition = ec.entity.conditionFactory.makeCondition(orCondition, JoinOperator.OR, tupleCondition)
-        }
-
-        ef.condition(orCondition)
-        return ef
-    }
-
-    private EntityFind patchWithConditions(EntityFind ef, DataFetchingEnvironment environment, ExecutionContext ec) {
-        int relKeyCount = relKeyMap.size()
-        if (relKeyCount == 1) {
-            patchWithInCondition(ef, environment)
-        } else if (relKeyCount > 1) {
-            patchWithTupleOrCondition(ef, environment, ec)
-        }
-        return ef
-    }
-
-    private EntityFind patchFindOneWithConditions(EntityFind ef, Map sourceItem, ExecutionContext ec) {
-        if (relKeyMap.size() == 0) return ef
-        for (Map.Entry<String, String> entry in relKeyMap.entrySet()) {
-            String relParentFieldName = entry.getKey()
-            String relFieldName = entry.getValue()
-            ef.condition(relFieldName, sourceItem.get(relParentFieldName))
-        }
-        return ef
     }
 
     @Override
@@ -191,7 +127,7 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
                             .useCache(useCache)
                             .searchFormMap(inputFieldsMap, null, null, null, false)
 
-                    patchWithConditions(efConcrete, environment, ec)
+                    DataFetcherUtils.patchWithConditions(efConcrete, environment.source as List, relKeyMap, ec)
                     jointValueList = mergeWithInterfaceValue(ec, efConcrete.list().getValueMapList())
 
                 } else {
@@ -200,7 +136,7 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
                         Map sourceItem = (Map) object
                         EntityFind efConcrete = ec.entity.find(entityName).useCache(useCache)
                                 .searchFormMap(inputFieldsMap, null, null, null, false)
-                        patchFindOneWithConditions(efConcrete, sourceItem, ec)
+                        DataFetcherUtils.patchFindOneWithConditions(efConcrete, sourceItem, relKeyMap, ec)
                         jointOneMap = mergeWithInterfaceValue(ec, efConcrete.one()?.getMap())
                         if (jointOneMap) jointValueList.add(jointOneMap)
                     }
@@ -233,7 +169,7 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
                             .searchFormMap(inputFieldsMap, null, null, null, true)
 
                     GraphQLSchemaUtil.addPeriodValidArguments(ec, efConcrete, environment.arguments)
-                    patchWithConditions(efConcrete, environment, ec)
+                    DataFetcherUtils.patchWithConditions(efConcrete, environment.source as List, relKeyMap, ec)
 
                     List<Map<String, Object>> jointValueList = mergeWithInterfaceValue(ec, efConcrete.list().getValueMapList())
 

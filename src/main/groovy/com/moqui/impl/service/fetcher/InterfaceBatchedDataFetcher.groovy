@@ -2,13 +2,9 @@ package com.moqui.impl.service.fetcher
 
 import com.moqui.impl.util.GraphQLSchemaUtil
 import graphql.execution.batched.BatchedDataFetcher
-import graphql.language.Field
 import graphql.schema.DataFetchingEnvironment
 import org.moqui.context.ExecutionContext
 import org.moqui.context.ExecutionContextFactory
-import org.moqui.entity.EntityCondition
-import org.moqui.entity.EntityCondition.ComparisonOperator
-import org.moqui.entity.EntityCondition.JoinOperator
 import org.moqui.entity.EntityFind
 import org.moqui.impl.context.ExecutionContextFactoryImpl
 import org.moqui.impl.context.UserFacadeImpl
@@ -301,9 +297,9 @@ class InterfaceBatchedDataFetcher extends BaseDataFetcher implements BatchedData
             this.relKeyMap.putAll(relKeyMap)
         }
 
-        abstract List<Map<String, Object>> searchFormMap(List<Object> source, Map<String, Object> inputFieldsMap, DataFetchingEnvironment environment)
+        abstract List<Map<String, Object>> searchFormMap(List<Object> sourceItems, Map<String, Object> inputFieldsMap, DataFetchingEnvironment environment)
         abstract Map<String, Object> searchFormMap(Map sourceItem, Map<String, Object> inputFieldsMap, DataFetchingEnvironment environment)
-        abstract Map<String, Object> searchFormMapWithPagination(List<Object> source, Map<String, Object> inputFieldsMap, DataFetchingEnvironment environment)
+        abstract Map<String, Object> searchFormMapWithPagination(List<Object> sourceItems, Map<String, Object> inputFieldsMap, DataFetchingEnvironment environment)
 
 //        abstract List<Map<String, Object>> getByPkField(String pkField, List<String> pkValues)
     }
@@ -328,12 +324,12 @@ class InterfaceBatchedDataFetcher extends BaseDataFetcher implements BatchedData
         }
 
         @Override
-        List<Map<String, Object>> searchFormMap(List<Object> source, Map<String, Object> inputFieldsMap, DataFetchingEnvironment environment) {
+        List<Map<String, Object>> searchFormMap(List<Object> sourceItems, Map<String, Object> inputFieldsMap, DataFetchingEnvironment environment) {
             ExecutionContext ec = ecf.getExecutionContext()
             EntityFind ef = ec.entity.find(entityName).useCache(useCache).searchFormMap(inputFieldsMap, null, null, null, false)
             if (environment) GraphQLSchemaUtil.addPeriodValidArguments(ec, ef, environment.arguments)
 
-            patchWithConditions(ef, source, ec)
+            DataFetcherUtils.patchWithConditions(ef, sourceItems, relKeyMap, ec)
 
             return ef.list().getValueMapList()
         }
@@ -344,17 +340,17 @@ class InterfaceBatchedDataFetcher extends BaseDataFetcher implements BatchedData
             EntityFind ef = ec.entity.find(entityName).useCache(useCache).searchFormMap(inputFieldsMap, null, null, null, false)
             if (environment) GraphQLSchemaUtil.addPeriodValidArguments(ec, ef, environment.arguments)
 
-            patchFindOneWithConditions(ef, sourceItem, ec)
+            DataFetcherUtils.patchFindOneWithConditions(ef, sourceItem, relKeyMap, ec)
             return ef.one()?.getMap()
         }
 
         @Override
-        Map<String, Object> searchFormMapWithPagination(List<Object> source, Map<String, Object> inputFieldsMap, DataFetchingEnvironment environment) {
+        Map<String, Object> searchFormMapWithPagination(List<Object> sourceItems, Map<String, Object> inputFieldsMap, DataFetchingEnvironment environment) {
             ExecutionContext ec = ecf.getExecutionContext()
             EntityFind ef = ec.entity.find(entityName).searchFormMap(inputFieldsMap, null, null, null, false)
             if (environment) GraphQLSchemaUtil.addPeriodValidArguments(ec, ef, environment.arguments)
 
-            patchWithConditions(ef, source, ec)
+            DataFetcherUtils.patchWithConditions(ef, sourceItems, relKeyMap, ec)
 
             if (!ef.getLimit()) ef.limit(100)
             ef.useCache(useCache)
@@ -367,66 +363,6 @@ class InterfaceBatchedDataFetcher extends BaseDataFetcher implements BatchedData
             resultMap.put("data", ef.list().getValueMapList())
             return resultMap
         }
-
-        private EntityFind patchWithInCondition(EntityFind ef, List<Object> source) {
-            if (relKeyMap.size() != 1)
-                throw new IllegalArgumentException("pathWithIdsCondition should only be used when there is just one relationship key map")
-            int sourceItemCount = source.size()
-            String relParentFieldName, relFieldName
-            List<Object> ids = new ArrayList<>(sourceItemCount)
-            relParentFieldName = relKeyMap.keySet().asList().get(0)
-            relFieldName = relKeyMap.values().asList().get(0)
-
-            for (Object sourceItem in source) {
-                Object relFieldValue = ((Map) sourceItem).get(relParentFieldName)
-                if (relFieldValue != null) ids.add(relFieldValue)
-            }
-
-            ef.condition(relFieldName, ComparisonOperator.IN, ids.toSet().sort())
-            return ef
-        }
-
-        private EntityFind patchWithTupleOrCondition(EntityFind ef, List<Object> source, ExecutionContext ec) {
-            EntityCondition orCondition = null
-
-            for (Object object in source) {
-                EntityCondition tupleCondition = null
-                Map sourceItem = (Map) object
-                for (Map.Entry<String, String> entry in relKeyMap.entrySet()) {
-                    if (tupleCondition == null)
-                        tupleCondition = ec.entity.conditionFactory.makeCondition(entry.getValue(), ComparisonOperator.EQUALS, sourceItem.get(entry.getKey()))
-                    else
-                        tupleCondition = ec.entity.conditionFactory.makeCondition(tupleCondition, JoinOperator.AND,
-                                ec.entity.conditionFactory.makeCondition(entry.getValue(), ComparisonOperator.EQUALS, sourceItem.get(entry.getKey())))
-                }
-
-                if (orCondition == null) orCondition = tupleCondition
-                else orCondition = ec.entity.conditionFactory.makeCondition(orCondition, JoinOperator.OR, tupleCondition)
-            }
-
-            ef.condition(orCondition)
-            return ef
-        }
-
-        private EntityFind patchWithConditions(EntityFind ef, List<Object> source, ExecutionContext ec) {
-            int relKeyCount = relKeyMap.size()
-            if (relKeyCount == 1) {
-                patchWithInCondition(ef, source)
-            } else if (relKeyCount > 1) {
-                patchWithTupleOrCondition(ef, source, ec)
-            }
-            return ef
-        }
-
-        private EntityFind patchFindOneWithConditions(EntityFind ef, Map sourceItem, ExecutionContext ec) {
-            if (relKeyMap.size() == 0) return ef
-            for (Map.Entry<String, String> entry in relKeyMap.entrySet()) {
-                String relParentFieldName = entry.getKey()
-                String relFieldName = entry.getValue()
-                ef.condition(relFieldName, sourceItem.get(relParentFieldName))
-            }
-            return ef
-        }
     }
 
     static class InternalServiceDataFetcher extends InternalDataFetcher {
@@ -435,7 +371,7 @@ class InterfaceBatchedDataFetcher extends BaseDataFetcher implements BatchedData
         }
 
         @Override
-        List<Map<String, Object>> searchFormMap(List<Object> source, Map<String, Object> inputFieldsMap, DataFetchingEnvironment environment) {
+        List<Map<String, Object>> searchFormMap(List<Object> sourceItems, Map<String, Object> inputFieldsMap, DataFetchingEnvironment environment) {
             throw new IllegalArgumentException("The method is not supported yet.")
         }
 
@@ -445,7 +381,7 @@ class InterfaceBatchedDataFetcher extends BaseDataFetcher implements BatchedData
         }
 
         @Override
-        Map<String, Object> searchFormMapWithPagination(List<Object> source, Map<String, Object> inputFieldsMap, DataFetchingEnvironment environment) {
+        Map<String, Object> searchFormMapWithPagination(List<Object> sourceItems, Map<String, Object> inputFieldsMap, DataFetchingEnvironment environment) {
             throw new IllegalArgumentException("The method is not supported yet.")
         }
     }

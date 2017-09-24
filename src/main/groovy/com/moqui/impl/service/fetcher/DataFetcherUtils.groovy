@@ -6,7 +6,10 @@ import graphql.language.InlineFragment
 import graphql.language.Selection
 import graphql.language.SelectionSet
 import org.moqui.context.ExecutionContext
-
+import org.moqui.entity.EntityCondition
+import org.moqui.entity.EntityCondition.ComparisonOperator
+import org.moqui.entity.EntityCondition.JoinOperator
+import org.moqui.entity.EntityFind
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
@@ -93,6 +96,66 @@ class DataFetcherUtils {
     }
 
 
+    private static EntityFind patchWithInCondition(EntityFind ef, List<Object> sourceItems, Map<String, String> relKeyMap) {
+        if (relKeyMap.size() != 1)
+            throw new IllegalArgumentException("pathWithIdsCondition should only be used when there is just one relationship key map")
+        int sourceItemCount = sourceItems.size()
+        String relParentFieldName, relFieldName
+        List<Object> ids = new ArrayList<>(sourceItemCount)
+        relParentFieldName = relKeyMap.keySet().asList().get(0)
+        relFieldName = relKeyMap.values().asList().get(0)
+
+        for (Object sourceItem in sourceItems) {
+            Object relFieldValue = ((Map) sourceItem).get(relParentFieldName)
+            if (relFieldValue != null) ids.add(relFieldValue)
+        }
+
+        ef.condition(relFieldName, ComparisonOperator.IN, ids)
+        return ef
+    }
+
+    private static EntityFind patchWithTupleOrCondition(EntityFind ef, List<Object> sourceItems, Map<String, String> relKeyMap, ExecutionContext ec) {
+        EntityCondition orCondition = null
+
+        for (Object object in sourceItems) {
+            EntityCondition tupleCondition = null
+            Map sourceItem = (Map) object
+            for (Map.Entry<String, String> entry in relKeyMap.entrySet()) {
+                if (tupleCondition == null)
+                    tupleCondition = ec.entity.conditionFactory.makeCondition(entry.getValue(), ComparisonOperator.EQUALS, sourceItem.get(entry.getKey()))
+                else
+                    tupleCondition = ec.entity.conditionFactory.makeCondition(tupleCondition, JoinOperator.AND,
+                            ec.entity.conditionFactory.makeCondition(entry.getValue(), ComparisonOperator.EQUALS, sourceItem.get(entry.getKey())))
+            }
+
+            if (orCondition == null) orCondition = tupleCondition
+            else orCondition = ec.entity.conditionFactory.makeCondition(orCondition, JoinOperator.OR, tupleCondition)
+        }
+
+        ef.condition(orCondition)
+        return ef
+    }
+
+    static EntityFind patchWithConditions(EntityFind ef, List<Object> sourceItems, Map<String, String> relKeyMap, ExecutionContext ec) {
+        int relKeyCount = relKeyMap.size()
+        if (relKeyCount == 1) {
+            patchWithInCondition(ef, sourceItems, relKeyMap)
+        } else if (relKeyCount > 1) {
+            patchWithTupleOrCondition(ef, sourceItems, relKeyMap, ec)
+        }
+        return ef
+    }
+
+    static EntityFind patchFindOneWithConditions(EntityFind ef, Map sourceItem, Map<String, String> relKeyMap, ExecutionContext ec) {
+        if (relKeyMap.size() == 0) return ef
+        for (Map.Entry<String, String> entry in relKeyMap.entrySet()) {
+            String relParentFieldName = entry.getKey()
+            String relFieldName = entry.getValue()
+            ef.condition(relFieldName, sourceItem.get(relParentFieldName))
+        }
+        return ef
+    }
+    
     static boolean matchParentByRelKeyMap(Map<String, Object> sourceItem, Map<String, Object> self, Map<String, String> relKeyMap) {
         int found = -1
         for (Map.Entry<String, String> entry in relKeyMap.entrySet()) {
