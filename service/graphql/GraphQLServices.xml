@@ -59,7 +59,46 @@
         </actions>
     </service>
 
-    <service verb="augment" noun="InterfaceWithDerived">
+    <service verb="augment" noun="InterfaceValueWithConcrete">
+        <in-parameters>
+            <parameter name="interfaceValue" type="Map"/>
+            <parameter name="primaryField" required="true"/>
+            <parameter name="resolveField" required="true"/>
+            <parameter name="objectDefList" type="List"><parameter name="objectDef" type="Map">
+                <parameter name="entityName" required="true"/>
+                <parameter name="resolveValue" required="true"/>
+            </parameter></parameter>
+            <parameter name="useCache" type="Boolean" default="false"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="jointValueMap" type="Map"/>
+        </out-parameters>
+        <actions>
+            <script><![CDATA[
+                import org.moqui.context.ExecutionContext
+                import org.moqui.entity.EntityFind
+                import org.moqui.entity.EntityValue
+
+                if (!interfaceValue) { jointValueMap = interfaceValue; return }
+
+                ExecutionContext ec = context.ec
+
+                jointValueMap = [:]
+                jointValueMap.putAll(interfaceValue as Map)
+
+                Map objectDef = objectDefList.find { it -> it.get('resolveValue') == interfaceValue.get(resolveField) } as Map
+                if (objectDef == null) throw new IllegalArgumentException("objectDefList: ${objectDefList} is not correct")
+                String entityName = objectDef.entityName
+                String primaryValue = interfaceValue.get(primaryField)
+                EntityValue ev = ec.entity.find(entityName)
+                        .condition(primaryField as String, primaryValue)
+                        .useCache(useCache as boolean).one()
+                if (ev != null) jointValueMap.putAll(ev.getMap())
+            ]]></script>
+        </actions>
+    </service>
+
+    <service verb="augment" noun="InterfaceListWithConcrete">
         <in-parameters>
             <parameter name="interfaceList" type="List"/>
             <parameter name="primaryField" required="true"/>
@@ -68,18 +107,26 @@
                 <parameter name="entityName" required="true"/>
                 <parameter name="resolveValue" required="true"/>
             </parameter></parameter>
+            <!--<parameter name="useCache" type="Boolean" default="false"/>-->
         </in-parameters>
         <out-parameters>
-            <parameter name="interfaceList" type="List"/>
+            <parameter name="jointValueList" type="List"/>
         </out-parameters>
         <actions>
             <script><![CDATA[
                 import org.moqui.context.ExecutionContext
                 import org.moqui.entity.EntityFind
+                import org.moqui.entity.EntityList
                 import org.moqui.entity.EntityValue
                 import org.moqui.impl.entity.EntityConditionFactoryImpl
 
                 if (!interfaceList) return
+
+                jointValueList = interfaceList.collect { it ->
+                    Map jointValueMap = [:]
+                    jointValueMap.putAll(it)
+                    return jointValueMap
+                }
 
                 ExecutionContext ec = context.ec
                 EntityConditionFactoryImpl cf = (EntityConditionFactoryImpl) ec.entity.conditionFactory
@@ -88,17 +135,17 @@
                     String entityName = objectDef.entityName
                     String resolveValue = objectDef.resolveValue
 
-                    List derivedList = interfaceList.findAll({ it -> it.get(resolveField) == resolveValue })
-                    List derivedIds = derivedList.collect({ it -> it.get(primaryField) })
+                    List concreteList = jointValueList.findAll({ it -> it.get(resolveField) == resolveValue })
+                    List concreteIds = concreteList.collect({ it -> it.get(primaryField) })
                     EntityFind ef = ec.entity.find((String) entityName)
-                            .condition(cf.makeActionConditionDirect((String) primaryField, "in", derivedIds, null, null, false, false, false, "false"))
+                            .condition(cf.makeActionConditionDirect((String) primaryField, "in", concreteIds, null, null, false, false, false, "false"))
 
                     ef.list().each { EntityValue ev ->
-                        Map interfaceMap = interfaceList.find({ it -> it.get(primaryField) == ev.get(primaryField) }) as Map
-                        interfaceMap.putAll(ev.getMap())
+                        Map jointValueMap = jointValueList.find({ it -> it.get(primaryField) == ev.get(primaryField) }) as Map
+                        jointValueMap.putAll(ev.getMap())
                     }
                 }
-            ]]></script>
+                ]]></script>
         </actions>
     </service>
 
