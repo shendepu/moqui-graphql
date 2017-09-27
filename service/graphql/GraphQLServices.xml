@@ -59,6 +59,28 @@
         </actions>
     </service>
 
+
+    <service verb="put" noun="MapInContextWithId" authenticate="anonymous-view">
+        <in-parameters>
+            <parameter name="ev" type="Map"/>
+            <parameter name="pkFieldNames" type="List" default="[]"/>
+        </in-parameters>
+        <actions>
+            <script><![CDATA[
+                import com.moqui.impl.util.GraphQLSchemaUtil
+
+                if (!ev) {
+                    result.put("_graphql_result_null", true)
+                    return
+                }
+
+                id = GraphQLSchemaUtil.encodeRelayId(ev, pkFieldNames)
+                result.put("id", id)
+                result.putAll(ev)
+            ]]></script>
+        </actions>
+    </service>
+
     <service verb="augment" noun="InterfaceValueWithConcrete">
         <in-parameters>
             <parameter name="interfaceValue" type="Map"/>
