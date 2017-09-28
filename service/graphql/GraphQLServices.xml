@@ -2,7 +2,7 @@
 <services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/service-definition-2.0.xsd">
     <service verb="return" noun="Id" type="interface">
         <out-parameters>
-            <parameter name="id"/>
+            <parameter name="id" type="String"/>
             <parameter name="_graphql_result_null" type="Boolean" default-value="false"><description>
                 Moqui service has parameters in context that are set to out parameters automatically, so the result map is not null. It is verbose
                 to clear them manually. This special parameter is to tell moqui-graphql ignore the result.
@@ -12,7 +12,7 @@
 
     <service verb="return" noun="MessagePayload" type="interface">
         <out-parameters>
-            <parameter name="message"/>
+            <parameter name="message" type="String"/>
             <parameter name="error" type="Boolean"/>
         </out-parameters>
     </service>
