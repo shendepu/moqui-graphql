@@ -1,5 +1,6 @@
 package com.moqui.impl.service.fetcher
 
+import com.moqui.graphql.GraphQLApi
 import com.moqui.impl.util.GraphQLSchemaUtil
 import graphql.execution.batched.BatchedDataFetcher
 import graphql.schema.DataFetchingEnvironment
@@ -65,7 +66,6 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
 
     @Override
     Object fetch(DataFetchingEnvironment environment) {
-        logger.info("running batched data fetcher entity for entity [${entityName}] with operation [${operation}], use cache [${useCache}] ...")
 //        logger.info("source     - ${environment.source}")
 //        logger.info("arguments  - ${environment.arguments}")
 //        logger.info("context    - ${environment.context}")
@@ -76,6 +76,7 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
 //        logger.info("relKeyMap  - ${relKeyMap}")
 //        logger.info("interfaceEntityName    - ${interfaceEntityName}")
 
+        long startTime = System.currentTimeMillis()
         ExecutionContext ec = ecf.getExecutionContext()
 
         int sourceItemCount = ((List) environment.source).size()
@@ -154,7 +155,6 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
                     DataFetcherUtils.localize(jointOneMap, actualLocalizedFields, ec)
                     resultList.set(index, jointOneMap)
                 }
-                return resultList
             } else { // Operation == "list"
                 Map<String, Object> resultMap
                 Map<String, Object> edgesData
@@ -251,8 +251,15 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
                         resultList.set(index, resultMap)
                     }
                 }
-                return resultList
             }
+
+            long runTime = System.currentTimeMillis() - startTime
+            if (runTime > GraphQLApi.RUN_TIME_WARN_THRESHOLD) {
+                logger.warn("run batched data fetcher entity for entity [${entityName}] with operation [${operation}], use cache [${useCache}] in ${runTime}ms")
+            } else {
+                logger.info("run batched data fetcher entity for entity [${entityName}] with operation [${operation}], use cache [${useCache}] in ${runTime}ms")
+            }
+            return resultList
         }
         finally {
             if (loggedInAnonymous) ((UserFacadeImpl) ec.getUser()).logoutAnonymousOnly()

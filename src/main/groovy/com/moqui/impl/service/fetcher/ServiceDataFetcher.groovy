@@ -1,5 +1,6 @@
 package com.moqui.impl.service.fetcher
 
+import com.moqui.graphql.GraphQLApi
 import com.moqui.impl.util.GraphQLSchemaUtil
 import graphql.schema.DataFetchingEnvironment
 import groovy.transform.CompileStatic
@@ -45,7 +46,7 @@ class ServiceDataFetcher extends BaseDataFetcher {
 
     @Override
     Object fetch(DataFetchingEnvironment environment) {
-        logger.info("---- running data fetcher service [${serviceName}] ...")
+        Long startTime = System.currentTimeMillis()
         ExecutionContext ec = ecf.getExecutionContext()
         boolean loggedInAnonymous = false
         if ("anonymous-all".equals(requireAuthentication)) {
@@ -56,6 +57,7 @@ class ServiceDataFetcher extends BaseDataFetcher {
             loggedInAnonymous = ec.getUser().loginAnonymousIfNoUser()
         }
 
+        logger.info("after logged in ${System.currentTimeMillis() - startTime}ms")
         try {
             Map<String, Object> inputFieldsMap = new HashMap<>()
             if (fieldDef.isMutation) {
@@ -66,8 +68,8 @@ class ServiceDataFetcher extends BaseDataFetcher {
                 Map source = environment.source as Map<String, Object>
                 GraphQLSchemaUtil.transformQueryServiceRelArguments(source, relKeyMap, inputFieldsMap)
             }
-            logger.info("inputFieldsMap - ${inputFieldsMap}")
 
+            logger.info("after transform arguments ${System.currentTimeMillis() - startTime}ms")
             Map result
             if (fieldDef.isMutation) {
                 result = ec.getService().sync().name(serviceName).parameters(inputFieldsMap).call()
@@ -90,6 +92,13 @@ class ServiceDataFetcher extends BaseDataFetcher {
             }
             if (result && result.get("_graphql_result_null")) return null
             if (result && result.get("_graphql_result_primitive")) return result.get("_graphql_result_primitive")
+
+            long runTime = System.currentTimeMillis() - startTime
+            if (runTime > GraphQLApi.RUN_TIME_WARN_THRESHOLD) {
+                logger.warn("run data fetcher service [${serviceName}] in ${runTime}ms")
+            } else {
+                logger.info("run data fetcher service [${serviceName}] in ${runTime}ms")
+            }
             return result
         } finally {
             if (loggedInAnonymous) ((UserFacadeImpl) ec.getUser()).logoutAnonymousOnly()

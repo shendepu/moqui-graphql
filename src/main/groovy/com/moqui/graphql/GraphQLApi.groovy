@@ -34,6 +34,7 @@ class GraphQLApi {
     @SuppressWarnings("GrFinalVariableAccess")
     protected final ExecutionContextFactory ecf
 
+    static long RUN_TIME_WARN_THRESHOLD
     private GraphQL graphQL
 
     private final long graphQLTTI
@@ -46,6 +47,9 @@ class GraphQLApi {
 
         String graphQLTtiProperty = System.getProperty("service.graphql.graphql.tti")
         graphQLTTI = graphQLTtiProperty ? graphQLTtiProperty.toLong() * 1000 : Long.MAX_VALUE
+
+        String runTimeWarnThresholdProperty = System.getProperty("service.graphql.graphql.runTimeWarnThreshold")
+        RUN_TIME_WARN_THRESHOLD = runTimeWarnThresholdProperty ? runTimeWarnThresholdProperty.toLong() : 1000
 
         loadSchemaNode()
     }

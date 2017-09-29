@@ -1,5 +1,6 @@
 package com.moqui.impl.service.fetcher
 
+import com.moqui.graphql.GraphQLApi
 import com.moqui.impl.util.GraphQLSchemaUtil
 import graphql.execution.batched.BatchedDataFetcher
 import graphql.schema.DataFetchingEnvironment
@@ -128,7 +129,6 @@ class InterfaceBatchedDataFetcher extends BaseDataFetcher implements BatchedData
 
     @Override
     Object fetch(DataFetchingEnvironment environment) {
-        logger.info("---- running interface bached data fetcher with operation [${operation}] ...")
 //        logger.info("source     - ${environment.source}")
 //        logger.info("arguments  - ${environment.arguments}")
 //        logger.info("context    - ${environment.context}")
@@ -137,6 +137,7 @@ class InterfaceBatchedDataFetcher extends BaseDataFetcher implements BatchedData
 //        logger.info("parentType - ${environment.parentType}")
 //        logger.info("relKeyMap  - ${relKeyMap}")
 
+        long startTime = System.currentTimeMillis()
         ExecutionContext ec = ecf.getExecutionContext()
 
         int sourceItemCount = ((List) environment.source).size()
@@ -277,7 +278,12 @@ class InterfaceBatchedDataFetcher extends BaseDataFetcher implements BatchedData
                     }
                 }
             }
-
+            long runTime = System.currentTimeMillis() - startTime
+            if (runTime > GraphQLApi.RUN_TIME_WARN_THRESHOLD) {
+                logger.warn("run interface bached data fetcher with operation [${operation}] use cache ${useCache} in ${runTime}ms")
+            } else {
+                logger.info("run interface bached data fetcher with operation [${operation}] use cache ${useCache} in ${runTime}ms")
+            }
             return resultList
         }
         finally {
