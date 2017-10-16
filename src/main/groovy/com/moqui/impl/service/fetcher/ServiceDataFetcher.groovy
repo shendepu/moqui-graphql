@@ -24,6 +24,7 @@ class ServiceDataFetcher extends BaseDataFetcher {
     String requireAuthentication
     boolean isEntityAutoService
     ServiceDefinition sd
+    boolean resultPrimitive = false
     Map<String, String> relKeyMap = new HashMap<>()
 
     ServiceDataFetcher(MNode node, FieldDefinition fieldDef, ExecutionContextFactory ecf) {
@@ -41,6 +42,7 @@ class ServiceDataFetcher extends BaseDataFetcher {
         } else {
             sd = ((ExecutionContextFactoryImpl) ecf).serviceFacade.getServiceDefinition(serviceName)
             if (sd == null) throw new IllegalArgumentException("Service ${serviceName} not found")
+            if (sd.getOutParameter("_graphql_result_primitive")) resultPrimitive = true
         }
     }
 
@@ -90,8 +92,8 @@ class ServiceDataFetcher extends BaseDataFetcher {
                         .parameter("environment", environment)
                         .parameters(inputFieldsMap).call()
             }
+            if (resultPrimitive) return result?.get("_graphql_result_primitive")
             if (result && result.get("_graphql_result_null")) return null
-            if (result && result.get("_graphql_result_primitive")) return result.get("_graphql_result_primitive")
 
             long runTime = System.currentTimeMillis() - startTime
             if (runTime > GraphQLApi.RUN_TIME_WARN_THRESHOLD) {
