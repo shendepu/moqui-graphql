@@ -312,7 +312,8 @@
                                     'hasPreviousPage': hasPreviousPage, 'hasNextPage': hasNextPage]
                         break
                     case "cursor-after":
-                        pageInfo = [hasNextPage:hasNextPage, endCursor:endCursor]
+                    case "cursor-before":
+                        pageInfo = [hasNextPage:hasNextPage, endCursor:endCursor, hasPreviousPage:hasPreviousPage, startCursor:startCursor]
                         break
                 }
             ]]></script>
