@@ -592,8 +592,14 @@ class GraphQLSchemaUtil {
 
     static String encodeRelayId(Map<String, Object> ev, List<String> pkFieldNames) {
         if (pkFieldNames.size() == 0) throw new IllegalArgumentException("Entity value must have primary keys to generate id")
-        String id = ev.get(pkFieldNames[0])
-        for (int i = 1; i < pkFieldNames.size(); i++) id = id + '|' + ev.get(pkFieldNames[i])
+        Object pkFieldValue0 = ev.get(pkFieldNames[0])
+        if (pkFieldValue0 instanceof Timestamp) pkFieldValue0 = ((Timestamp) pkFieldValue0).getTime()
+        String id = (String) pkFieldValue0
+        for (int i = 1; i < pkFieldNames.size(); i++) {
+            Object pkFieldValue = ev.get(pkFieldNames[i])
+            if (pkFieldValue instanceof Timestamp) pkFieldValue = ((Timestamp) pkFieldValue).getTime()
+            id = id + '|' + ((String) pkFieldValue)
+        }
         return id
     }
 
