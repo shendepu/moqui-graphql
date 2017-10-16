@@ -179,8 +179,11 @@ class InterfaceBatchedDataFetcher extends BaseDataFetcher implements BatchedData
                     ((List) environment.source).eachWithIndex { Object object, int index ->
                         Map sourceItem = (Map) object
                         Map<String, Object> interfaceValue = defaultFetcher.searchFormMap(sourceItem, inputFieldsMap, environment)
-                        mergeWithConcreteValue(interfaceValue)
-                        if (interfaceValue) interfaceValueList.add(interfaceValue)
+
+                        if (interfaceValue != null) {
+                            mergeWithConcreteValue(interfaceValue)
+                            interfaceValueList.add(interfaceValue)
+                        }
                     }
                 }
 
