@@ -19,10 +19,12 @@ import graphql.ExecutionResult
 import graphql.GraphQL
 import graphql.GraphQLError
 import graphql.execution.batched.BatchedExecutionStrategy
+import graphql.language.Document
+import graphql.parser.Parser
 import groovy.transform.CompileStatic
+import org.antlr.v4.runtime.misc.ParseCancellationException
 import org.moqui.context.ExecutionContextFactory
 import org.moqui.resource.ResourceReference
-import org.moqui.jcache.MCache
 import org.moqui.util.MNode
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -67,6 +69,17 @@ class GraphQLApi {
 
         ExecutionResult executionResult = graphQL.execute("${requestString}", operationName, context, arguments)
         return new GraphQLResult(executionResult)
+    }
+
+    Document parse (String requestString) {
+        Parser parser = new Parser()
+        Document document
+        try {
+            document = parser.parseDocument(requestString)
+        } catch (ParseCancellationException e) {
+            logger.error("Parse graphql error: ${e}")
+        }
+        return document
     }
 
     synchronized void loadSchemaNode() {
