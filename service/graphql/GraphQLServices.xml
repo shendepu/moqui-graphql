@@ -278,7 +278,7 @@
                     edges.add(edge)
                 ]]></script>
             </iterate>
-            <service-call name="graphql.GraphqlServices.build#PageInfo" in-map="context" out-map="context"/>
+            <service-call name="graphql.GraphQLServices.build#PageInfo" in-map="context" out-map="context"/>
         </actions>
     </service>
 
