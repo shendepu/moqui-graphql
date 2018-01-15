@@ -49,7 +49,8 @@ class ServiceDataFetcher extends BaseDataFetcher {
     @Override
     Object fetch(DataFetchingEnvironment environment) {
         Long startTime = System.currentTimeMillis()
-        ExecutionContext ec = ecf.getExecutionContext()
+        ExecutionContext ec = environment.context as ExecutionContext
+
         boolean loggedInAnonymous = false
         if ("anonymous-all".equals(requireAuthentication)) {
             ec.artifactExecution.setAnonymousAuthorizedAll()
@@ -59,7 +60,6 @@ class ServiceDataFetcher extends BaseDataFetcher {
             loggedInAnonymous = ec.getUser().loginAnonymousIfNoUser()
         }
 
-        logger.info("after logged in ${System.currentTimeMillis() - startTime}ms")
         try {
             Map<String, Object> inputFieldsMap = new HashMap<>()
             if (fieldDef.isMutation) {
@@ -71,7 +71,6 @@ class ServiceDataFetcher extends BaseDataFetcher {
                 GraphQLSchemaUtil.transformQueryServiceRelArguments(source, relKeyMap, inputFieldsMap)
             }
 
-            logger.info("after transform arguments ${System.currentTimeMillis() - startTime}ms")
             Map result
             if (fieldDef.isMutation) {
                 result = ec.getService().sync().name(serviceName).parameters(inputFieldsMap).call()

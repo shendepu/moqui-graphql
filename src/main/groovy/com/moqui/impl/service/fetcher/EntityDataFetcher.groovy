@@ -46,7 +46,7 @@ class EntityDataFetcher extends BaseEntityDataFetcher {
 //        logger.info("relKeyMap  - ${relKeyMap}")
 //        logger.info("interfaceEntityName    - ${interfaceEntityName}")
 
-        ExecutionContext ec = ecf.getExecutionContext()
+        ExecutionContext ec = environment.context as ExecutionContext
 
         boolean loggedInAnonymous = false
         if ("anonymous-all".equals(requireAuthentication)) {

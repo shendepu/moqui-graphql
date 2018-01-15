@@ -15,7 +15,7 @@
 
                 long startTime = System.currentTimeMillis()
                 if (_requestBodyJsonList == null) {
-                    GraphQLResult result = graphQLApi.execute("${query}", variables ?: [:])
+                    GraphQLResult result = graphQLApi.execute("${query}", null, ec, variables ?: [:])
 
                     ec.web.response.addIntHeader('X-Run-Time-ms', (System.currentTimeMillis() - startTime) as int)
                     ec.web.sendJsonResponse(result.responseObj)

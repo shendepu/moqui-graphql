@@ -77,7 +77,7 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
 //        logger.info("interfaceEntityName    - ${interfaceEntityName}")
 
         long startTime = System.currentTimeMillis()
-        ExecutionContext ec = ecf.getExecutionContext()
+        ExecutionContext ec = environment.context as ExecutionContext
 
         int sourceItemCount = ((List) environment.source).size()
         int relKeyCount = relKeyMap.size()

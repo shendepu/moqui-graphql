@@ -122,7 +122,7 @@ class ElasticSearchDataFetcher extends BaseDataFetcher {
     Object fetch(DataFetchingEnvironment environment) {
         logger.info("---- running data fetcher elastic search on index [${indexName}] and document type ${dataDocumentId} ...")
 
-        ExecutionContext ec = ecf.getExecutionContext()
+        ExecutionContext ec = environment.context as ExecutionContext
         boolean loggedInAnonymous = false
         if ("anonymous-all".equals(requireAuthentication)) {
             ec.artifactExecution.setAnonymousAuthorizedAll()
