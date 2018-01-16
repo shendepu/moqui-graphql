@@ -22,7 +22,7 @@
                 } else {
                     List queryResultList = []
                     for (Map queryMap in _requestBodyJsonList) {
-                        GraphQLResult result = graphQLApi.execute("${queryMap.query}", queryMap.variables ?: [:])
+                        GraphQLResult result = graphQLApi.execute("${queryMap.query}", null, ec, queryMap.variables ?: [:])
                         queryResultList.add(result.responseObj)
                     }
 
