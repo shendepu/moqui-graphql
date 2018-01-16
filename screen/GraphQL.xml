@@ -13,6 +13,11 @@
 
                 GraphQLApi graphQLApi = ec.getTool("GraphQL", GraphQLApi.class)
 
+                String i18nLocaleHeader = ec.web.request.getHeader('i18n_locale')
+                if (!ec.user.userId && i18nLocaleHeader) {
+                    ec.user.setLocale(new Locale(i18nLocaleHeader.substring(0, 2), i18nLocaleHeader.substring(3, 5)))
+                }
+
                 long startTime = System.currentTimeMillis()
                 if (_requestBodyJsonList == null) {
                     GraphQLResult result = graphQLApi.execute("${query}", null, ec, variables ?: [:])
