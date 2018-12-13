@@ -131,7 +131,7 @@ class GraphQLApi {
                 for (GraphQLError error in executionResult.getErrors()) {
                     errorMap = new LinkedHashMap<>()
                     errorMap.put('message', error.getMessage())
-                    errorMap.put('errorType', error.getErrorType())
+                    errorMap.put('errorType', error.getErrorType().toString())
                     if (error instanceof ExceptionWhileDataFetching) {
                         Throwable t = ((ExceptionWhileDataFetching) error).getException()
                         if (t instanceof DataFetchingException)

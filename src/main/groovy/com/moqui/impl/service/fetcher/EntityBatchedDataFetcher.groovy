@@ -122,7 +122,7 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
             //          - Even no pagination, how to apply limit equally to each actual find if they are combined into one.
             //
             if (operation == "one") {
-                List<Map<String, Object>> jointValueList
+                List<Map<String, Object>> jointValueList = new ArrayList<>()
                 if (!useCache) {
                     EntityFind efConcrete = ec.entity.find(entityName)
                             .useCache(useCache)
@@ -132,7 +132,6 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
                     jointValueList = mergeWithInterfaceValue(ec, efConcrete.list().getValueMapList())
 
                 } else {
-                    jointValueList = new ArrayList<>(sourceItemCount)
                     ((List) environment.source).eachWithIndex { Object object, int index ->
                         Map sourceItem = (Map) object
                         EntityFind efConcrete = ec.entity.find(entityName).useCache(useCache)
