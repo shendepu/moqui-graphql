@@ -132,7 +132,7 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
                     jointValueList = mergeWithInterfaceValue(ec, efConcrete.list().getValueMapList())
 
                 } else {
-                    jointValueList = new ArrayList<>(sourceItemCount)
+                    jointValueList = new ArrayList<Map<String, Object>>(sourceItemCount)
                     ((List) environment.source).eachWithIndex { Object object, int index ->
                         Map sourceItem = (Map) object
                         EntityFind efConcrete = ec.entity.find(entityName).useCache(useCache)
@@ -147,7 +147,7 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
                     Map sourceItem = (Map) object
 
                     jointOneMap = (relKeyCount == 0 ? (jointValueList.size() > 0 ? jointValueList[0] : null) :
-                            jointValueList.find { Object it -> DataFetcherUtils.matchParentByRelKeyMap(sourceItem, it as Map<String, Object>, relKeyMap) }) as Map<String, Object>
+                            (Map<String, Object>)jointValueList.find { Object it -> DataFetcherUtils.matchParentByRelKeyMap(sourceItem, it as Map<String, Object>, relKeyMap) })
 
                     if (jointOneMap == null) return
                     cursor = GraphQLSchemaUtil.encodeRelayCursor(jointOneMap, pkFieldNames)
@@ -183,7 +183,7 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
 
                         }
                         edgesDataList = matchedJointValueList.collect { Object it ->
-                            Map<String, Object> matchedJointOneMap = it as Map<String, Object>
+                            Map<String, Object> matchedJointOneMap = (Map<String, Object>)it
                             edgesData = new HashMap<>(2)
                             cursor = GraphQLSchemaUtil.encodeRelayCursor(matchedJointOneMap, pkFieldNames)
 
@@ -213,7 +213,7 @@ class EntityBatchedDataFetcher extends BaseEntityDataFetcher implements BatchedD
 
                         if (!ef.getLimit()) ef.limit(100)
 
-                        int count = ef.count() as int
+                        int count = (int)ef.count()
                         int pageIndex = ef.getPageIndex()
                         int pageSize = ef.getPageSize()
                         int pageMaxIndex = ((count - 1) as BigDecimal).divide(pageSize as BigDecimal, 0, BigDecimal.ROUND_DOWN).intValue()

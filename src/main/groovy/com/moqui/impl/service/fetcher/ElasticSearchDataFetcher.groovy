@@ -2,14 +2,13 @@ package com.moqui.impl.service.fetcher
 
 import graphql.schema.DataFetchingEnvironment
 import groovy.transform.CompileStatic
+import org.moqui.context.ElasticFacade
 import org.moqui.context.ExecutionContext
 import org.moqui.context.ExecutionContextFactory
 import org.moqui.entity.EntityException
 import org.moqui.entity.EntityValue
 import org.moqui.impl.context.UserFacadeImpl
 import org.moqui.util.MNode
-import org.elasticsearch.client.Client
-import org.elasticsearch.action.get.GetResponse
 
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -95,7 +94,7 @@ class ElasticSearchDataFetcher extends BaseDataFetcher {
         if (dataTreeCurrent == null) return
         for (Map.Entry<String, Object> entry in dataTreeCurrent) {
             if (entry.value instanceof List) {
-                List<Map<String, Object>> dataTreeChildList = entry.value as List
+                List<Map<String, Object>> dataTreeChildList = (List<Map<String, Object>>)entry.value
                 List<Map<String, Object>> edgesDataList = new ArrayList<>(dataTreeChildList.size())
                 for (Map<String, Object> dataTreeChild in dataTreeChildList) {
                     Map<String, Object> edgeMap = new HashMap<>(2)
@@ -168,7 +167,7 @@ class ElasticSearchDataFetcher extends BaseDataFetcher {
                                                 'pageMaxIndex'   : pageMaxIndex, 'pageRangeLow': pageRangeLow, 'pageRangeHigh': pageRangeHigh,
                                                 'hasPreviousPage': hasPreviousPage, 'hasNextPage': hasNextPage] as Map<String, Object>
 
-                List<Map<String, Object>> documentList = ddMap.documentList as List
+                List<Map<String, Object>> documentList = (List<Map<String, Object>>)ddMap.documentList
                 List<Map<String, Object>> edgesDataList = new ArrayList<>(documentList.size())
                 for (Map<String, Object> document in documentList) {
                     localizeDocument(document)
@@ -186,11 +185,10 @@ class ElasticSearchDataFetcher extends BaseDataFetcher {
             } else {
                 String _id = environment.arguments.get("_id")
 
-                Client elasticSearchClient = ec.getTool("ElasticSearch", Client.class)
-                GetResponse docGr = elasticSearchClient.prepareGet(indexName, dataDocumentId, _id).execute().actionGet()
+                ElasticFacade.ElasticClient elasticSearchClient = ec.factory.elastic.getDefault()
 
                 Map<String, Object> resultMap = [:]
-                Map<String, Object> document = docGr.getSourceAsMap()
+                Map<String, Object> document = (Map<String, Object>)elasticSearchClient.get(indexName, _id)?._source
                 localizeDocument(document)
 
                 populateResult(resultMap, document)
