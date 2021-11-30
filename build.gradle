@@ -31,10 +31,8 @@ repositories {
 
 dependencies {
     compile project(':framework')
-    implementation 'org.elasticsearch.client:transport:7.5.1'
 
     compile 'com.graphql-java:graphql-java:4.2'
-    compile 'org.antlr:antlr4-runtime:4.5.3'
 
     testCompile project(':framework').configurations.testCompile.allDependencies
 }
@@ -77,4 +75,3 @@ test {
 
     beforeTest { descriptor -> logger.lifecycle("Running test: ${descriptor}") }
 }
-
