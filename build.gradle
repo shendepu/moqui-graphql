@@ -10,7 +10,10 @@ version = componentNode.@version
 // to run use "gradle dependencyUpdates"
 apply plugin: 'com.github.ben-manes.versions'
 buildscript {
-  repositories { jcenter() }
+  repositories {
+      mavenCentral()
+      gradlePluginPortal()
+  }
   dependencies { classpath 'com.github.ben-manes:gradle-versions-plugin:0.13.0' }
 }
 
@@ -23,13 +26,16 @@ dependencyUpdates.resolutionStrategy = { componentSelection { rules -> rules.all
 repositories {
     flatDir name: 'frameworkLib', dirs: frameworkDir.absolutePath + '/lib'
     //flatDir name: 'localLib', dirs: projectDir.absolutePath + '/lib'
-    jcenter()
-    maven { url "http://dl.bintray.com/andimarek/graphql-java" }
+    mavenCentral()
 }
 
 dependencies {
     compile project(':framework')
+    implementation 'org.elasticsearch.client:transport:7.5.1'
+
     compile 'com.graphql-java:graphql-java:4.2'
+    compile 'org.antlr:antlr4-runtime:4.5.3'
+
     testCompile project(':framework').configurations.testCompile.allDependencies
 }
 
@@ -71,3 +77,4 @@ test {
 
     beforeTest { descriptor -> logger.lifecycle("Running test: ${descriptor}") }
 }
+
