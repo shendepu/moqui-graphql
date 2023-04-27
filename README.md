@@ -1,8 +1,13 @@
-# This is Moqui GraphQL Add-On Component
+# Fork of the Moqui GraphQL Add-On Component
+Reasons for fork ([See Original Project](shendepu/moqui-graphql)):
+- At time of writing, last commit was over a year ago and has not been actively been developed since 2018.
+- Breaking changes have been introduced because of JCenter sunsetting [see PR](https://github.com/shendepu/moqui-graphql/pull/8)
+
+
 
 This [Moqui](https://github.com/moqui/moqui-framework) add-on component adds support of [GraphQL](graphql.org) to Moqui. 
 
-The way to use it is just simliar to REST Api in moqui-framework. 
+The way to use it is just similar to REST Api in moqui-framework. 
 
 - The GraphQL endpoint is `/graphql/v1?query={graphQLQueryString}` or `/graphql/v1?query={graphQLQueryString}&&variables={graphQLVariables}` 
 - The configuration of GraphQL Schema is *.graphql.xml under service directory of component
